@@ -11,79 +11,134 @@ for normal web applications.
 
 Requests to the main url `/` are browsable like a standard website.
 
-## REST API
+## RPC API
 
-Requests with urls of the form `/catalog/*` can access the
-REST API.
+Requests with urls of the form `/api/RESOURCE/METHOD` can access the
+RPC API. Arguments can be passed via GET or POST. Responses are
+in JSON objects, which will contain a property `ok` to indicate
+success or failure. An additional property `error` will be present
+on failure to indicate the type of error. All HTTP responses should
+return a status code of 200; other statuses are non-application
+errors.
 
-### Directory listings
+Note the [CRUD semantics](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete)
+of directories and files.
+
+### Directories
 
 Directories are "virtual", only present in the catalog.
 They may mirror real directory structures, but are not required to.
 
-GET: Read directory listing
+* `/api/directories/list`: list directory contents
 
-POST: Create directory (fail if present)
+  Arguments:
+  
+  * path: path of directory
 
-DELETE: Delete directory and contents
+  Output:
+  
+  ```json
+  {"status": "ok",
+   "directories": ["PATH1", "PATH2"],
+   "files": ["PATH3", "PATH4"]
+  }
+  ```
 
-#### Example
+* `/api/directories/create`: create a new directory
 
-`POST /catalog/sim/dataset_1234?isfile=false {metadata}`
+  Arguments:
+  
+  * path: path of new directory
+  
+  * metadata: JSON-encoded metadata (optional)
 
-Creates a new directory for dataset 1234, with optional metadata supplied
- in the parameters.
+* `/api/directories/read`: read metadata for a directory
+
+  Arguments:
+
+  * path: path of directory
+  
+  * metadata: JSON-encoded metadata
+
+  Output:
+  
+  ```json
+  {"status": "ok",
+   "directory": {"path":"XXX",
+                 "metadata": {}
+                }
+  }
+  ```
+
+* `/api/directories/update`: update metadata for a directory
+
+  Arguments:
+
+  * path: path of directory
+  
+  * metadata: JSON-encoded metadata
+
+* `/api/directories/delete`: delete a directory and its contents
+
+  Arguments:
+  
+  * path: path of directory
 
 ### Files
 
 Files are stored as metadata.
 
-GET: Read file metadata
+* `/api/files/create`: create a new file or add a replica
 
-POST: Create file (fail if present)
+  If a file exists and the checksum is the same, a replica
+  is added. If the checksum is different, either the old
+  file is replaced (overwrite: true) or an error is returned.
 
-PUT: Create (overwrite) file
+  Arguments:
+  
+  * path: path of file
+  
+  * replica: physical location of file
+  
+  * checksum: checksum of file
+  
+  * overwrite: overwrite a previous file (default false)
+  
+  * metadata: JSON-encoded metadata (optional)
 
-DELETE: Delete file
+* `/api/files/read`: read file information and metadata
 
-#### Example
+  Arguments:
+  
+  * path: path of file
+  
+  Output:
+  
+  ```json
+  {"status": "ok",
+   "file": {"path":"XXX",
+            "replicas": [],
+            "checksum": "XXX"
+            "metadata": {},
+           }
+  }
+  ```
 
-`POST /catalog/sim/dataset_1234/000001 {metadata}`
+* `/api/files/update`: update file metadata
 
-Create a new file named 000001 in dataset 1234, with optional metadata
-supplied in the parameters.
+  Arguments:
+  
+  * path: path of file
+  
+  * metadata: JSON-encoded metadata
 
-`PUT /catalog/sim/dataset_1234/000001 {metadata}`
+* `/api/files/delete`: delete a file
 
-Overwrite the file named 000001 in dataset 1234, with optional metadata
+  This does not physically delete the file from the repliacs.
+  Only the metadata in the catalog is removed.
 
-`GET /catalog/sim/dataset_1234/000001`
+  Arguments:
+  
+  * path: path of file
 
-Return the metadata in json format.
-
-### File replicas
-
-Files can be stored in more than one location. The replica information is
-a special part of the file metadata that needs additional specification.
-
-When creating / overwriting a file, it will only contain a single replica.
-This interface is for controlling additional replicas.
-
-GET: Read list of replicas
-
-POST: Add a replica
-
-PUT: Overwrite a replica
-
-DELETE: Delete a replica. If this is the last replica, delete the file.
-
-#### Example
-
-`POST /catalog/sim/dataset_1234/000001/replicas`
-
-Add a replica.
-
-`DELETE /catalog/sim/dataset_1234/000001/replicas/1`
-
-Delete replica 1.
-
+  * replica

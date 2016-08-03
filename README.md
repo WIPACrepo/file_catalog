@@ -118,8 +118,8 @@ Files are stored as metadata.
   {"status": "ok",
    "file": {"path":"XXX",
             "replicas": [],
-            "checksum": "XXX"
-            "metadata": {},
+            "checksum": "XXX",
+            "metadata": {}
            }
   }
   ```

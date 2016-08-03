@@ -29,7 +29,7 @@ DELETE: Delete directory and contents
 
 #### Example
 
-`POST /catalog/sim/dataset_1234 {metadata}`
+`POST /catalog/sim/dataset_1234?isfile=false {metadata}`
 
 Creates a new directory for dataset 1234, with optional metadata supplied
  in the parameters.
@@ -39,6 +39,8 @@ Creates a new directory for dataset 1234, with optional metadata supplied
 Files are stored as metadata.
 
 GET: Read file metadata
+
+POST: Create file (fail if present)
 
 PUT: Create (overwrite) file
 
@@ -50,6 +52,10 @@ DELETE: Delete file
 
 Create a new file named 000001 in dataset 1234, with optional metadata
 supplied in the parameters.
+
+`PUT /catalog/sim/dataset_1234/000001 {metadata}`
+
+Overwrite the file named 000001 in dataset 1234, with optional metadata
 
 `GET /catalog/sim/dataset_1234/000001`
 
@@ -73,13 +79,11 @@ DELETE: Delete a replica. If this is the last replica, delete the file.
 
 #### Example
 
-`POST /catalog/sim/dataset_1234/000001/replica
+`POST /catalog/sim/dataset_1234/000001/replicas`
 
+Add a replica.
 
-### Notes
+`DELETE /catalog/sim/dataset_1234/000001/replicas/1`
 
-Note that directories are created with POST while files are created
-with PUT. This disambiguates which type of resource you are creating,
-such that you can nest directories but not files.
+Delete replica 1.
 
-File replicas can only be 

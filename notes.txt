@@ -1,0 +1,13 @@
+logical path as file id:
+at 10M entries:
+    10k inserts / second
+    1 path search / second
+    1 dataset lookup / second
+    10 file lookup / second
+
+directories store path to file:
+at 10M entries:
+    1k inserts / second
+    2 path search / second
+    1 dataset lookup / second
+    10 file lookup / second

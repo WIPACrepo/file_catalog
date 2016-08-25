@@ -6,16 +6,15 @@ import time
 from pprint import pprint
 import threading
 from multiprocessing.dummy import Pool
+import json
 import os
 import string
 import hashlib
 
-import pymongo
-from pymongo import MongoClient
-from pymongo.errors import BulkWriteError
+import pymysql
 
 def get_db():
-    return MongoClient('mongodb-test-2.icecube.wisc.edu').test_file_catalog
+    return pymysql.connect('localhost', db='test_file_catalog')
 
 datasets = string.letters+string.digits
 years = [str(y) for y in range(2000,2030)]
@@ -63,40 +62,52 @@ def get_dataset():
     return random.sample(numeric_datasets,1)[0]
 
 def create_db():
-    db = get_db()
-    db.files.drop()
-    db.files.create_index("path", unique=True)
+    db = get_db().cursor()
+    try:
+        db.execute('drop table files')
+    except:
+        pass
+    db.execute('create table files (id int(11) AUTO_INCREMENT PRIMARY KEY, path varchar(255) UNIQUE KEY, metadata TEXT)')
 
 def fill(n=1000):
     try:
         db = get_db()
-        db.files.insert_many((make_file() for _ in range(n)),
-                             ordered=False)
-    except BulkWriteError as bwe:
-        pprint(bwe.details)
+        cur = db.cursor()
+        sql = 'insert into files (path,metadata) values (%s, %s)'
+        for i in range(n):
+            f = make_file()
+            bindings = (f.pop('path'),json.dumps(f))
+            cur.execute(sql,bindings)
+            if i % 1000 == 0:
+                db.commit()
+        db.commit()
+    except Exception as e:
+        pprint(e)
+        raise
 
 def read():
-    db = get_db()
+    db = get_db().cursor()
     p = '_'.join(get_path().split('_')[:-2])
-    if db.files.find({'path': {'$regex': '^'+p} }).count() < 1:
+    sql = 'select * from files where path like %s'
+    bindings = (p+'%',)
+    db.execute(sql,bindings)
+    if len(db.fetchall()) < 1:
         raise Exception('could not find path like {}'.format(p))
 
 def read_one():
-    db = get_db()
+    db = get_db().cursor()
     p = get_path()
-    if not db.files.find_one({'path': p}):
+    sql = 'select * from files where path = %s'
+    bindings = (p,)
+    db.execute(sql,bindings)
+    if not db.fetchall():
         raise Exception('could not find path like {}'.format(p))
 
-def read_dataset():
-    db = get_db()
-    d = get_dataset()
-    if not list(db.files.find({'dataset': d})):
-        raise Exception('could not find dataset like {}'.format(d))
-
 def main():
-    n = 10000000
-    m = 10
-    m2 = 10
+    n = 2000000
+    m = 1
+    m2 = 100
+    m3 = 100
     
     create_db()
 
@@ -109,11 +120,10 @@ def main():
     start = time.time()
     results = []
     for _ in range(m):
-#        results.append(pool.apply_async(read, ()))
-        results.append(pool.apply_async(read_dataset, ()))
+        results.append(pool.apply_async(read, ()))
         for i in range(m2):
             results.append(pool.apply_async(read_one, ()))
-            if i%10 == 0:
+            if i%m3 == 0:
                 results.append(pool.apply_async(fill, (1,)))
     for r in results:
         r.get(timeout=1000000)

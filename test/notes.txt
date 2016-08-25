@@ -1,3 +1,5 @@
+MongoDB:
+
 logical path as file id:
 at 10M entries:
     10k inserts / second
@@ -11,3 +13,12 @@ at 10M entries:
     2 path search / second
     1 dataset lookup / second
     10 file lookup / second
+
+
+
+MySQL:
+
+logical path as file id:
+at 2M entries:
+    3k inserts / second
+    

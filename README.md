@@ -15,7 +15,8 @@ They will use javascript to activate the REST API as necessary.
 ## REST API
 
 Requests with urls of the form `/api/RESOURCE` can access the
-REST API. 
+REST API. Responses are in [HAL](http://stateless.co/hal_specification.html)
+JSON format.
 
 ### Files
 
@@ -52,6 +53,7 @@ Operations:
   **Result Codes**
   
   * 200: Response contains collection of file resources
+  * 400: Bad request (query parameters invalid)
   * 429: Too many requests (if server is being hammered)
   * 500: Unspecified server error
   * 503: Service unavailable (maintenance, etc.)
@@ -59,7 +61,7 @@ Operations:
 * POST: Create a new file or add a replica
 
   If a file exists and the checksum is the same, a replica
-  is added. If the checksum is different an error is returned.
+  is added. If the checksum is different a conflict error is returned.
   
   **Result Codes**
   

@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function
+
 import sys
 import os
 import logging
@@ -9,6 +11,7 @@ import tornado.web
 from tornado.escape import json_encode,json_decode
 from tornado.gen import coroutine
 
+import file_catalog
 from file_catalog.mongo import Mongo
 from file_catalog import urlargparse
 
@@ -28,7 +31,7 @@ def get_pkgdata_filename(package, resource):
     # the package's __file__
     parts = resource.split('/')
     parts.insert(0, os.path.dirname(mod.__file__))
-    return os.path.join(parts)
+    return os.path.join(*parts)
 
 def tornado_logger(handler):
     """Log levels based on status code"""
@@ -57,6 +60,8 @@ class Server(object):
             'base_url': '/api',
             'debug': debug,
         }
+        
+        print(template_path)
 
         api_args = main_args.copy()
         api_args.update({
@@ -83,6 +88,11 @@ class MainHandler(tornado.web.RequestHandler):
     def initialize(self, base_url='/', debug=False):
         self.base_url = base_url
         self.debug = debug
+
+    def get_template_namespace(self):
+        namespace = super(MainHandler,self).get_template_namespace()
+        namespace['version'] = file_catalog.__version__
+        return namespace
 
     def get(self):
         try:

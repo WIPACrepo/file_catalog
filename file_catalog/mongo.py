@@ -12,8 +12,14 @@ logger = logging.getLogger('mongo')
 
 class Mongo(object):
     """A ThreadPoolExecutor-based MongoDB client"""
-    def __init__(self, host='localhost'):
-        self.client = MongoClient(host)
+    def __init__(self, host=None):
+        kwargs = {}
+        if host:
+            parts = host.split(':')
+            if len(parts) == 2:
+                kwargs['port'] = int(parts[1])
+            kwargs['host'] = parts[0]
+        self.client = MongoClient(**kwargs)
         self.executor = ThreadPoolExecutor(max_workers=10)
 
     @run_on_executor

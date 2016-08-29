@@ -60,8 +60,6 @@ class Server(object):
             'base_url': '/api',
             'debug': debug,
         }
-        
-        print(template_path)
 
         api_args = main_args.copy()
         api_args.update({
@@ -170,6 +168,7 @@ class APIHandler(tornado.web.RequestHandler):
     def write_error(self,status_code=500,**kwargs):
         """Write out custom error page."""
         self.set_status(status_code)
+        kwargs.pop('exc_info',None)
         if kwargs:
             self.write(kwargs)
         self.finish()

@@ -1,4 +1,5 @@
-from tornado.escape import url_unescape
+from tornado.escape import url_escape, url_unescape
+
 def get_type(val):
     try:
         return int(val)
@@ -7,6 +8,7 @@ def get_type(val):
             return float(val)
         except:
             return val
+
 def parse_one(key, value, ret, sym='['):
     print('key',key,'value',value)
     if key == '[]':
@@ -27,6 +29,7 @@ def parse_one(key, value, ret, sym='['):
                 ret[val] = value
             else:
                 parse_one(key[start+1:],value,ret[val],sym=']')
+
 def parse(data):
     """Parse url-encoded data from jQuery.param()"""
     ret = {}
@@ -35,3 +38,23 @@ def parse(data):
         value = get_type(value)
         parse_one(key, value, ret)
     return ret
+
+
+def encode(args):
+    """Encode data using the jQuery.param() syntax"""
+    ret = []
+    def recurse(obj,prefix=''):
+        if isinstance(obj,dict):
+            for k in obj:
+                recurse(obj[k],prefix+'['+k+']')
+        elif isinstance(obj,list):
+            for i,v in enumerate(obj):
+                if isinstance(v,(dict,list)):
+                    recurse(v,prefix+'[%d]'%i)
+                else:
+                    recurse(v,prefix+'[]')
+        else:
+            ret.append(url_escape(prefix)+'='+url_escape(str(obj)))
+    for k in args:
+        recurse(args[k],k)
+    return '&'.join(ret)

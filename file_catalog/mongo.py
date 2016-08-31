@@ -4,6 +4,7 @@ import logging
 
 from pymongo import MongoClient
 from pymongo.errors import BulkWriteError
+from bson.objectid import ObjectId
 
 from concurrent.futures import ThreadPoolExecutor
 from tornado.concurrent import run_on_executor
@@ -19,14 +20,20 @@ class Mongo(object):
             if len(parts) == 2:
                 kwargs['port'] = int(parts[1])
             kwargs['host'] = parts[0]
-        self.client = MongoClient(**kwargs)
+        self.client = MongoClient(**kwargs).file_catalog
         self.executor = ThreadPoolExecutor(max_workers=10)
 
     @run_on_executor
     def find_files(self, query={}, limit=100000000000, start=0):
+        if '_id' in query and not isinstance(query['_id'], dict):
+            query['_id'] = ObjectId(query['_id'])
         projection = ('_id', 'file_name')
-        result = self.client.find(query, projection, limit=limit+start)
-        return result[start:]
+        result = self.client.files.find(query, projection, limit=limit+start)
+        ret = []
+        for row in result[start:]:
+            row['_id'] = str(row['_id'])
+            ret.append(row)
+        return ret
 
     @run_on_executor
     def create_file(self, metadata):
@@ -34,28 +41,34 @@ class Mongo(object):
         if (not result) or (not result.inserted_id):
             logger.warn('did not insert file')
             raise Exception('did not insert new file')
-        return result.inserted_id
+        return str(result.inserted_id)
 
     @run_on_executor
-    def get_file(self, **kwargs):
-        result = self.client.find_one(kwargs)
-        if not result:
-            logger.warn('did not find file with filter %r', kwargs)
-            raise Exception('did not find file')
-        return result
+    def get_file(self, filters):
+        if '_id' in filters and not isinstance(filters['_id'], dict):
+            filters['_id'] = ObjectId(filters['_id'])
+        ret = self.client.files.find_one(filters)
+        if ret and '_id' in ret:
+            ret['_id'] = str(ret['_id'])
+        return ret
 
     @run_on_executor
     def update_file(self, metadata):
-        result = self.client.files.update_one({'_id':metadata['_id']}, metadata)
+        if '_id' in metadata and not isinstance(metadata['_id'], dict):
+            metadata['_id'] = ObjectId(metadata['_id'])
+        result = self.client.files.update_one({'_id': metadata['_id']},
+                                              {'$set': metadata})
         if result.modified_count != 1:
             logger.warn('updated %d files with id %r',
                         result.modified_count, metadata['_id'])
             raise Exception('did not update')
 
     @run_on_executor
-    def delete_file(self, id):
-        result = self.client.files.delete_one({'_id':id})
+    def delete_file(self, filters):
+        if '_id' in filters and not isinstance(filters['_id'], dict):
+            filters['_id'] = ObjectId(filters['_id'])
+        result = self.client.files.delete_one(filters)
         if result.deleted_count != 1:
-            logger.warn('deleted %d files with id %r',
-                        result.deleted_count, id)
+            logger.warn('deleted %d files with filter %r',
+                        result.deleted_count, filter)
             raise Exception('did not delete')

@@ -217,13 +217,16 @@ class FilesHandler(APIHandler):
                 'self': {'href': self.files_url},
                 'parent': {'href': self.base_url},
             },
-            'files': files,
+            '_embedded':{
+                'files': files,
+            },
+            'files': [os.path.join(self.files_url,f['_id']) for f in files],
         })
 
     @catch_error
     @coroutine
     def post(self):
-        metadata = json_decode(self.body)
+        metadata = json_decode(self.request.body)
         ret = yield self.db.get_file({'file_name':metadata['file_name']})
         if ret:
             # file already exists, check checksum
@@ -236,6 +239,7 @@ class FilesHandler(APIHandler):
                 ret['locations'].extend(metadata['locations'])
                 yield self.db.update_file(ret)
                 self.set_status(200)
+                ret = ret['_id']
         else:
             ret = yield self.db.create_file(metadata)
             self.set_status(201)
@@ -244,7 +248,7 @@ class FilesHandler(APIHandler):
                 'self': {'href': self.files_url},
                 'parent': {'href': self.base_url},
             },
-            'file': os.path.join(self.files_url,ret['_id']),
+            'file': os.path.join(self.files_url, ret),
         })
 
 class SingleFileHandler(APIHandler):
@@ -278,7 +282,7 @@ class SingleFileHandler(APIHandler):
     @catch_error
     @coroutine
     def patch(self, file_id):
-        metadata = json_decode(self.body)
+        metadata = json_decode(self.request.body)
         links = {
             'self': {'href': os.path.join(self.files_url,file_id)},
             'parent': {'href': self.files_url},
@@ -294,19 +298,21 @@ class SingleFileHandler(APIHandler):
             self._write_buffer = []
             if same:
                 ret.update(metadata)
-                yield self.db.update_file(ret)
+                yield self.db.update_file(ret.copy())
                 ret['_links'] = links
                 self.write(ret)
             else:
                 self.send_error(409, message='conflict (version mismatch)',
-                                links=links)
+                                _links=links)
         else:
             self.send_error(404, message='not found')
 
     @catch_error
     @coroutine
     def put(self, file_id):
-        metadata = json_decode(self.body)
+        metadata = json_decode(self.request.body)
+        if '_id' not in metadata:
+            metadata['_id'] = file_id
         links = {
             'self': {'href': os.path.join(self.files_url,file_id)},
             'parent': {'href': self.files_url},
@@ -321,12 +327,12 @@ class SingleFileHandler(APIHandler):
             same = self.check_etag_header()
             self._write_buffer = []
             if same:
-                yield self.db.update_file(metadata)
+                yield self.db.update_file(metadata.copy())
                 metadata['_links'] = links
                 self.write(metadata)
             else:
                 self.send_error(409, message='conflict (version mismatch)',
-                                links=links)
+                                _links=links)
         else:
             self.send_error(404, message='not found')
 

@@ -34,9 +34,10 @@ def parse(data):
     """Parse url-encoded data from jQuery.param()"""
     ret = {}
     for part in data.split('&'):
-        key, value = url_unescape(part).split('=',1)
-        value = get_type(value)
-        parse_one(key, value, ret)
+        if part:
+            key, value = url_unescape(part).split('=',1)
+            value = get_type(value)
+            parse_one(key, value, ret)
     return ret
 
 

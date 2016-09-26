@@ -1,6 +1,25 @@
 # file_catalog
 Store file metadata information in a file catalog
 
+## Prerequisites
+To get the prerequisites necessary for the file catalog:
+
+    sudo pip install futures pymongo
+
+## Running the server
+To start an instance of the server running:
+
+    python -m file_catalog
+
+## Running the unit tests
+To run the unit tests for the service:
+
+    python -m unittest discover
+
+## Configuration
+By default, the service listens on port 8888. This is specified
+in `server.py` in the constructor for the `Server` class.
+
 ## Interface
 
 The primary interface is an HTTP server. TLS and other security
@@ -39,19 +58,19 @@ Operations:
 * GET: Obtain list of files
 
   **Query Parameters**
-  
+
   * limit: (positive integer) number of results to provide
   * start: (non-negative integer) result at which to start at
   * query: (string) query specification
-  
-  The server SHOULD honor the *start* parameter. The server MAY honor the 
-  *limit* parameter. In cases where the server does not honor the *limit* 
-  parameter, it should do so by providing fewer resources (*limit* should 
+
+  The server SHOULD honor the *start* parameter. The server MAY honor the
+  *limit* parameter. In cases where the server does not honor the *limit*
+  parameter, it should do so by providing fewer resources (*limit* should
   be considered the client’s upper limit for the number of resources in
   the response).
-  
+
   **Result Codes**
-  
+
   * 200: Response contains collection of file resources
   * 400: Bad request (query parameters invalid)
   * 429: Too many requests (if server is being hammered)
@@ -62,9 +81,9 @@ Operations:
 
   If a file exists and the checksum is the same, a replica
   is added. If the checksum is different a conflict error is returned.
-  
+
   **Result Codes**
-  
+
   * 201: Response contains link to newly created file resource
   * 409: Conflict (if the file already exists); includes link to existing file
   * 429: Too many requests (if server is being hammered)
@@ -86,7 +105,7 @@ Operations:
 * GET: Obtain file metadata information
 
   **Result Codes**
-  
+
   * 200: Response contains metadata of file resource
   * 404: Not Found (file resource does not exist)
   * 429: Too many requests (if server is being hammered)
@@ -98,7 +117,7 @@ Operations:
 * DELETE: Delete the metadata for the file
 
   **Result Codes**
-  
+
   * 204: No Content (file resource is successfully deleted)
   * 404: Not Found (file resource does not exist)
   * 429: Too many requests (if server is being hammered)
@@ -108,7 +127,7 @@ Operations:
 * PUT: Fully update/replace file metadata information
 
   **Result Codes**
-  
+
   * 200: Response indicates metadata of file resource has been updated/replaced
   * 404: Not Found (file resource does not exist) + link to “files” resource for POST
   * 409: Conflict (if updating an outdated resource - use ETAG hash to compare)
@@ -124,7 +143,7 @@ Operations:
   the metadata.
 
   **Result Codes**
-  
+
   * 200: Response indicates metadata of file resource has been updated/replaced
   * 404: Not Found (file resource does not exist) + link to “files” resource for POST
   * 409: Conflict (if updating an outdated resource - use ETAG hash to compare)

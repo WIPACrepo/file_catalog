@@ -207,6 +207,8 @@ class FilesHandler(APIHandler):
                 kwargs['start'] = int(kwargs['start'])
                 if kwargs['start'] < 0:
                     raise Exception('start is negative')
+            if 'query' in kwargs:
+                kwargs['query'] = json_decode(kwargs['query'])
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')

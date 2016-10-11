@@ -229,16 +229,52 @@ class FilesHandler(APIHandler):
     @coroutine
     def post(self):
         metadata = json_decode(self.request.body)
-        ret = yield self.db.get_file({'file_name':metadata['file_name']})
+
+        # check metadata for mandatory fields
+        if not all(x in metadata for x in ['locations', 'uid', 'checksum']):
+            # locations (url) is mandatory
+            self.send_error(400, message='mandatory metadata missing',
+                            file=self.files_url)
+            return
+        elif any(x in metadata for x in ['_id', 'mongo_id']):
+            # forbidden fields
+            self.send_error(400, message='forbidden attributes',
+                            file=self.files_url)
+            return
+        elif not isinstance(metadata['locations'], list):
+            # locations needs to be a list
+            self.send_error(400, message='member `locations` must be a list',
+                            file=self.files_url)
+            return
+        elif not len(metadata['locations']):
+            # location needs have at least one entry
+            self.send_error(400, message='member `locations` must be a list with at least one url',
+                            file=self.files_url)
+            return
+        elif any(not len(l) for l in metadata['locations']):
+            # locations aren't allowed to be empty
+            self.send_error(400, message='member `locations` must be a list with at least one non-empty url',
+                            file=self.files_url)
+            return
+
+        ret = yield self.db.get_file({'uid':metadata['uid']})
+
         if ret:
-            # file already exists, check checksum
+            # file uid already exists, check checksum
             if ret['checksum'] != metadata['checksum']:
+                # the uid already exists (no replica since checksum is different
                 self.send_error(409, message='conflict with existing file',
+                                file=os.path.join(self.files_url,ret['_id']))
+                return
+            elif any(f in ret['locations'] for f in metadata['locations']):
+                # replica has already been added
+                self.send_error(409, message='replica has already been added',
                                 file=os.path.join(self.files_url,ret['_id']))
                 return
             else:
                 # add replica
                 ret['locations'].extend(metadata['locations'])
+
                 yield self.db.update_file(ret)
                 self.set_status(200)
                 ret = ret['_id']
@@ -260,11 +296,11 @@ class SingleFileHandler(APIHandler):
 
     @catch_error
     @coroutine
-    def get(self, file_id):
-        ret = yield self.db.get_file({'_id':file_id})
+    def get(self, mongo_id):
+        ret = yield self.db.get_file({'_id':mongo_id})
         if ret:
             ret['_links'] = {
-                'self': {'href': os.path.join(self.files_url,file_id)},
+                'self': {'href': os.path.join(self.files_url,mongo_id)},
                 'parent': {'href': self.files_url},
             }
             self.write(ret)
@@ -273,9 +309,9 @@ class SingleFileHandler(APIHandler):
 
     @catch_error
     @coroutine
-    def delete(self, file_id):
+    def delete(self, mongo_id):
         try:
-            yield self.db.delete_file({'_id':file_id})
+            yield self.db.delete_file({'_id':mongo_id})
         except:
             self.send_error(404, message='not found')
         else:
@@ -283,13 +319,13 @@ class SingleFileHandler(APIHandler):
 
     @catch_error
     @coroutine
-    def patch(self, file_id):
+    def patch(self, mongo_id):
         metadata = json_decode(self.request.body)
         links = {
-            'self': {'href': os.path.join(self.files_url,file_id)},
+            'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
         }
-        ret = yield self.db.get_file({'_id':file_id})
+        ret = yield self.db.get_file({'_id':mongo_id})
         if ret:
             # check if this is the same version we're trying to patch
             test_write = ret.copy()
@@ -311,15 +347,15 @@ class SingleFileHandler(APIHandler):
 
     @catch_error
     @coroutine
-    def put(self, file_id):
+    def put(self, mongo_id):
         metadata = json_decode(self.request.body)
         if '_id' not in metadata:
-            metadata['_id'] = file_id
+            metadata['_id'] = mongo_id
         links = {
-            'self': {'href': os.path.join(self.files_url,file_id)},
+            'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
         }
-        ret = yield self.db.get_file({'_id':file_id})
+        ret = yield self.db.get_file({'_id':mongo_id})
         if ret:
             # check if this is the same version we're trying to patch
             test_write = ret.copy()

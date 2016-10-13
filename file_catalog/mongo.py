@@ -54,18 +54,38 @@ class Mongo(object):
 
     @run_on_executor
     def update_file(self, metadata):
-        if '_id' in metadata and not isinstance(metadata['_id'], dict):
-            metadata['_id'] = ObjectId(metadata['_id'])
-
-        # _id cannot be updated. Remove it from dict and add it later again
-        # in order to preserve correct behavior after executing this function
         metadata_id = metadata['_id']
-        del metadata['_id']
+
+        if not isinstance(metadata_id, dict):
+            metadata_id = ObjectId(metadata_id)
+
+        # _id cannot be updated. Make a copy and remove _id 
+        metadata_cpy = metadata.copy()
+        del metadata_cpy['_id']
 
         result = self.client.files.update_one({'_id': metadata_id},
-                                              {'$set': metadata})
+                                              {'$set': metadata_cpy})
 
-        metadata['_id'] = str(metadata_id)
+        if result.modified_count is None:
+            logger.warn('Cannot detrmine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
+        elif result.modified_count != 1:
+            logger.warn('updated %s files with id %r',
+                        result.modified_count, metadata_id)
+            raise Exception('did not update')
+
+    @run_on_executor
+    def replace_file(self, metadata):
+        metadata_id = metadata['_id']
+
+        if not isinstance(metadata_id, dict):
+            metadata_id = ObjectId(metadata_id)
+
+        # _id cannot be updated. Make a copy and remove _id 
+        metadata_cpy = metadata.copy()
+        del metadata_cpy['_id']
+
+        result = self.client.files.replace_one({'_id': metadata_id},
+                                               metadata_cpy)
 
         if result.modified_count is None:
             logger.warn('Cannot detrmine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)

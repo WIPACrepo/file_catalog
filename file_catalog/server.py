@@ -361,11 +361,12 @@ class SingleFileHandler(APIHandler):
             test_write = ret.copy()
             test_write['_links'] = links
             self.write(test_write)
+
             self.set_etag_header()
             same = self.check_etag_header()
             self._write_buffer = []
             if same:
-                yield self.db.update_file(metadata.copy())
+                yield self.db.replace_file(metadata.copy())
                 metadata['_links'] = links
                 self.write(metadata)
             else:

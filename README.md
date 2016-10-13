@@ -41,13 +41,25 @@ JSON format.
 
 Unique identifiers:
 
-* `file_id`
+* `mongo_id`
+  
+  The id that the mongodb generates.
 
-* `file_name`
+* `uid`
 
-  The `file_name` is a logical identifier much like a path in a filesystem.
-  It should be human-readable and have some meaning, since this is what
-  users see and interact with.
+  The `uid` is an unique identifier that can be chosen freely.
+
+Mandatory fields:
+
+*  `uid`
+
+*  `checksum`
+
+    Must be calculated with XYZ.
+
+*  `locations`
+
+    Is a list with at least one non-empty URL to a file location. Can contain more than one location.
 
 #### /api/files
 
@@ -61,7 +73,7 @@ Operations:
 
   * limit: (positive integer) number of results to provide
   * start: (non-negative integer) result at which to start at
-  * query: (string) query specification
+  * query: (mongodb query) query specification
 
   The server SHOULD honor the *start* parameter. The server MAY honor the
   *limit* parameter. In cases where the server does not honor the *limit*
@@ -96,7 +108,7 @@ Operations:
 
 * PATCH: Not supported
 
-#### /api/files/{file_id}
+#### /api/files/{mongo_id}
 
 Resource representing the metadata for a file in the file catalog.
 

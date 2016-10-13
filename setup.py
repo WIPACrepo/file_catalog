@@ -39,6 +39,6 @@ setup(
     },
     entry_points={
         'console_scripts':[
-            'file_catalog=file_catalog.__main__:main',
+            'file_catalog=file_catalog.__main__:main',]
     }
 )

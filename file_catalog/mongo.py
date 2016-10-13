@@ -27,7 +27,7 @@ class Mongo(object):
     def find_files(self, query={}, limit=100000000000, start=0):
         if '_id' in query and not isinstance(query['_id'], dict):
             query['_id'] = ObjectId(query['_id'])
-        projection = ('_id', 'file_name')
+        projection = ('_id', 'uid')
         result = self.client.files.find(query, projection, limit=limit+start)
         ret = []
         for row in result[start:]:
@@ -54,13 +54,44 @@ class Mongo(object):
 
     @run_on_executor
     def update_file(self, metadata):
-        if '_id' in metadata and not isinstance(metadata['_id'], dict):
-            metadata['_id'] = ObjectId(metadata['_id'])
-        result = self.client.files.update_one({'_id': metadata['_id']},
-                                              {'$set': metadata})
-        if result.modified_count != 1:
-            logger.warn('updated %d files with id %r',
-                        result.modified_count, metadata['_id'])
+        metadata_id = metadata['_id']
+
+        if not isinstance(metadata_id, dict):
+            metadata_id = ObjectId(metadata_id)
+
+        # _id cannot be updated. Make a copy and remove _id 
+        metadata_cpy = metadata.copy()
+        del metadata_cpy['_id']
+
+        result = self.client.files.update_one({'_id': metadata_id},
+                                              {'$set': metadata_cpy})
+
+        if result.modified_count is None:
+            logger.warn('Cannot detrmine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
+        elif result.modified_count != 1:
+            logger.warn('updated %s files with id %r',
+                        result.modified_count, metadata_id)
+            raise Exception('did not update')
+
+    @run_on_executor
+    def replace_file(self, metadata):
+        metadata_id = metadata['_id']
+
+        if not isinstance(metadata_id, dict):
+            metadata_id = ObjectId(metadata_id)
+
+        # _id cannot be updated. Make a copy and remove _id 
+        metadata_cpy = metadata.copy()
+        del metadata_cpy['_id']
+
+        result = self.client.files.replace_one({'_id': metadata_id},
+                                               metadata_cpy)
+
+        if result.modified_count is None:
+            logger.warn('Cannot detrmine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
+        elif result.modified_count != 1:
+            logger.warn('updated %s files with id %r',
+                        result.modified_count, metadata_id)
             raise Exception('did not update')
 
     @run_on_executor

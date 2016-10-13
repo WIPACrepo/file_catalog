@@ -43,7 +43,7 @@ Unique identifiers:
 
 * `mongo_id`
   
-  The if that the mongodb generates.
+  The id that the mongodb generates.
 
 * `uid`
 

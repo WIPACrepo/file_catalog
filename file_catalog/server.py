@@ -231,12 +231,12 @@ class FilesHandler(APIHandler):
         metadata = json_decode(self.request.body)
 
         # check metadata for mandatory fields
-        if not all(x in metadata for x in ['locations', 'uid', 'checksum']):
+        if not set(('uid','checksum','locations')).issubset(metadata):
             # locations (url) is mandatory
             self.send_error(400, message='mandatory metadata missing',
                             file=self.files_url)
             return
-        elif any(x in metadata for x in ['_id', 'mongo_id']):
+        elif set(('_id', 'mongo_id')) & set(metadata):
             # forbidden fields
             self.send_error(400, message='forbidden attributes',
                             file=self.files_url)
@@ -246,12 +246,12 @@ class FilesHandler(APIHandler):
             self.send_error(400, message='member `locations` must be a list',
                             file=self.files_url)
             return
-        elif not len(metadata['locations']):
+        elif not metadata['locations']:
             # location needs have at least one entry
             self.send_error(400, message='member `locations` must be a list with at least one url',
                             file=self.files_url)
             return
-        elif any(not len(l) for l in metadata['locations']):
+        elif not all(l for l in metadata['locations']):
             # locations aren't allowed to be empty
             self.send_error(400, message='member `locations` must be a list with at least one non-empty url',
                             file=self.files_url)

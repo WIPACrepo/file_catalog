@@ -51,16 +51,27 @@ class Mongo(object):
 
     @run_on_executor
     def get_file(self, filters):
+        if 'mongo_id' in filters:
+            filters['_id'] = filters['mongo_id']
+            del filters['mongo_id']
+
         if '_id' in filters and not isinstance(filters['_id'], dict):
             filters['_id'] = ObjectId(filters['_id'])
+
         ret = self.client.files.find_one(filters)
+
         if ret and '_id' in ret:
             ret['mongo_id'] = str(ret['_id'])
             del ret['_id']
+
         return ret
 
     @run_on_executor
     def update_file(self, metadata):
+        if 'mongo_id' in metadata:
+            metadata['_id'] = metadata['mongo_id']
+            del metadata['mongo_id']
+
         metadata_id = metadata['_id']
 
         if not isinstance(metadata_id, dict):
@@ -82,6 +93,10 @@ class Mongo(object):
 
     @run_on_executor
     def replace_file(self, metadata):
+        if 'mongo_id' in metadata:
+            metadata['_id'] = metadata['mongo_id']
+            del metadata['mongo_id']
+
         metadata_id = metadata['_id']
 
         if not isinstance(metadata_id, dict):
@@ -103,9 +118,15 @@ class Mongo(object):
 
     @run_on_executor
     def delete_file(self, filters):
+        if 'mongo_id' in filters:
+            filters['_id'] = filters['mongo_id']
+            del filters['mongo_id']
+
         if '_id' in filters and not isinstance(filters['_id'], dict):
             filters['_id'] = ObjectId(filters['_id'])
+
         result = self.client.files.delete_one(filters)
+
         if result.deleted_count != 1:
             logger.warn('deleted %d files with filter %r',
                         result.deleted_count, filter)

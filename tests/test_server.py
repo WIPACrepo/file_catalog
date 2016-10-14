@@ -117,14 +117,11 @@ class TestServerAPI(unittest.TestCase):
         metadata = {'uid': 'blah', 'checksum': hashlib.sha512('foo bar').hexdigest(), 'locations': ['blah.dat']}
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        print("JAN__ ret = %s" % ret)
 
         url = ret['data']['file']
 
         ret = self.curl(url, 'GET', prefix='')
         print(ret)
-
-        print("JAN__ ret = %s" % ret)
 
         self.assertEquals(ret['status'], 200)
         ret['data'].pop('mongo_id')
@@ -133,7 +130,14 @@ class TestServerAPI(unittest.TestCase):
         self.assertIn('etag', ret['headers'])
 
         metadata['test'] = 100
-        ret = self.curl(url, 'PUT', prefix='', args=metadata,
+        ret2 = self.curl(url, 'PUT', prefix='', args=metadata,
+                        headers={'If-None-Match':ret['headers']['etag']})
+        print(ret2)
+        self.assertEquals(ret2['status'], 400)
+
+        metadata_cpy = metadata.copy()
+        del metadata_cpy['uid']
+        ret = self.curl(url, 'PUT', prefix='', args=metadata_cpy,
                         headers={'If-None-Match':ret['headers']['etag']})
         print(ret)
         self.assertEquals(ret['status'], 200)

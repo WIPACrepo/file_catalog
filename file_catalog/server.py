@@ -2,15 +2,17 @@ from __future__ import absolute_import, division, print_function
 
 import sys
 import os
-import re
 import logging
 from functools import wraps
 from pkgutil import get_loader
+from collections import OrderedDict
 
 import tornado.ioloop
 import tornado.web
 from tornado.escape import json_encode,json_decode
 from tornado.gen import coroutine
+
+import file_catalog.validation as validation
 
 import file_catalog
 from file_catalog.mongo import Mongo
@@ -46,61 +48,20 @@ def tornado_logger(handler):
     log_method("%d %s %.2fms", handler.get_status(),
             handler._request_summary(), request_time)
 
-def is_valid_sha512(hash_str):
-    """Checks if `hash_str` is a valid SHA512 hash"""
-    return re.match(r"[0-9a-f]{128}", str(hash_str), re.IGNORECASE) is not None
-
-def has_forbidden_attributes(apihandler, metadata):
+def sort_dict(d):
     """
-    Checks if dict (`metadata`) has forbidden attributes.
-
-    Returns `True` if it has forbidden attributes.
-    """
-    if set(('_id', 'mongo_id')) & set(metadata):
-        # forbidden fields
-        apihandler.send_error(400, message='forbidden attributes',
-                        file=apihandler.files_url)
-        return True
-    else:
-        return False
-
-def validate_metadata(apihandler, metadata, allow_forbidden_attr = False):
-    """
-    Validates metadata
-
-    Utilizes `send_error` and returnes `False` if validation failed.
-    If validation was successful, `True` is returned.
+    Creates an OrderedDict by taking the `dict` named `d` and orderes its keys.
+    If a key contains a `dict` it will call this function recursively.
     """
 
-    if not allow_forbidden_attr and has_forbidden_attributes(apihandler, metadata):
-        return False
-    elif not set(('uid','checksum','locations')).issubset(metadata):
-        # check metadata for mandatory fields
-        apihandler.send_error(400, message='mandatory metadata missing',
-                        file=apihandler.files_url)
-        return False
-    if not is_valid_sha512(metadata['checksum']):
-        # force to use SHA512
-        apihandler.send_error(400, message='`checksum` needs to be a SHA512 hash',
-                        file=apihandler.files_url)
-        return False
-    elif not isinstance(metadata['locations'], list):
-        # locations needs to be a list
-        apihandler.send_error(400, message='member `locations` must be a list',
-                        file=apihandler.files_url)
-        return False
-    elif not metadata['locations']:
-        # location needs have at least one entry
-        apihandler.send_error(400, message='member `locations` must be a list with at least one url',
-                        file=apihandler.files_url)
-        return False
-    elif not all(l for l in metadata['locations']):
-        # locations aren't allowed to be empty
-        apihandler.send_error(400, message='member `locations` must be a list with at least one non-empty url',
-                        file=apihandler.files_url)
-        return False
+    od = OrderedDict(sorted(d.items()))
 
-    return True
+    # check for dicts in values
+    for key, value in od.iteritems():
+        if isinstance(value, dict):
+            od[key] = sort_dict(value)
+
+    return od
 
 class Server(object):
     """A file_catalog server instance"""
@@ -219,7 +180,7 @@ class APIHandler(tornado.web.RequestHandler):
     def write(self, chunk):
         # override write so we don't output a json header
         if isinstance(chunk, dict):
-            chunk = json_encode(chunk)
+            chunk = json_encode(sort_dict(chunk))
         super(APIHandler, self).write(chunk)
 
     def write_error(self,status_code=500,**kwargs):
@@ -294,7 +255,7 @@ class FilesHandler(APIHandler):
     def post(self):
         metadata = json_decode(self.request.body)
 
-        if not validate_metadata(self, metadata):
+        if not validation.validate_metadata_creation(self, metadata):
             return
 
         ret = yield self.db.get_file({'uid':metadata['uid']})
@@ -304,12 +265,12 @@ class FilesHandler(APIHandler):
             if ret['checksum'] != metadata['checksum']:
                 # the uid already exists (no replica since checksum is different
                 self.send_error(409, message='conflict with existing file (uid already exists)',
-                                file=os.path.join(self.files_url,ret['_id']))
+                                file=os.path.join(self.files_url,ret['mongo_id']))
                 return
             elif any(f in ret['locations'] for f in metadata['locations']):
                 # replica has already been added
                 self.send_error(409, message='replica has already been added',
-                                file=os.path.join(self.files_url,ret['_id']))
+                                file=os.path.join(self.files_url,ret['mongo_id']))
                 return
             else:
                 # add replica
@@ -337,12 +298,13 @@ class SingleFileHandler(APIHandler):
     @catch_error
     @coroutine
     def get(self, mongo_id):
-        ret = yield self.db.get_file({'_id':mongo_id})
+        ret = yield self.db.get_file({'mongo_id':mongo_id})
         if ret:
             ret['_links'] = {
                 'self': {'href': os.path.join(self.files_url,mongo_id)},
                 'parent': {'href': self.files_url},
             }
+
             self.write(ret)
         else:
             self.send_error(404, message='not found')
@@ -351,7 +313,7 @@ class SingleFileHandler(APIHandler):
     @coroutine
     def delete(self, mongo_id):
         try:
-            yield self.db.delete_file({'_id':mongo_id})
+            yield self.db.delete_file({'mongo_id':mongo_id})
         except:
             self.send_error(404, message='not found')
         else:
@@ -362,14 +324,14 @@ class SingleFileHandler(APIHandler):
     def patch(self, mongo_id):
         metadata = json_decode(self.request.body)
 
-        if has_forbidden_attributes(self, metadata):
+        if validation.has_forbidden_attributes_modification(self, metadata):
             return
 
         links = {
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
         }
-        ret = yield self.db.get_file({'_id':mongo_id})
+        ret = yield self.db.get_file({'mongo_id':mongo_id})
         if ret:
             # check if this is the same version we're trying to patch
             test_write = ret.copy()
@@ -381,7 +343,7 @@ class SingleFileHandler(APIHandler):
             if same:
                 ret.update(metadata)
 
-                if not validate_metadata(self, ret, allow_forbidden_attr = True):
+                if not validation.validate_metadata_modification(self, ret):
                     return
 
                 yield self.db.update_file(ret.copy())
@@ -399,17 +361,22 @@ class SingleFileHandler(APIHandler):
         metadata = json_decode(self.request.body)
 
         # check if user wants to set forbidden fields
-        if has_forbidden_attributes(self, metadata):
+        # `uid` is not allowed to be changed
+        if validation.has_forbidden_attributes_modification(self, metadata):
             return
 
-        if '_id' not in metadata:
-            metadata['_id'] = mongo_id
+        if 'mongo_id' not in metadata:
+            metadata['mongo_id'] = mongo_id
 
         links = {
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
         }
-        ret = yield self.db.get_file({'_id':mongo_id})
+        ret = yield self.db.get_file({'mongo_id':mongo_id})
+
+        # keep `uid`:
+        metadata['uid'] = str(ret['uid'])
+
         if ret:
             # check if this is the same version we're trying to patch
             test_write = ret.copy()
@@ -420,7 +387,7 @@ class SingleFileHandler(APIHandler):
             same = self.check_etag_header()
             self._write_buffer = []
             if same:
-                if not validate_metadata(self, metadata, allow_forbidden_attr = True):
+                if not validation.validate_metadata_modification(self, metadata):
                     return
 
                 yield self.db.replace_file(metadata.copy())

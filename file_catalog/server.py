@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import sys
 import os
+import re
 import logging
 from functools import wraps
 from pkgutil import get_loader
@@ -44,6 +45,62 @@ def tornado_logger(handler):
     request_time = 1000.0 * handler.request.request_time()
     log_method("%d %s %.2fms", handler.get_status(),
             handler._request_summary(), request_time)
+
+def is_valid_sha512(hash_str):
+    """Checks if `hash_str` is a valid SHA512 hash"""
+    return re.match(r"[0-9a-f]{128}", str(hash_str), re.IGNORECASE) is not None
+
+def has_forbidden_attributes(apihandler, metadata):
+    """
+    Checks if dict (`metadata`) has forbidden attributes.
+
+    Returns `True` if it has forbidden attributes.
+    """
+    if set(('_id', 'mongo_id')) & set(metadata):
+        # forbidden fields
+        apihandler.send_error(400, message='forbidden attributes',
+                        file=apihandler.files_url)
+        return True
+    else:
+        return False
+
+def validate_metadata(apihandler, metadata, allow_forbidden_attr = False):
+    """
+    Validates metadata
+
+    Utilizes `send_error` and returnes `False` if validation failed.
+    If validation was successful, `True` is returned.
+    """
+
+    if not allow_forbidden_attr and has_forbidden_attributes(apihandler, metadata):
+        return False
+    elif not set(('uid','checksum','locations')).issubset(metadata):
+        # check metadata for mandatory fields
+        apihandler.send_error(400, message='mandatory metadata missing',
+                        file=apihandler.files_url)
+        return False
+    if not is_valid_sha512(metadata['checksum']):
+        # force to use SHA512
+        apihandler.send_error(400, message='`checksum` needs to be a SHA512 hash',
+                        file=apihandler.files_url)
+        return False
+    elif not isinstance(metadata['locations'], list):
+        # locations needs to be a list
+        apihandler.send_error(400, message='member `locations` must be a list',
+                        file=apihandler.files_url)
+        return False
+    elif not metadata['locations']:
+        # location needs have at least one entry
+        apihandler.send_error(400, message='member `locations` must be a list with at least one url',
+                        file=apihandler.files_url)
+        return False
+    elif not all(l for l in metadata['locations']):
+        # locations aren't allowed to be empty
+        apihandler.send_error(400, message='member `locations` must be a list with at least one non-empty url',
+                        file=apihandler.files_url)
+        return False
+
+    return True
 
 class Server(object):
     """A file_catalog server instance"""
@@ -209,6 +266,13 @@ class FilesHandler(APIHandler):
                     raise Exception('start is negative')
             if 'query' in kwargs:
                 kwargs['query'] = json_decode(kwargs['query'])
+                
+                # _id and mongo_id means the same (mongo_id will be renamed to _id in self.db.find_files())
+                # make sure that not both keys are in query
+                if '_id' in kwargs['query'] and 'mongo_id' in kwargs['query']:
+                    logging.warn('`query` contains `_id` and `mongo_id`', exc_info=True)
+                    self.send_error(400, message='`query` contains `_id` and `mongo_id`')
+                    return
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
@@ -222,7 +286,7 @@ class FilesHandler(APIHandler):
             '_embedded':{
                 'files': files,
             },
-            'files': [os.path.join(self.files_url,f['_id']) for f in files],
+            'files': [os.path.join(self.files_url,f['mongo_id']) for f in files],
         })
 
     @catch_error
@@ -230,31 +294,7 @@ class FilesHandler(APIHandler):
     def post(self):
         metadata = json_decode(self.request.body)
 
-        # check metadata for mandatory fields
-        if not set(('uid','checksum','locations')).issubset(metadata):
-            # locations (url) is mandatory
-            self.send_error(400, message='mandatory metadata missing',
-                            file=self.files_url)
-            return
-        elif set(('_id', 'mongo_id')) & set(metadata):
-            # forbidden fields
-            self.send_error(400, message='forbidden attributes',
-                            file=self.files_url)
-            return
-        elif not isinstance(metadata['locations'], list):
-            # locations needs to be a list
-            self.send_error(400, message='member `locations` must be a list',
-                            file=self.files_url)
-            return
-        elif not metadata['locations']:
-            # location needs have at least one entry
-            self.send_error(400, message='member `locations` must be a list with at least one url',
-                            file=self.files_url)
-            return
-        elif not all(l for l in metadata['locations']):
-            # locations aren't allowed to be empty
-            self.send_error(400, message='member `locations` must be a list with at least one non-empty url',
-                            file=self.files_url)
+        if not validate_metadata(self, metadata):
             return
 
         ret = yield self.db.get_file({'uid':metadata['uid']})
@@ -263,7 +303,7 @@ class FilesHandler(APIHandler):
             # file uid already exists, check checksum
             if ret['checksum'] != metadata['checksum']:
                 # the uid already exists (no replica since checksum is different
-                self.send_error(409, message='conflict with existing file',
+                self.send_error(409, message='conflict with existing file (uid already exists)',
                                 file=os.path.join(self.files_url,ret['_id']))
                 return
             elif any(f in ret['locations'] for f in metadata['locations']):
@@ -277,7 +317,7 @@ class FilesHandler(APIHandler):
 
                 yield self.db.update_file(ret)
                 self.set_status(200)
-                ret = ret['_id']
+                ret = ret['mongo_id']
         else:
             ret = yield self.db.create_file(metadata)
             self.set_status(201)
@@ -321,6 +361,10 @@ class SingleFileHandler(APIHandler):
     @coroutine
     def patch(self, mongo_id):
         metadata = json_decode(self.request.body)
+
+        if has_forbidden_attributes(self, metadata):
+            return
+
         links = {
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
@@ -336,6 +380,10 @@ class SingleFileHandler(APIHandler):
             self._write_buffer = []
             if same:
                 ret.update(metadata)
+
+                if not validate_metadata(self, ret, allow_forbidden_attr = True):
+                    return
+
                 yield self.db.update_file(ret.copy())
                 ret['_links'] = links
                 self.write(ret)
@@ -349,8 +397,14 @@ class SingleFileHandler(APIHandler):
     @coroutine
     def put(self, mongo_id):
         metadata = json_decode(self.request.body)
+
+        # check if user wants to set forbidden fields
+        if has_forbidden_attributes(self, metadata):
+            return
+
         if '_id' not in metadata:
             metadata['_id'] = mongo_id
+
         links = {
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
@@ -366,6 +420,9 @@ class SingleFileHandler(APIHandler):
             same = self.check_etag_header()
             self._write_buffer = []
             if same:
+                if not validate_metadata(self, metadata, allow_forbidden_attr = True):
+                    return
+
                 yield self.db.replace_file(metadata.copy())
                 metadata['_links'] = links
                 self.write(metadata)

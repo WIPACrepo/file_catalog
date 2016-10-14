@@ -8,6 +8,7 @@ import random
 import subprocess
 from functools import partial
 import unittest
+import hashlib
 
 from tornado.escape import json_encode,json_decode
 
@@ -90,7 +91,7 @@ class TestServerAPI(unittest.TestCase):
             self.assertEquals(ret['status'], 405)
 
     def test_10_files(self):
-        metadata = {'file_name': 'blah', 'checksum': 'checked'}
+        metadata = {'uid': 'blah', 'checksum': hashlib.sha512('foo bar').hexdigest(), 'locations': ['blah.dat']}
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
         self.assertEquals(ret['status'], 201)
@@ -113,15 +114,20 @@ class TestServerAPI(unittest.TestCase):
             self.assertEquals(ret['status'], 405)
 
     def test_20_file(self):
-        metadata = {'file_name': 'blah', 'checksum': 'checked'}
+        metadata = {'uid': 'blah', 'checksum': hashlib.sha512('foo bar').hexdigest(), 'locations': ['blah.dat']}
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
+        print("JAN__ ret = %s" % ret)
+
         url = ret['data']['file']
 
         ret = self.curl(url, 'GET', prefix='')
         print(ret)
+
+        print("JAN__ ret = %s" % ret)
+
         self.assertEquals(ret['status'], 200)
-        ret['data'].pop('_id')
+        ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
         self.assertDictEqual(metadata, ret['data'])
         self.assertIn('etag', ret['headers'])
@@ -131,11 +137,11 @@ class TestServerAPI(unittest.TestCase):
                         headers={'If-None-Match':ret['headers']['etag']})
         print(ret)
         self.assertEquals(ret['status'], 200)
-        ret['data'].pop('_id')
+        ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
         self.assertDictEqual(metadata, ret['data'])
         ret = self.curl(url, 'GET', prefix='')
-        ret['data'].pop('_id')
+        ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
         self.assertDictEqual(metadata, ret['data'])
 
@@ -144,11 +150,11 @@ class TestServerAPI(unittest.TestCase):
         metadata['test2'] = 200
         print(ret)
         self.assertEquals(ret['status'], 200)
-        ret['data'].pop('_id')
+        ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
         self.assertDictEqual(metadata, ret['data'])
         ret = self.curl(url, 'GET', prefix='')
-        ret['data'].pop('_id')
+        ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
         self.assertDictEqual(metadata, ret['data'])
         

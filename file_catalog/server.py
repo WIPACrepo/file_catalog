@@ -5,11 +5,14 @@ import os
 import logging
 from functools import wraps
 from pkgutil import get_loader
+from collections import OrderedDict
 
 import tornado.ioloop
 import tornado.web
 from tornado.escape import json_encode,json_decode
 from tornado.gen import coroutine
+
+import file_catalog.validation as validation
 
 import file_catalog
 from file_catalog.mongo import Mongo
@@ -44,6 +47,21 @@ def tornado_logger(handler):
     request_time = 1000.0 * handler.request.request_time()
     log_method("%d %s %.2fms", handler.get_status(),
             handler._request_summary(), request_time)
+
+def sort_dict(d):
+    """
+    Creates an OrderedDict by taking the `dict` named `d` and orderes its keys.
+    If a key contains a `dict` it will call this function recursively.
+    """
+
+    od = OrderedDict(sorted(d.items()))
+
+    # check for dicts in values
+    for key, value in od.iteritems():
+        if isinstance(value, dict):
+            od[key] = sort_dict(value)
+
+    return od
 
 class Server(object):
     """A file_catalog server instance"""
@@ -162,7 +180,7 @@ class APIHandler(tornado.web.RequestHandler):
     def write(self, chunk):
         # override write so we don't output a json header
         if isinstance(chunk, dict):
-            chunk = json_encode(chunk)
+            chunk = json_encode(sort_dict(chunk))
         super(APIHandler, self).write(chunk)
 
     def write_error(self,status_code=500,**kwargs):
@@ -209,6 +227,13 @@ class FilesHandler(APIHandler):
                     raise Exception('start is negative')
             if 'query' in kwargs:
                 kwargs['query'] = json_decode(kwargs['query'])
+                
+                # _id and mongo_id means the same (mongo_id will be renamed to _id in self.db.find_files())
+                # make sure that not both keys are in query
+                if '_id' in kwargs['query'] and 'mongo_id' in kwargs['query']:
+                    logging.warn('`query` contains `_id` and `mongo_id`', exc_info=True)
+                    self.send_error(400, message='`query` contains `_id` and `mongo_id`')
+                    return
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
@@ -222,7 +247,7 @@ class FilesHandler(APIHandler):
             '_embedded':{
                 'files': files,
             },
-            'files': [os.path.join(self.files_url,f['_id']) for f in files],
+            'files': [os.path.join(self.files_url,f['mongo_id']) for f in files],
         })
 
     @catch_error
@@ -230,31 +255,7 @@ class FilesHandler(APIHandler):
     def post(self):
         metadata = json_decode(self.request.body)
 
-        # check metadata for mandatory fields
-        if not set(('uid','checksum','locations')).issubset(metadata):
-            # locations (url) is mandatory
-            self.send_error(400, message='mandatory metadata missing',
-                            file=self.files_url)
-            return
-        elif set(('_id', 'mongo_id')) & set(metadata):
-            # forbidden fields
-            self.send_error(400, message='forbidden attributes',
-                            file=self.files_url)
-            return
-        elif not isinstance(metadata['locations'], list):
-            # locations needs to be a list
-            self.send_error(400, message='member `locations` must be a list',
-                            file=self.files_url)
-            return
-        elif not metadata['locations']:
-            # location needs have at least one entry
-            self.send_error(400, message='member `locations` must be a list with at least one url',
-                            file=self.files_url)
-            return
-        elif not all(l for l in metadata['locations']):
-            # locations aren't allowed to be empty
-            self.send_error(400, message='member `locations` must be a list with at least one non-empty url',
-                            file=self.files_url)
+        if not validation.validate_metadata_creation(self, metadata):
             return
 
         ret = yield self.db.get_file({'uid':metadata['uid']})
@@ -263,13 +264,13 @@ class FilesHandler(APIHandler):
             # file uid already exists, check checksum
             if ret['checksum'] != metadata['checksum']:
                 # the uid already exists (no replica since checksum is different
-                self.send_error(409, message='conflict with existing file',
-                                file=os.path.join(self.files_url,ret['_id']))
+                self.send_error(409, message='conflict with existing file (uid already exists)',
+                                file=os.path.join(self.files_url,ret['mongo_id']))
                 return
             elif any(f in ret['locations'] for f in metadata['locations']):
                 # replica has already been added
                 self.send_error(409, message='replica has already been added',
-                                file=os.path.join(self.files_url,ret['_id']))
+                                file=os.path.join(self.files_url,ret['mongo_id']))
                 return
             else:
                 # add replica
@@ -277,7 +278,7 @@ class FilesHandler(APIHandler):
 
                 yield self.db.update_file(ret)
                 self.set_status(200)
-                ret = ret['_id']
+                ret = ret['mongo_id']
         else:
             ret = yield self.db.create_file(metadata)
             self.set_status(201)
@@ -297,12 +298,13 @@ class SingleFileHandler(APIHandler):
     @catch_error
     @coroutine
     def get(self, mongo_id):
-        ret = yield self.db.get_file({'_id':mongo_id})
+        ret = yield self.db.get_file({'mongo_id':mongo_id})
         if ret:
             ret['_links'] = {
                 'self': {'href': os.path.join(self.files_url,mongo_id)},
                 'parent': {'href': self.files_url},
             }
+
             self.write(ret)
         else:
             self.send_error(404, message='not found')
@@ -311,7 +313,7 @@ class SingleFileHandler(APIHandler):
     @coroutine
     def delete(self, mongo_id):
         try:
-            yield self.db.delete_file({'_id':mongo_id})
+            yield self.db.delete_file({'mongo_id':mongo_id})
         except:
             self.send_error(404, message='not found')
         else:
@@ -321,11 +323,15 @@ class SingleFileHandler(APIHandler):
     @coroutine
     def patch(self, mongo_id):
         metadata = json_decode(self.request.body)
+
+        if validation.has_forbidden_attributes_modification(self, metadata):
+            return
+
         links = {
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
         }
-        ret = yield self.db.get_file({'_id':mongo_id})
+        ret = yield self.db.get_file({'mongo_id':mongo_id})
         if ret:
             # check if this is the same version we're trying to patch
             test_write = ret.copy()
@@ -336,6 +342,10 @@ class SingleFileHandler(APIHandler):
             self._write_buffer = []
             if same:
                 ret.update(metadata)
+
+                if not validation.validate_metadata_modification(self, ret):
+                    return
+
                 yield self.db.update_file(ret.copy())
                 ret['_links'] = links
                 self.write(ret)
@@ -349,13 +359,24 @@ class SingleFileHandler(APIHandler):
     @coroutine
     def put(self, mongo_id):
         metadata = json_decode(self.request.body)
-        if '_id' not in metadata:
-            metadata['_id'] = mongo_id
+
+        # check if user wants to set forbidden fields
+        # `uid` is not allowed to be changed
+        if validation.has_forbidden_attributes_modification(self, metadata):
+            return
+
+        if 'mongo_id' not in metadata:
+            metadata['mongo_id'] = mongo_id
+
         links = {
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
         }
-        ret = yield self.db.get_file({'_id':mongo_id})
+        ret = yield self.db.get_file({'mongo_id':mongo_id})
+
+        # keep `uid`:
+        metadata['uid'] = str(ret['uid'])
+
         if ret:
             # check if this is the same version we're trying to patch
             test_write = ret.copy()
@@ -366,6 +387,9 @@ class SingleFileHandler(APIHandler):
             same = self.check_etag_header()
             self._write_buffer = []
             if same:
+                if not validation.validate_metadata_modification(self, metadata):
+                    return
+
                 yield self.db.replace_file(metadata.copy())
                 metadata['_links'] = links
                 self.write(metadata)

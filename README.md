@@ -55,7 +55,7 @@ Mandatory fields:
 
 *  `checksum`
 
-    Must be calculated with XYZ.
+    Must be calculated with SHA512.
 
 *  `locations`
 

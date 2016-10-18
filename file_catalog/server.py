@@ -349,6 +349,7 @@ class SingleFileHandler(APIHandler):
                 yield self.db.update_file(ret.copy())
                 ret['_links'] = links
                 self.write(ret)
+                self.set_etag_header()
             else:
                 self.send_error(409, message='conflict (version mismatch)',
                                 _links=links)
@@ -393,6 +394,7 @@ class SingleFileHandler(APIHandler):
                 yield self.db.replace_file(metadata.copy())
                 metadata['_links'] = links
                 self.write(metadata)
+                self.set_etag_header()
             else:
                 self.send_error(409, message='conflict (version mismatch)',
                                 _links=links)

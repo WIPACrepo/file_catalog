@@ -68,17 +68,19 @@ class Mongo(object):
 
     @run_on_executor
     def update_file(self, metadata):
-        if 'mongo_id' in metadata:
-            metadata['_id'] = metadata['mongo_id']
-            del metadata['mongo_id']
+        # don't change the original dict
+        metadata_cpy = metadata.copy()
 
-        metadata_id = metadata['_id']
+        if 'mongo_id' in metadata_cpy:
+            metadata_cpy['_id'] = metadata_cpy['mongo_id']
+            del metadata_cpy['mongo_id']
+
+        metadata_id = metadata_cpy['_id']
 
         if not isinstance(metadata_id, dict):
             metadata_id = ObjectId(metadata_id)
 
-        # _id cannot be updated. Make a copy and remove _id 
-        metadata_cpy = metadata.copy()
+        # _id cannot be updated. Remove _id 
         del metadata_cpy['_id']
 
         result = self.client.files.update_one({'_id': metadata_id},

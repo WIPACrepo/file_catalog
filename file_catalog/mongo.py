@@ -24,7 +24,7 @@ class Mongo(object):
         self.executor = ThreadPoolExecutor(max_workers=10)
 
     @run_on_executor
-    def find_files(self, query={}, limit=100000000000, start=0):
+    def find_files(self, query={}, limit=None, start=0):
         if 'mongo_id' in query:
             query['_id'] = query['mongo_id']
             del query['mongo_id']
@@ -33,9 +33,20 @@ class Mongo(object):
             query['_id'] = ObjectId(query['_id'])
 
         projection = ('_id', 'uid')
-        result = self.client.files.find(query, projection, limit=limit+start)
+
+        result = self.client.files.find(query, projection)
         ret = []
-        for row in result[start:]:
+
+        # `limit` and `skip` are ignored by __getitem__:
+        # http://api.mongodb.com/python/current/api/pymongo/cursor.html#pymongo.cursor.Cursor.__getitem__
+        #
+        # Therefore, implement it manually:
+        end = None
+
+        if limit is not None:
+            end = start + limit
+
+        for row in result[start:end]:
             row['mongo_id'] = str(row['_id'])
             del row['_id']
             ret.append(row)

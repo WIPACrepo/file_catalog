@@ -12,7 +12,7 @@ def has_forbidden_attributes_creation(apihandler, metadata):
     Returns `True` if it has forbidden attributes.
     """
 
-    if set(('_id', 'mongo_id')) & set(metadata):
+    if set(('_id', 'mongo_id', 'meta_modify_date')) & set(metadata):
         # forbidden fields
         apihandler.send_error(400, message='forbidden attributes',
                         file=apihandler.files_url)
@@ -23,7 +23,7 @@ def has_forbidden_attributes_modification(apihandler, metadata):
     Same as `has_forbidden_attributes_creation()` but it has additional forbidden attributes.
     """
 
-    if 'uid' in metadata:
+    if set(('uid', 'meta_modify_date')) & set(metadata):
         # forbidden fields
         apihandler.send_error(400, message='forbidden attributes',
                         file=apihandler.files_url)

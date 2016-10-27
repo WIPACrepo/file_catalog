@@ -7,6 +7,8 @@ from functools import wraps
 from pkgutil import get_loader
 from collections import OrderedDict
 
+import datetime
+
 import pymongo.errors
 
 import tornado.ioloop
@@ -64,6 +66,9 @@ def sort_dict(d):
             od[key] = sort_dict(value)
 
     return od
+
+def set_last_modification_date(d):
+    d['meta_modify_date'] = str(datetime.datetime.now())
 
 class Server(object):
     """A file_catalog server instance"""
@@ -260,6 +265,8 @@ class FilesHandler(APIHandler):
         if not validation.validate_metadata_creation(self, metadata):
             return
 
+        set_last_modification_date(metadata)
+
         ret = yield self.db.get_file({'uid':metadata['uid']})
 
         if ret:
@@ -335,6 +342,8 @@ class SingleFileHandler(APIHandler):
         if validation.has_forbidden_attributes_modification(self, metadata):
             return
 
+        set_last_modification_date(metadata)
+
         links = {
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
@@ -379,6 +388,8 @@ class SingleFileHandler(APIHandler):
         # `uid` is not allowed to be changed
         if validation.has_forbidden_attributes_modification(self, metadata):
             return
+
+        set_last_modification_date(metadata)
 
         if 'mongo_id' not in metadata:
             metadata['mongo_id'] = mongo_id

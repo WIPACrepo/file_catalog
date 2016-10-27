@@ -96,6 +96,7 @@ Operations:
 
   **Result Codes**
 
+  * 200: Replica has been added. Response contains link to file resource
   * 201: Response contains link to newly created file resource
   * 409: Conflict (if the file already exists); includes link to existing file
   * 429: Too many requests (if server is being hammered)

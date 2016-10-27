@@ -98,7 +98,7 @@ class Mongo(object):
                                               {'$set': metadata_cpy})
 
         if result.modified_count is None:
-            logger.warn('Cannot detrmine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
+            logger.warn('Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
         elif result.modified_count != 1:
             logger.warn('updated %s files with id %r',
                         result.modified_count, metadata_id)
@@ -123,7 +123,7 @@ class Mongo(object):
                                                metadata_cpy)
 
         if result.modified_count is None:
-            logger.warn('Cannot detrmine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
+            logger.warn('Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
         elif result.modified_count != 1:
             logger.warn('updated %s files with id %r',
                         result.modified_count, metadata_id)

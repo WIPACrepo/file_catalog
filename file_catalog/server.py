@@ -7,6 +7,8 @@ from functools import wraps
 from pkgutil import get_loader
 from collections import OrderedDict
 
+import pymongo.errors
+
 import tornado.ioloop
 import tornado.web
 from tornado.escape import json_encode,json_decode
@@ -298,22 +300,28 @@ class SingleFileHandler(APIHandler):
     @catch_error
     @coroutine
     def get(self, mongo_id):
-        ret = yield self.db.get_file({'mongo_id':mongo_id})
-        if ret:
-            ret['_links'] = {
-                'self': {'href': os.path.join(self.files_url,mongo_id)},
-                'parent': {'href': self.files_url},
-            }
-
-            self.write(ret)
-        else:
-            self.send_error(404, message='not found')
+        try:
+            ret = yield self.db.get_file({'mongo_id':mongo_id})
+    
+            if ret:
+                ret['_links'] = {
+                    'self': {'href': os.path.join(self.files_url,mongo_id)},
+                    'parent': {'href': self.files_url},
+                }
+    
+                self.write(ret)
+            else:
+                self.send_error(404, message='not found')
+        except pymongo.errors.InvalidId:
+            self.send_error(400, message='`%s` is not a valid mongo_id, it must be a 12-byte input or a 24-character hex string' % mongo_id)
 
     @catch_error
     @coroutine
     def delete(self, mongo_id):
         try:
             yield self.db.delete_file({'mongo_id':mongo_id})
+        except pymongo.errors.InvalidId:
+            self.send_error(400, message='`%s` is not a valid mongo_id, it must be a 12-byte input or a 24-character hex string' % mongo_id)
         except:
             self.send_error(404, message='not found')
         else:
@@ -331,7 +339,13 @@ class SingleFileHandler(APIHandler):
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
         }
-        ret = yield self.db.get_file({'mongo_id':mongo_id})
+
+        try:
+            ret = yield self.db.get_file({'mongo_id':mongo_id})
+        except pymongo.errors.InvalidId:
+            self.send_error(400, message='`%s` is not a valid mongo_id, it must be a 12-byte input or a 24-character hex string' % mongo_id)
+            return
+
         if ret:
             # check if this is the same version we're trying to patch
             test_write = ret.copy()
@@ -373,7 +387,12 @@ class SingleFileHandler(APIHandler):
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
         }
-        ret = yield self.db.get_file({'mongo_id':mongo_id})
+
+        try:
+            ret = yield self.db.get_file({'mongo_id':mongo_id})
+        except pymongo.errors.InvalidId:
+            self.send_error(400, message='`%s` is not a valid mongo_id, it must be a 12-byte input or a 24-character hex string' % mongo_id)
+            return
 
         # keep `uid`:
         metadata['uid'] = str(ret['uid'])

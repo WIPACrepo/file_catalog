@@ -21,6 +21,7 @@ import file_catalog.validation as validation
 import file_catalog
 from file_catalog.mongo import Mongo
 from file_catalog import urlargparse
+from file_catalog.config import Config
 
 logger = logging.getLogger('server')
 
@@ -222,16 +223,27 @@ class FilesHandler(APIHandler):
     @catch_error
     @coroutine
     def get(self):
+        config = Config.get_config()
+
         try:
             kwargs = urlargparse.parse(self.request.query)
             if 'limit' in kwargs:
                 kwargs['limit'] = int(kwargs['limit'])
                 if kwargs['limit'] < 1:
                     raise Exception('limit is not positive')
+
+                # check with config
+                if kwargs['limit'] > config.getint('filelist', 'max_files'):
+                    kwargs['limit'] = config.getint('filelist', 'max_files')
+            else:
+                # if no limit has been defined, set max limit
+                kwargs['limit'] = config.getint('filelist', 'max_files')
+
             if 'start' in kwargs:
                 kwargs['start'] = int(kwargs['start'])
                 if kwargs['start'] < 0:
                     raise Exception('start is negative')
+
             if 'query' in kwargs:
                 kwargs['query'] = json_decode(kwargs['query'])
                 

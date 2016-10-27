@@ -1,6 +1,8 @@
 
 import re
 
+from file_catalog.config import Config
+
 def is_valid_sha512(hash_str):
     """Checks if `hash_str` is a valid SHA512 hash"""
     return re.match(r"[0-9a-f]{128}", str(hash_str), re.IGNORECASE) is not None
@@ -12,7 +14,7 @@ def has_forbidden_attributes_creation(apihandler, metadata):
     Returns `True` if it has forbidden attributes.
     """
 
-    if set(('_id', 'mongo_id', 'meta_modify_date')) & set(metadata):
+    if set(Config.get_list('metadata', 'forbidden_fields_creation')) & set(metadata):
         # forbidden fields
         apihandler.send_error(400, message='forbidden attributes',
                         file=apihandler.files_url)
@@ -23,7 +25,7 @@ def has_forbidden_attributes_modification(apihandler, metadata):
     Same as `has_forbidden_attributes_creation()` but it has additional forbidden attributes.
     """
 
-    if set(('uid', 'meta_modify_date')) & set(metadata):
+    if set(Config.get_list('metadata', 'forbidden_fields_update')) & set(metadata):
         # forbidden fields
         apihandler.send_error(400, message='forbidden attributes',
                         file=apihandler.files_url)
@@ -52,7 +54,7 @@ def validate_metadata_modification(apihandler, metadata):
     If validation was successful, `True` is returned.
     """
 
-    if not set(('uid','checksum','locations')).issubset(metadata):
+    if not set(Config.get_list('metadata', 'mandatory_fields')).issubset(metadata):
         # check metadata for mandatory fields
         apihandler.send_error(400, message='mandatory metadata missing',
                         file=apihandler.files_url)

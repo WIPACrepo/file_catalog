@@ -2,29 +2,50 @@
 from ConfigParser import SafeConfigParser
 
 import os
+import ast
 
-class Config:
-    _config = None
-    _cache = {}
+class Config(dict):
+    def __init__(self, path):
+        self.path = path
+        self.list_cache = {}
 
-    @classmethod
-    def get_config(cls):
-        if cls._config is None:
-            cls._config = SafeConfigParser()
-            cls._config.read(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'server.cfg')))
+        # read file
+        tmp = SafeConfigParser()
+        tmp.read(path)
+        self.__config_options_dict(tmp)
 
-        return cls._config
+    def __config_options_dict(self, config):
+        """
+        Parsing config file
+        Args:
+            config: Python config parser object
+        """
+        # Method copied from https://github.com/WIPACrepo/pyglidein/blob/master/client_util.py#L96
 
-    @classmethod
-    def get_list(cls, section, name):
-        if section in cls._cache:
-            if name in cls._cache[section]:
-                return cls._cache[section][name]
+        for section in config.sections():
+            self[section] = {}
+            for option in config.options(section):
+                val = config.get(section, option)
+                try:
+                    val = ast.literal_eval(val)
+                except Exception:
+                    pass
+                self[section][option] = val
+
+    def get_list(self, section, name):
+        """
+        Parses the value of a given `section`/`name` pair and returns a list.
+        It is expected that the value is a comma separated list, e.g. `a, b, c,d,e ,f , g`.
+        Note that all white spaces are removed before and after a comma.
+        """
+        if section in self.list_cache:
+            if name in self.list_cache[section]:
+                return self.list_cache[section][name]
         else:
-            cls._cache[section] = {}
-
-        value = cls.get_config().get(section, name)
-        cls._cache[section][name] = [e.strip() for e in value.split(',') if e.strip()]
-
-        return cls._cache[section][name]
+            self.list_cache[section] = {}
+    
+        value = self[section][name]
+        self.list_cache[section][name] = [e.strip() for e in value.split(',') if e.strip()]
+    
+        return self.list_cache[section][name]
 

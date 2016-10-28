@@ -21,7 +21,6 @@ import file_catalog.validation as validation
 import file_catalog
 from file_catalog.mongo import Mongo
 from file_catalog import urlargparse
-from file_catalog.config import Config
 
 logger = logging.getLogger('server')
 
@@ -74,13 +73,18 @@ def set_last_modification_date(d):
 class Server(object):
     """A file_catalog server instance"""
 
-    def __init__(self, port=8888, db_host='localhost', debug=False):
+    def __init__(self, config, port=8888, db_host='localhost', debug=False):
         static_path = get_pkgdata_filename('file_catalog', 'data/www')
         if static_path is None:
             raise Exception('bad static path')
         template_path = get_pkgdata_filename('file_catalog', 'data/www_templates')
         if template_path is None:
             raise Exception('bad template path')
+
+        # print configuration
+        logger.info('db host: %s' % db_host)
+        logger.info('server port: %s' % port)
+        logger.info('debug: %s' % debug)
 
         main_args = {
             'base_url': '/api',
@@ -90,6 +94,7 @@ class Server(object):
         api_args = main_args.copy()
         api_args.update({
             'db': Mongo(db_host),
+            'config': config,
         })
 
         app = tornado.web.Application([
@@ -217,14 +222,13 @@ class HATEOASHandler(APIHandler):
 
 class FilesHandler(APIHandler):
     def initialize(self, **kwargs):
+        self.config = kwargs.pop('config')
         super(FilesHandler, self).initialize(**kwargs)
         self.files_url = os.path.join(self.base_url,'files')
 
     @catch_error
     @coroutine
     def get(self):
-        config = Config.get_config()
-
         try:
             kwargs = urlargparse.parse(self.request.query)
             if 'limit' in kwargs:
@@ -233,11 +237,11 @@ class FilesHandler(APIHandler):
                     raise Exception('limit is not positive')
 
                 # check with config
-                if kwargs['limit'] > config.getint('filelist', 'max_files'):
-                    kwargs['limit'] = config.getint('filelist', 'max_files')
+                if kwargs['limit'] > self.config['filelist']['max_files']:
+                    kwargs['limit'] = self.config['filelist']['max_files']
             else:
                 # if no limit has been defined, set max limit
-                kwargs['limit'] = config.getint('filelist', 'max_files')
+                kwargs['limit'] = self.config['filelist']['max_files']
 
             if 'start' in kwargs:
                 kwargs['start'] = int(kwargs['start'])
@@ -274,7 +278,7 @@ class FilesHandler(APIHandler):
     def post(self):
         metadata = json_decode(self.request.body)
 
-        if not validation.validate_metadata_creation(self, metadata):
+        if not validation.validate_metadata_creation(self, self.config, metadata):
             return
 
         set_last_modification_date(metadata)
@@ -313,6 +317,7 @@ class FilesHandler(APIHandler):
 
 class SingleFileHandler(APIHandler):
     def initialize(self, **kwargs):
+        self.config = kwargs.pop('config')
         super(SingleFileHandler, self).initialize(**kwargs)
         self.files_url = os.path.join(self.base_url,'files')
 
@@ -351,7 +356,7 @@ class SingleFileHandler(APIHandler):
     def patch(self, mongo_id):
         metadata = json_decode(self.request.body)
 
-        if validation.has_forbidden_attributes_modification(self, metadata):
+        if validation.has_forbidden_attributes_modification(self, self.config, metadata):
             return
 
         set_last_modification_date(metadata)
@@ -378,7 +383,7 @@ class SingleFileHandler(APIHandler):
             if same:
                 ret.update(metadata)
 
-                if not validation.validate_metadata_modification(self, ret):
+                if not validation.validate_metadata_modification(self, self.config, ret):
                     return
 
                 yield self.db.update_file(ret.copy())
@@ -398,7 +403,7 @@ class SingleFileHandler(APIHandler):
 
         # check if user wants to set forbidden fields
         # `uid` is not allowed to be changed
-        if validation.has_forbidden_attributes_modification(self, metadata):
+        if validation.has_forbidden_attributes_modification(self, self.config, metadata):
             return
 
         set_last_modification_date(metadata)
@@ -430,7 +435,7 @@ class SingleFileHandler(APIHandler):
             same = self.check_etag_header()
             self._write_buffer = []
             if same:
-                if not validation.validate_metadata_modification(self, metadata):
+                if not validation.validate_metadata_modification(self, self.config, metadata):
                     return
 
                 yield self.db.replace_file(metadata.copy())

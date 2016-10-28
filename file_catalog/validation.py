@@ -1,39 +1,37 @@
 
 import re
 
-from file_catalog.config import Config
-
 def is_valid_sha512(hash_str):
     """Checks if `hash_str` is a valid SHA512 hash"""
     return re.match(r"[0-9a-f]{128}", str(hash_str), re.IGNORECASE) is not None
 
-def has_forbidden_attributes_creation(apihandler, metadata):
+def has_forbidden_attributes_creation(apihandler, config, metadata):
     """
     Checks if dict (`metadata`) has forbidden attributes.
 
     Returns `True` if it has forbidden attributes.
     """
 
-    if set(Config.get_list('metadata', 'forbidden_fields_creation')) & set(metadata):
+    if set(config.get_list('metadata', 'forbidden_fields_creation')) & set(metadata):
         # forbidden fields
         apihandler.send_error(400, message='forbidden attributes',
                         file=apihandler.files_url)
         return True
 
-def has_forbidden_attributes_modification(apihandler, metadata):
+def has_forbidden_attributes_modification(apihandler, config, metadata):
     """
     Same as `has_forbidden_attributes_creation()` but it has additional forbidden attributes.
     """
 
-    if set(Config.get_list('metadata', 'forbidden_fields_update')) & set(metadata):
+    if set(config.get_list('metadata', 'forbidden_fields_update')) & set(metadata):
         # forbidden fields
         apihandler.send_error(400, message='forbidden attributes',
                         file=apihandler.files_url)
         return True
     else:
-        return has_forbidden_attributes_creation(apihandler, metadata)
+        return has_forbidden_attributes_creation(apihandler, config, metadata)
 
-def validate_metadata_creation(apihandler, metadata):
+def validate_metadata_creation(apihandler, config, metadata):
     """
     Validates metadata for creation
 
@@ -41,12 +39,12 @@ def validate_metadata_creation(apihandler, metadata):
     If validation was successful, `True` is returned.
     """
 
-    if has_forbidden_attributes_creation(apihandler, metadata):
+    if has_forbidden_attributes_creation(apihandler, config, metadata):
         return False
     
-    return validate_metadata_modification(apihandler, metadata)
+    return validate_metadata_modification(apihandler, config, metadata)
 
-def validate_metadata_modification(apihandler, metadata):
+def validate_metadata_modification(apihandler, config, metadata):
     """
     Validates metadata for modification
 
@@ -54,9 +52,9 @@ def validate_metadata_modification(apihandler, metadata):
     If validation was successful, `True` is returned.
     """
 
-    if not set(Config.get_list('metadata', 'mandatory_fields')).issubset(metadata):
+    if not set(config.get_list('metadata', 'mandatory_fields')).issubset(metadata):
         # check metadata for mandatory fields
-        apihandler.send_error(400, message='mandatory metadata missing',
+        apihandler.send_error(400, message='mandatory metadata missing (mandatory fields: %s)' % config['metadata']['mandatory_fields'],
                         file=apihandler.files_url)
         return False
     if not is_valid_sha512(metadata['checksum']):

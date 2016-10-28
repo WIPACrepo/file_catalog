@@ -34,7 +34,8 @@ class TestServerAPI(unittest.TestCase):
         s = subprocess.Popen(['python', '-m', 'file_catalog',
                               '-p', str(self.port),
                               '--db_host', 'localhost:%d'%self.mongo_port,
-                              '--debug'])
+                              '--debug',
+                              '--config', 'server.cfg'])
         self.addCleanup(s.terminate)
         time.sleep(0.3)
 

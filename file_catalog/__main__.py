@@ -12,11 +12,12 @@ def main():
     parser.add_argument('-p', '--port', help='port to listen on')
     parser.add_argument('--db_host', help='MongoDB host')
     parser.add_argument('--debug', action='store_true', default=False, help='Debug flag')
+    parser.add_argument('--config', required=True, help='Path to config file')
     args = parser.parse_args()
     kwargs = {k:v for k,v in vars(args).items() if v}
 
     # create config dict
-    config = Config(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'server.cfg')))
+    config = Config(args.config)
 
     # Use config file if not defined explicitly
     def add_config(kwargs, key):

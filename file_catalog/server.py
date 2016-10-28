@@ -16,7 +16,7 @@ import tornado.web
 from tornado.escape import json_encode,json_decode
 from tornado.gen import coroutine
 
-import file_catalog.validation as validation
+from file_catalog.validation import Validation
 
 import file_catalog
 from file_catalog.mongo import Mongo
@@ -68,7 +68,7 @@ def sort_dict(d):
     return od
 
 def set_last_modification_date(d):
-    d['meta_modify_date'] = str(datetime.datetime.now())
+    d['meta_modify_date'] = str(datetime.datetime.utcnow())
 
 class Server(object):
     """A file_catalog server instance"""
@@ -161,10 +161,11 @@ def catch_error(method):
 
 class APIHandler(tornado.web.RequestHandler):
     """Base class for API handlers"""
-    def initialize(self, db=None, base_url='/', debug=False, rate_limit=10):
+    def initialize(self, config, db=None, base_url='/', debug=False, rate_limit=10):
         self.db = db
         self.base_url = base_url
         self.debug = debug
+        self.config = config
         
         # subtract 1 to test before current connection is added
         self.rate_limit = rate_limit-1
@@ -222,9 +223,9 @@ class HATEOASHandler(APIHandler):
 
 class FilesHandler(APIHandler):
     def initialize(self, **kwargs):
-        self.config = kwargs.pop('config')
         super(FilesHandler, self).initialize(**kwargs)
         self.files_url = os.path.join(self.base_url,'files')
+        self.validation = Validation(self.config)
 
     @catch_error
     @coroutine
@@ -278,7 +279,7 @@ class FilesHandler(APIHandler):
     def post(self):
         metadata = json_decode(self.request.body)
 
-        if not validation.validate_metadata_creation(self, self.config, metadata):
+        if not self.validation.validate_metadata_creation(self, metadata):
             return
 
         set_last_modification_date(metadata)
@@ -317,9 +318,9 @@ class FilesHandler(APIHandler):
 
 class SingleFileHandler(APIHandler):
     def initialize(self, **kwargs):
-        self.config = kwargs.pop('config')
         super(SingleFileHandler, self).initialize(**kwargs)
         self.files_url = os.path.join(self.base_url,'files')
+        self.validation = Validation(self.config)
 
     @catch_error
     @coroutine
@@ -337,7 +338,7 @@ class SingleFileHandler(APIHandler):
             else:
                 self.send_error(404, message='not found')
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='`%s` is not a valid mongo_id, it must be a 12-byte input or a 24-character hex string' % mongo_id)
+            self.send_error(400, message='Not a valid mongo_id')
 
     @catch_error
     @coroutine
@@ -345,7 +346,7 @@ class SingleFileHandler(APIHandler):
         try:
             yield self.db.delete_file({'mongo_id':mongo_id})
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='`%s` is not a valid mongo_id, it must be a 12-byte input or a 24-character hex string' % mongo_id)
+            self.send_error(400, message='Not a valid mongo_id')
         except:
             self.send_error(404, message='not found')
         else:
@@ -356,7 +357,7 @@ class SingleFileHandler(APIHandler):
     def patch(self, mongo_id):
         metadata = json_decode(self.request.body)
 
-        if validation.has_forbidden_attributes_modification(self, self.config, metadata):
+        if self.validation.has_forbidden_attributes_modification(self, metadata):
             return
 
         set_last_modification_date(metadata)
@@ -369,7 +370,7 @@ class SingleFileHandler(APIHandler):
         try:
             ret = yield self.db.get_file({'mongo_id':mongo_id})
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='`%s` is not a valid mongo_id, it must be a 12-byte input or a 24-character hex string' % mongo_id)
+            self.send_error(400, message='Not a valid mongo_id')
             return
 
         if ret:
@@ -383,7 +384,7 @@ class SingleFileHandler(APIHandler):
             if same:
                 ret.update(metadata)
 
-                if not validation.validate_metadata_modification(self, self.config, ret):
+                if not self.validation.validate_metadata_modification(self, ret):
                     return
 
                 yield self.db.update_file(ret.copy())
@@ -403,7 +404,7 @@ class SingleFileHandler(APIHandler):
 
         # check if user wants to set forbidden fields
         # `uid` is not allowed to be changed
-        if validation.has_forbidden_attributes_modification(self, self.config, metadata):
+        if self.validation.has_forbidden_attributes_modification(self, metadata):
             return
 
         set_last_modification_date(metadata)
@@ -419,7 +420,7 @@ class SingleFileHandler(APIHandler):
         try:
             ret = yield self.db.get_file({'mongo_id':mongo_id})
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='`%s` is not a valid mongo_id, it must be a 12-byte input or a 24-character hex string' % mongo_id)
+            self.send_error(400, message='Not a valid mongo_id')
             return
 
         # keep `uid`:
@@ -435,7 +436,7 @@ class SingleFileHandler(APIHandler):
             same = self.check_etag_header()
             self._write_buffer = []
             if same:
-                if not validation.validate_metadata_modification(self, self.config, metadata):
+                if not self.validation.validate_metadata_modification(self, metadata):
                     return
 
                 yield self.db.replace_file(metadata.copy())

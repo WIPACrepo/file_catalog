@@ -7,14 +7,13 @@ import ast
 class Config(dict):
     def __init__(self, path):
         self.path = path
-        self.list_cache = {}
 
         # read file
         tmp = SafeConfigParser()
         tmp.read(path)
-        self.__config_options_dict(tmp)
+        self._config_options_dict(tmp)
 
-    def __config_options_dict(self, config):
+    def _config_options_dict(self, config):
         """
         Parsing config file
         Args:
@@ -38,14 +37,6 @@ class Config(dict):
         It is expected that the value is a comma separated list, e.g. `a, b, c,d,e ,f , g`.
         Note that all white spaces are removed before and after a comma.
         """
-        if section in self.list_cache:
-            if name in self.list_cache[section]:
-                return self.list_cache[section][name]
-        else:
-            self.list_cache[section] = {}
-    
         value = self[section][name]
-        self.list_cache[section][name] = [e.strip() for e in value.split(',') if e.strip()]
-    
-        return self.list_cache[section][name]
+        return [e.strip() for e in value.split(',') if e.strip()]
 

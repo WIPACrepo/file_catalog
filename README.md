@@ -9,7 +9,7 @@ To get the prerequisites necessary for the file catalog:
 ## Running the server
 To start an instance of the server running:
 
-    python -m file_catalog
+    python -m file_catalog --config server.cfg
 
 ## Running the unit tests
 To run the unit tests for the service:

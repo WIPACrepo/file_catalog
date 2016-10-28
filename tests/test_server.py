@@ -34,7 +34,8 @@ class TestServerAPI(unittest.TestCase):
         s = subprocess.Popen(['python', '-m', 'file_catalog',
                               '-p', str(self.port),
                               '--db_host', 'localhost:%d'%self.mongo_port,
-                              '--debug'])
+                              '--debug',
+                              '--config', 'server.cfg'])
         self.addCleanup(s.terminate)
         time.sleep(0.3)
 
@@ -126,6 +127,7 @@ class TestServerAPI(unittest.TestCase):
         self.assertEquals(ret['status'], 200)
         ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
+        ret['data'].pop('meta_modify_date')
         self.assertDictEqual(metadata, ret['data'])
         self.assertIn('etag', ret['headers'])
 
@@ -143,10 +145,12 @@ class TestServerAPI(unittest.TestCase):
         self.assertEquals(ret['status'], 200)
         ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
+        ret['data'].pop('meta_modify_date')
         self.assertDictEqual(metadata, ret['data'])
         ret = self.curl(url, 'GET', prefix='')
         ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
+        ret['data'].pop('meta_modify_date')
         self.assertDictEqual(metadata, ret['data'])
 
         ret = self.curl(url, 'PATCH', prefix='', args={'test2':200},
@@ -156,10 +160,12 @@ class TestServerAPI(unittest.TestCase):
         self.assertEquals(ret['status'], 200)
         ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
+        ret['data'].pop('meta_modify_date')
         self.assertDictEqual(metadata, ret['data'])
         ret = self.curl(url, 'GET', prefix='')
         ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
+        ret['data'].pop('meta_modify_date')
         self.assertDictEqual(metadata, ret['data'])
         
         ret = self.curl(url, 'DELETE', prefix='')

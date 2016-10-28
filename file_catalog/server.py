@@ -7,12 +7,16 @@ from functools import wraps
 from pkgutil import get_loader
 from collections import OrderedDict
 
+import datetime
+
+import pymongo.errors
+
 import tornado.ioloop
 import tornado.web
 from tornado.escape import json_encode,json_decode
 from tornado.gen import coroutine
 
-import file_catalog.validation as validation
+from file_catalog.validation import Validation
 
 import file_catalog
 from file_catalog.mongo import Mongo
@@ -63,16 +67,24 @@ def sort_dict(d):
 
     return od
 
+def set_last_modification_date(d):
+    d['meta_modify_date'] = str(datetime.datetime.utcnow())
+
 class Server(object):
     """A file_catalog server instance"""
 
-    def __init__(self, port=8888, db_host='localhost', debug=False):
+    def __init__(self, config, port=8888, db_host='localhost', debug=False):
         static_path = get_pkgdata_filename('file_catalog', 'data/www')
         if static_path is None:
             raise Exception('bad static path')
         template_path = get_pkgdata_filename('file_catalog', 'data/www_templates')
         if template_path is None:
             raise Exception('bad template path')
+
+        # print configuration
+        logger.info('db host: %s' % db_host)
+        logger.info('server port: %s' % port)
+        logger.info('debug: %s' % debug)
 
         main_args = {
             'base_url': '/api',
@@ -82,6 +94,7 @@ class Server(object):
         api_args = main_args.copy()
         api_args.update({
             'db': Mongo(db_host),
+            'config': config,
         })
 
         app = tornado.web.Application([
@@ -148,10 +161,11 @@ def catch_error(method):
 
 class APIHandler(tornado.web.RequestHandler):
     """Base class for API handlers"""
-    def initialize(self, db=None, base_url='/', debug=False, rate_limit=10):
+    def initialize(self, config, db=None, base_url='/', debug=False, rate_limit=10):
         self.db = db
         self.base_url = base_url
         self.debug = debug
+        self.config = config
         
         # subtract 1 to test before current connection is added
         self.rate_limit = rate_limit-1
@@ -211,6 +225,7 @@ class FilesHandler(APIHandler):
     def initialize(self, **kwargs):
         super(FilesHandler, self).initialize(**kwargs)
         self.files_url = os.path.join(self.base_url,'files')
+        self.validation = Validation(self.config)
 
     @catch_error
     @coroutine
@@ -221,10 +236,19 @@ class FilesHandler(APIHandler):
                 kwargs['limit'] = int(kwargs['limit'])
                 if kwargs['limit'] < 1:
                     raise Exception('limit is not positive')
+
+                # check with config
+                if kwargs['limit'] > self.config['filelist']['max_files']:
+                    kwargs['limit'] = self.config['filelist']['max_files']
+            else:
+                # if no limit has been defined, set max limit
+                kwargs['limit'] = self.config['filelist']['max_files']
+
             if 'start' in kwargs:
                 kwargs['start'] = int(kwargs['start'])
                 if kwargs['start'] < 0:
                     raise Exception('start is negative')
+
             if 'query' in kwargs:
                 kwargs['query'] = json_decode(kwargs['query'])
                 
@@ -255,8 +279,10 @@ class FilesHandler(APIHandler):
     def post(self):
         metadata = json_decode(self.request.body)
 
-        if not validation.validate_metadata_creation(self, metadata):
+        if not self.validation.validate_metadata_creation(self, metadata):
             return
+
+        set_last_modification_date(metadata)
 
         ret = yield self.db.get_file({'uid':metadata['uid']})
 
@@ -294,26 +320,33 @@ class SingleFileHandler(APIHandler):
     def initialize(self, **kwargs):
         super(SingleFileHandler, self).initialize(**kwargs)
         self.files_url = os.path.join(self.base_url,'files')
+        self.validation = Validation(self.config)
 
     @catch_error
     @coroutine
     def get(self, mongo_id):
-        ret = yield self.db.get_file({'mongo_id':mongo_id})
-        if ret:
-            ret['_links'] = {
-                'self': {'href': os.path.join(self.files_url,mongo_id)},
-                'parent': {'href': self.files_url},
-            }
-
-            self.write(ret)
-        else:
-            self.send_error(404, message='not found')
+        try:
+            ret = yield self.db.get_file({'mongo_id':mongo_id})
+    
+            if ret:
+                ret['_links'] = {
+                    'self': {'href': os.path.join(self.files_url,mongo_id)},
+                    'parent': {'href': self.files_url},
+                }
+    
+                self.write(ret)
+            else:
+                self.send_error(404, message='not found')
+        except pymongo.errors.InvalidId:
+            self.send_error(400, message='Not a valid mongo_id')
 
     @catch_error
     @coroutine
     def delete(self, mongo_id):
         try:
             yield self.db.delete_file({'mongo_id':mongo_id})
+        except pymongo.errors.InvalidId:
+            self.send_error(400, message='Not a valid mongo_id')
         except:
             self.send_error(404, message='not found')
         else:
@@ -324,14 +357,22 @@ class SingleFileHandler(APIHandler):
     def patch(self, mongo_id):
         metadata = json_decode(self.request.body)
 
-        if validation.has_forbidden_attributes_modification(self, metadata):
+        if self.validation.has_forbidden_attributes_modification(self, metadata):
             return
+
+        set_last_modification_date(metadata)
 
         links = {
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
         }
-        ret = yield self.db.get_file({'mongo_id':mongo_id})
+
+        try:
+            ret = yield self.db.get_file({'mongo_id':mongo_id})
+        except pymongo.errors.InvalidId:
+            self.send_error(400, message='Not a valid mongo_id')
+            return
+
         if ret:
             # check if this is the same version we're trying to patch
             test_write = ret.copy()
@@ -343,7 +384,7 @@ class SingleFileHandler(APIHandler):
             if same:
                 ret.update(metadata)
 
-                if not validation.validate_metadata_modification(self, ret):
+                if not self.validation.validate_metadata_modification(self, ret):
                     return
 
                 yield self.db.update_file(ret.copy())
@@ -363,8 +404,10 @@ class SingleFileHandler(APIHandler):
 
         # check if user wants to set forbidden fields
         # `uid` is not allowed to be changed
-        if validation.has_forbidden_attributes_modification(self, metadata):
+        if self.validation.has_forbidden_attributes_modification(self, metadata):
             return
+
+        set_last_modification_date(metadata)
 
         if 'mongo_id' not in metadata:
             metadata['mongo_id'] = mongo_id
@@ -373,7 +416,12 @@ class SingleFileHandler(APIHandler):
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
         }
-        ret = yield self.db.get_file({'mongo_id':mongo_id})
+
+        try:
+            ret = yield self.db.get_file({'mongo_id':mongo_id})
+        except pymongo.errors.InvalidId:
+            self.send_error(400, message='Not a valid mongo_id')
+            return
 
         # keep `uid`:
         metadata['uid'] = str(ret['uid'])
@@ -388,7 +436,7 @@ class SingleFileHandler(APIHandler):
             same = self.check_etag_header()
             self._write_buffer = []
             if same:
-                if not validation.validate_metadata_modification(self, metadata):
+                if not self.validation.validate_metadata_modification(self, metadata):
                     return
 
                 yield self.db.replace_file(metadata.copy())

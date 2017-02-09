@@ -199,6 +199,8 @@ class APIHandler(tornado.web.RequestHandler):
 
     def write_error(self,status_code=500,**kwargs):
         """Write out custom error page."""
+        if 'reason' in kwargs:
+            logger.debug('%r',kwargs['reason'])
         self.set_status(status_code)
         kwargs.pop('exc_info',None)
         if kwargs:
@@ -357,11 +359,6 @@ class SingleFileHandler(APIHandler):
     def patch(self, mongo_id):
         metadata = json_decode(self.request.body)
 
-        if self.validation.has_forbidden_attributes_modification(self, metadata):
-            return
-
-        set_last_modification_date(metadata)
-
         links = {
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
@@ -372,6 +369,11 @@ class SingleFileHandler(APIHandler):
         except pymongo.errors.InvalidId:
             self.send_error(400, message='Not a valid mongo_id')
             return
+
+        if self.validation.has_forbidden_attributes_modification(self, metadata, ret):
+            return
+
+        set_last_modification_date(metadata)
 
         if ret:
             # check if this is the same version we're trying to patch
@@ -402,16 +404,6 @@ class SingleFileHandler(APIHandler):
     def put(self, mongo_id):
         metadata = json_decode(self.request.body)
 
-        # check if user wants to set forbidden fields
-        # `uid` is not allowed to be changed
-        if self.validation.has_forbidden_attributes_modification(self, metadata):
-            return
-
-        set_last_modification_date(metadata)
-
-        if 'mongo_id' not in metadata:
-            metadata['mongo_id'] = mongo_id
-
         links = {
             'self': {'href': os.path.join(self.files_url,mongo_id)},
             'parent': {'href': self.files_url},
@@ -423,8 +415,12 @@ class SingleFileHandler(APIHandler):
             self.send_error(400, message='Not a valid mongo_id')
             return
 
-        # keep `uid`:
+        if self.validation.has_forbidden_attributes_modification(self, metadata, ret):
+            return
+
+        metadata['mongo_id'] = mongo_id
         metadata['uid'] = str(ret['uid'])
+        set_last_modification_date(metadata)
 
         if ret:
             # check if this is the same version we're trying to patch
@@ -448,5 +444,3 @@ class SingleFileHandler(APIHandler):
                                 _links=links)
         else:
             self.send_error(404, message='not found')
-
-

@@ -35,7 +35,7 @@ class TestServerAPI(unittest.TestCase):
                               '-p', str(self.port),
                               '--db_host', 'localhost:%d'%self.mongo_port,
                               '--debug',
-                              '--config', 'server.cfg'])
+                              '--config', 'resources/server.cfg'])
         self.addCleanup(s.terminate)
         time.sleep(0.3)
 
@@ -132,17 +132,19 @@ class TestServerAPI(unittest.TestCase):
         self.assertIn('etag', ret['headers'])
 
         metadata['test'] = 100
-        ret2 = self.curl(url, 'PUT', prefix='', args=metadata,
+
+        metadata_cpy = metadata.copy()
+        metadata_cpy['uid'] = 'something else'
+        ret2 = self.curl(url, 'PUT', prefix='', args=metadata_cpy,
                         headers={'If-None-Match':ret['headers']['etag']})
         print(ret2)
         self.assertEquals(ret2['status'], 400)
 
-        metadata_cpy = metadata.copy()
-        del metadata_cpy['uid']
-        ret = self.curl(url, 'PUT', prefix='', args=metadata_cpy,
+        ret = self.curl(url, 'PUT', prefix='', args=metadata,
                         headers={'If-None-Match':ret['headers']['etag']})
         print(ret)
         self.assertEquals(ret['status'], 200)
+
         ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
         ret['data'].pop('meta_modify_date')

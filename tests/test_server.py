@@ -7,16 +7,20 @@ import shutil
 import random
 import subprocess
 from functools import partial
+from threading import Thread
 import unittest
 import hashlib
 
 from tornado.escape import json_encode,json_decode
+from tornado.ioloop import IOLoop
 
 from file_catalog.urlargparse import encode as jquery_encode
+from file_catalog.server import Server
+from file_catalog.config import Config
 
 class TestServerAPI(unittest.TestCase):
     def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
+        self.tmpdir = tempfile.mkdtemp(dir=os.getcwd())
         self.addCleanup(partial(shutil.rmtree, self.tmpdir))
         self.port = random.randint(10000,50000)
         self.mongo_port = random.randint(10000,50000)
@@ -31,12 +35,13 @@ class TestServerAPI(unittest.TestCase):
         self.addCleanup(partial(time.sleep, 0.1))
         self.addCleanup(m.terminate)
 
-        s = subprocess.Popen(['python', '-m', 'file_catalog',
-                              '-p', str(self.port),
-                              '--db_host', 'localhost:%d'%self.mongo_port,
-                              '--debug',
-                              '--config', 'resources/server.cfg'])
-        self.addCleanup(s.terminate)
+        self.config = Config('resources/server.cfg')
+        self.server = Server(self.config, port=self.port,
+                             db_host='localhost:%d'%self.mongo_port,
+                             debug=True)
+        t = Thread(target=self.server.run)
+        t.start()
+        self.addCleanup(IOLoop.current().stop)
         time.sleep(0.3)
 
     def curl(self, url, method='GET', args=None, prefix='/api', headers=None):
@@ -91,6 +96,25 @@ class TestServerAPI(unittest.TestCase):
             ret = self.curl('', m)
             self.assertEquals(ret['status'], 405)
 
+    def test_05_token(self):
+        appkey = 'secret2'
+        self.config['auth'] = {
+            'secret': 'secret',
+            'expiration': 82400,
+            'keys': {
+                'appkey': appkey,
+            },
+        }
+        ret = self.curl('/token?appkey='+appkey, 'GET')
+        print(ret)
+        self.assertEquals(ret['status'], 200)
+
+        ret = self.curl('/token?appkey=blah', 'GET')
+        self.assertEquals(ret['status'], 403)
+
+        ret = self.curl('/token', 'GET')
+        self.assertEquals(ret['status'], 403)
+
     def test_10_files(self):
         metadata = {'uid': 'blah', 'checksum': hashlib.sha512('foo bar').hexdigest(), 'locations': ['blah.dat']}
         ret = self.curl('/files', 'POST', metadata)
@@ -113,6 +137,35 @@ class TestServerAPI(unittest.TestCase):
         for m in ('PUT','DELETE','PATCH'):
             ret = self.curl('/files', m)
             self.assertEquals(ret['status'], 405)
+
+    def test_15_files_auth(self):
+        appkey = 'secret2'
+        self.config['auth'] = {
+            'secret': 'secret',
+            'expiration': 82400,
+            'keys': {
+                'appkey': appkey,
+            },
+        }
+        
+        ret = self.curl('/token?appkey='+appkey, 'GET')
+        print(ret)
+        self.assertEquals(ret['status'], 200)
+        token = ret['data']['token']
+        
+        metadata = {'uid': 'blah', 'checksum': hashlib.sha512('foo bar').hexdigest(), 'locations': ['blah.dat']}
+        ret = self.curl('/files', 'POST', metadata)
+        print(ret)
+        self.assertEquals(ret['status'], 403)
+        
+        metadata = {'uid': 'blah', 'checksum': hashlib.sha512('foo bar').hexdigest(), 'locations': ['blah.dat']}
+        ret = self.curl('/files', 'POST', metadata, headers={'Authorization':'JWT '+token})
+        print(ret)
+        self.assertEquals(ret['status'], 201)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('file', ret['data'])
+        url = ret['data']['file']
 
     def test_20_file(self):
         metadata = {'uid': 'blah', 'checksum': hashlib.sha512('foo bar').hexdigest(), 'locations': ['blah.dat']}

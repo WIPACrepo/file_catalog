@@ -16,11 +16,12 @@ import tornado.web
 from tornado.escape import json_encode,json_decode
 from tornado.gen import coroutine
 
-from file_catalog.validation import Validation
 
 import file_catalog
 from file_catalog.mongo import Mongo
 from file_catalog import urlargparse
+from file_catalog.validation import Validation
+from file_catalog.auth import Auth
 
 logger = logging.getLogger('server')
 
@@ -100,6 +101,7 @@ class Server(object):
         app = tornado.web.Application([
                 (r"/", MainHandler, main_args),
                 (r"/api", HATEOASHandler, api_args),
+                (r"/api/token", TokenHandler, api_args),
                 (r"/api/files", FilesHandler, api_args),
                 (r"/api/files/(.*)", SingleFileHandler, api_args),
             ],
@@ -159,6 +161,27 @@ def catch_error(method):
             self.send_error(**kwargs)
     return wrapper
 
+def validate_auth(method):
+    """Decorator to check auth key on api handlers"""
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        if 'auth' not in self.config: # skip auth if not present
+            return method(self, *args, **kwargs)
+        try:
+            auth_key = self.request.headers['Authorization'].split(' ',1)
+            if not auth_key[0] == 'JWT':
+                raise Exception('not a JWT token')
+            self.auth.authorize(auth_key[1])
+        except Exception as e:
+            logger.warn('Error in auth', exc_info=True)
+            kwargs = {'message':'Authorization error','status_code':403}
+            if self.debug:
+                kwargs['exception'] = str(e)
+            self.send_error(**kwargs)
+        else:
+            return method(self, *args, **kwargs)
+    return wrapper
+
 class APIHandler(tornado.web.RequestHandler):
     """Base class for API handlers"""
     def initialize(self, config, db=None, base_url='/', debug=False, rate_limit=10):
@@ -166,7 +189,9 @@ class APIHandler(tornado.web.RequestHandler):
         self.base_url = base_url
         self.debug = debug
         self.config = config
-        
+        if 'auth' in self.config: # skip auth if not present
+            self.auth = Auth(self.config)
+
         # subtract 1 to test before current connection is added
         self.rate_limit = rate_limit-1
         self.rate_limit_data = {}
@@ -206,6 +231,21 @@ class APIHandler(tornado.web.RequestHandler):
         if kwargs:
             self.write(kwargs)
         self.finish()
+
+class TokenHandler(APIHandler):
+    @catch_error
+    def get(self):
+        if 'auth' in self.config: # skip auth if not present
+            try:
+                app_key = self.get_argument('appkey')
+                exp = self.get_argument('expiration',None)
+                token = self.auth.new_key(app_key, expiration=exp)
+            except Exception:
+                self.send_error(status_code=403, message='Authorization failed')
+            else:
+                self.write({'token':token})
+        else:
+            self.send_error(status_code=400, message='Authorization disabled')
 
 class HATEOASHandler(APIHandler):
     def initialize(self, **kwargs):
@@ -276,6 +316,7 @@ class FilesHandler(APIHandler):
             'files': [os.path.join(self.files_url,f['mongo_id']) for f in files],
         })
 
+    @validate_auth
     @catch_error
     @coroutine
     def post(self):
@@ -342,6 +383,7 @@ class SingleFileHandler(APIHandler):
         except pymongo.errors.InvalidId:
             self.send_error(400, message='Not a valid mongo_id')
 
+    @validate_auth
     @catch_error
     @coroutine
     def delete(self, mongo_id):
@@ -354,6 +396,7 @@ class SingleFileHandler(APIHandler):
         else:
             self.set_status(204)
 
+    @validate_auth
     @catch_error
     @coroutine
     def patch(self, mongo_id):
@@ -399,6 +442,7 @@ class SingleFileHandler(APIHandler):
         else:
             self.send_error(404, message='not found')
 
+    @validate_auth
     @catch_error
     @coroutine
     def put(self, mongo_id):

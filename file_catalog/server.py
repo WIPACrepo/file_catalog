@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import sys
 import os
 import logging
+import random
 from functools import wraps
 from pkgutil import get_loader
 from collections import OrderedDict
@@ -15,6 +16,7 @@ import tornado.ioloop
 import tornado.web
 from tornado.escape import json_encode,json_decode
 from tornado.gen import coroutine
+from tornado.httpclient import HTTPError
 
 
 import file_catalog
@@ -90,6 +92,7 @@ class Server(object):
         main_args = {
             'base_url': '/api',
             'debug': debug,
+            'config': config,
         }
 
         api_args = main_args.copy()
@@ -100,6 +103,7 @@ class Server(object):
 
         app = tornado.web.Application([
                 (r"/", MainHandler, main_args),
+                (r"/login", LoginHandler, main_args),
                 (r"/api", HATEOASHandler, api_args),
                 (r"/api/token", TokenHandler, api_args),
                 (r"/api/files", FilesHandler, api_args),
@@ -108,6 +112,8 @@ class Server(object):
             static_path=static_path,
             template_path=template_path,
             log_function=tornado_logger,
+            xsrf_cookies=True,
+            cookie_secret=''.join(chr(random.randint(0,128)) for _ in range(16)),
         )
         app.listen(port)
 
@@ -116,14 +122,26 @@ class Server(object):
 
 class MainHandler(tornado.web.RequestHandler):
     """Main HTML handler"""
-    def initialize(self, base_url='/', debug=False):
+    def initialize(self, base_url='/', debug=False, config=None):
         self.base_url = base_url
         self.debug = debug
+        self.config = config
+        if 'auth' in self.config: # skip auth if not present
+            self.auth = Auth(self.config)
 
     def get_template_namespace(self):
         namespace = super(MainHandler,self).get_template_namespace()
         namespace['version'] = file_catalog.__version__
         return namespace
+    
+    def get_current_user(self):
+        try:
+            token = self.get_secure_cookie('token')
+            data = self.auth.authorize(token)
+            return data['sub']
+        except Exception:
+            pass
+        return None
 
     def get(self):
         try:
@@ -146,6 +164,25 @@ class MainHandler(tornado.web.RequestHandler):
             self.write('<br />'.join(kwargs['message'].split('\n')))
         self.finish()
 
+
+class LoginHandler(MainHandler):
+    """Main HTML handler"""
+    def get(self):
+        redirect = self.get_argument("redirect", "/")
+        self.render('login.html', redirect=redirect, failed=False)
+
+    def post(self):
+        username = self.get_argument("name")
+        password = self.get_argument("password")
+        redirect = self.get_argument("redirect", "/")
+        try:
+            token = self.auth.new_appkey_ldap(username, password)
+        except Exception:
+            self.render('login.html', redirect=redirect, failed=True)
+        else:
+            # successful login
+            self.set_secure_cookie('token', token)
+            self.redirect(redirect)
 
 def catch_error(method):
     """Decorator to catch and handle errors on api handlers"""
@@ -172,6 +209,7 @@ def validate_auth(method):
             if not auth_key[0] == 'JWT':
                 raise Exception('not a JWT token')
             self.auth.authorize(auth_key[1])
+            self.auth_key = auth_key[1]
         except Exception as e:
             logger.warn('auth error')
             kwargs = {'message':'Authorization error','status_code':403}
@@ -191,10 +229,14 @@ class APIHandler(tornado.web.RequestHandler):
         self.config = config
         if 'auth' in self.config: # skip auth if not present
             self.auth = Auth(self.config)
+            self.auth_key = None
 
         # subtract 1 to test before current connection is added
         self.rate_limit = rate_limit-1
         self.rate_limit_data = {}
+
+    def check_xsrf_cookie(self):
+        pass
 
     def set_default_headers(self):
         self.set_header('Content-Type', 'application/hal+json; charset=UTF-8')
@@ -233,14 +275,15 @@ class APIHandler(tornado.web.RequestHandler):
         self.finish()
 
 class TokenHandler(APIHandler):
+    @validate_auth
     @catch_error
     def get(self):
         if 'auth' in self.config: # skip auth if not present
             try:
-                app_key = self.get_argument('appkey')
                 exp = self.get_argument('expiration',None)
-                token = self.auth.new_key(app_key, expiration=exp)
+                token = self.auth.new_temp_key(self.auth_key, expiration=exp)
             except Exception:
+                logger.warn('failed auth for key: %r', self.auth_key, exc_info=True)
                 self.send_error(status_code=403, message='Authorization failed')
             else:
                 self.write({'token':token})

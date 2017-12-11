@@ -14,9 +14,12 @@ import hashlib
 from tornado.escape import json_encode,json_decode
 from tornado.ioloop import IOLoop
 
+import jwt
+
 from file_catalog.urlargparse import encode as jquery_encode
 from file_catalog.server import Server
 from file_catalog.config import Config
+from file_catalog import auth
 
 class TestServerAPI(unittest.TestCase):
     def setUp(self):
@@ -101,15 +104,20 @@ class TestServerAPI(unittest.TestCase):
         self.config['auth'] = {
             'secret': 'secret',
             'expiration': 82400,
-            'keys': {
-                'appkey': appkey,
-            },
         }
-        ret = self.curl('/token?appkey='+appkey, 'GET')
+        
+        payload = {
+            'iss': auth.ISSUER,
+            'sub': 'test',
+            'type': 'appkey'
+        }
+        appkey = jwt.encode(payload, 'secret', algorithm='HS512')
+
+        ret = self.curl('/token', 'GET', headers={'Authorization':'JWT '+appkey})
         print(ret)
         self.assertEquals(ret['status'], 200)
 
-        ret = self.curl('/token?appkey=blah', 'GET')
+        ret = self.curl('/token', 'GET', headers={'Authorization':'JWT blah'})
         self.assertEquals(ret['status'], 403)
 
         ret = self.curl('/token', 'GET')
@@ -148,15 +156,14 @@ class TestServerAPI(unittest.TestCase):
         self.config['auth'] = {
             'secret': 'secret',
             'expiration': 82400,
-            'keys': {
-                'appkey': appkey,
-            },
         }
         
-        ret = self.curl('/token?appkey='+appkey, 'GET')
-        print(ret)
-        self.assertEquals(ret['status'], 200)
-        token = ret['data']['token']
+        payload = {
+            'iss': auth.ISSUER,
+            'sub': 'test',
+            'type': 'appkey'
+        }
+        appkey = jwt.encode(payload, 'secret', algorithm='HS512')
         
         metadata = {
             'logical_name': 'blah',
@@ -167,8 +174,8 @@ class TestServerAPI(unittest.TestCase):
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
         self.assertEquals(ret['status'], 403)
-        
-        ret = self.curl('/files', 'POST', metadata, headers={'Authorization':'JWT '+token})
+
+        ret = self.curl('/files', 'POST', metadata, headers={'Authorization':'JWT '+appkey})
         print(ret)
         self.assertEquals(ret['status'], 201)
         self.assertIn('_links', ret['data'])

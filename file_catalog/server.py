@@ -6,7 +6,7 @@ import logging
 from functools import wraps
 from pkgutil import get_loader
 from collections import OrderedDict
-
+import uuid
 import datetime
 
 import pymongo.errors
@@ -173,7 +173,7 @@ def validate_auth(method):
                 raise Exception('not a JWT token')
             self.auth.authorize(auth_key[1])
         except Exception as e:
-            logger.warn('Error in auth', exc_info=True)
+            logger.warn('auth error')
             kwargs = {'message':'Authorization error','status_code':403}
             if self.debug:
                 kwargs['exception'] = str(e)
@@ -293,13 +293,6 @@ class FilesHandler(APIHandler):
 
             if 'query' in kwargs:
                 kwargs['query'] = json_decode(kwargs['query'])
-                
-                # _id and mongo_id means the same (mongo_id will be renamed to _id in self.db.find_files())
-                # make sure that not both keys are in query
-                if '_id' in kwargs['query'] and 'mongo_id' in kwargs['query']:
-                    logging.warn('`query` contains `_id` and `mongo_id`', exc_info=True)
-                    self.send_error(400, message='`query` contains `_id` and `mongo_id`')
-                    return
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
@@ -313,7 +306,7 @@ class FilesHandler(APIHandler):
             '_embedded':{
                 'files': files,
             },
-            'files': [os.path.join(self.files_url,f['mongo_id']) for f in files],
+            'files': [os.path.join(self.files_url,f['uuid']) for f in files],
         })
 
     @validate_auth
@@ -322,24 +315,28 @@ class FilesHandler(APIHandler):
     def post(self):
         metadata = json_decode(self.request.body)
 
+        # allow user-specified uuid, create if not found
+        if 'uuid' not in metadata:
+            metadata['uuid'] = str(uuid.uuid1())
+
         if not self.validation.validate_metadata_creation(self, metadata):
             return
 
         set_last_modification_date(metadata)
 
-        ret = yield self.db.get_file({'uid':metadata['uid']})
+        ret = yield self.db.get_file({'uuid':metadata['uuid']})
 
         if ret:
-            # file uid already exists, check checksum
+            # file uuid already exists, check checksum
             if ret['checksum'] != metadata['checksum']:
-                # the uid already exists (no replica since checksum is different
-                self.send_error(409, message='conflict with existing file (uid already exists)',
-                                file=os.path.join(self.files_url,ret['mongo_id']))
+                # the uuid already exists (no replica since checksum is different
+                self.send_error(409, message='conflict with existing file (uuid already exists)',
+                                file=os.path.join(self.files_url,ret['uuid']))
                 return
             elif any(f in ret['locations'] for f in metadata['locations']):
                 # replica has already been added
                 self.send_error(409, message='replica has already been added',
-                                file=os.path.join(self.files_url,ret['mongo_id']))
+                                file=os.path.join(self.files_url,ret['uuid']))
                 return
             else:
                 # add replica
@@ -347,7 +344,7 @@ class FilesHandler(APIHandler):
 
                 yield self.db.update_file(ret)
                 self.set_status(200)
-                ret = ret['mongo_id']
+                ret = ret['uuid']
         else:
             ret = yield self.db.create_file(metadata)
             self.set_status(201)
@@ -367,13 +364,13 @@ class SingleFileHandler(APIHandler):
 
     @catch_error
     @coroutine
-    def get(self, mongo_id):
+    def get(self, uuid):
         try:
-            ret = yield self.db.get_file({'mongo_id':mongo_id})
+            ret = yield self.db.get_file({'uuid':uuid})
     
             if ret:
                 ret['_links'] = {
-                    'self': {'href': os.path.join(self.files_url,mongo_id)},
+                    'self': {'href': os.path.join(self.files_url,uuid)},
                     'parent': {'href': self.files_url},
                 }
     
@@ -381,16 +378,16 @@ class SingleFileHandler(APIHandler):
             else:
                 self.send_error(404, message='not found')
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='Not a valid mongo_id')
+            self.send_error(400, message='Not a valid uuid')
 
     @validate_auth
     @catch_error
     @coroutine
-    def delete(self, mongo_id):
+    def delete(self, uuid):
         try:
-            yield self.db.delete_file({'mongo_id':mongo_id})
+            yield self.db.delete_file({'uuid':uuid})
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='Not a valid mongo_id')
+            self.send_error(400, message='Not a valid uuid')
         except:
             self.send_error(404, message='not found')
         else:
@@ -399,18 +396,18 @@ class SingleFileHandler(APIHandler):
     @validate_auth
     @catch_error
     @coroutine
-    def patch(self, mongo_id):
+    def patch(self, uuid):
         metadata = json_decode(self.request.body)
 
         links = {
-            'self': {'href': os.path.join(self.files_url,mongo_id)},
+            'self': {'href': os.path.join(self.files_url,uuid)},
             'parent': {'href': self.files_url},
         }
 
         try:
-            ret = yield self.db.get_file({'mongo_id':mongo_id})
+            ret = yield self.db.get_file({'uuid':uuid})
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='Not a valid mongo_id')
+            self.send_error(400, message='Not a valid uuid')
             return
 
         if self.validation.has_forbidden_attributes_modification(self, metadata, ret):
@@ -445,25 +442,24 @@ class SingleFileHandler(APIHandler):
     @validate_auth
     @catch_error
     @coroutine
-    def put(self, mongo_id):
+    def put(self, uuid):
         metadata = json_decode(self.request.body)
 
         links = {
-            'self': {'href': os.path.join(self.files_url,mongo_id)},
+            'self': {'href': os.path.join(self.files_url,uuid)},
             'parent': {'href': self.files_url},
         }
 
         try:
-            ret = yield self.db.get_file({'mongo_id':mongo_id})
+            ret = yield self.db.get_file({'uuid':uuid})
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='Not a valid mongo_id')
+            self.send_error(400, message='Not a valid uuid')
             return
 
         if self.validation.has_forbidden_attributes_modification(self, metadata, ret):
             return
 
-        metadata['mongo_id'] = mongo_id
-        metadata['uid'] = str(ret['uid'])
+        metadata['uuid'] = uuid
         set_last_modification_date(metadata)
 
         if ret:

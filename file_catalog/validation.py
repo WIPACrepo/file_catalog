@@ -53,28 +53,35 @@ class Validation:
         Utilizes `send_error` and returnes `False` if validation failed.
         If validation was successful, `True` is returned.
         """
-        if not set(self.config.get_list('metadata', 'mandatory_fields')).issubset(metadata):
+        for field in self.config.get_list('metadata', 'mandatory_fields'):
             # check metadata for mandatory fields
-            apihandler.send_error(400, reason='mandatory metadata missing (mandatory fields: %s)' % self.config['metadata']['mandatory_fields'],
+            if '.' in field:
+                m = metadata
+                for p in field.split('.'):
+                    if p not in m:
+                        apihandler.send_error(400, reason='mandatory metadata missing (mandatory fields: %s)' % self.config['metadata']['mandatory_fields'],
+                                        file=apihandler.files_url)
+                        return False
+                    m = m[p]
+            elif field not in metadata:
+                apihandler.send_error(400, reason='mandatory metadata missing (mandatory fields: %s)' % self.config['metadata']['mandatory_fields'],
+                                file=apihandler.files_url)
+                return False
+        if ((not isinstance(metadata['checksum'], dict))
+            or 'sha512' not in metadata['checksum']):
+            # checksum needs to be a dict with an sha512
+            apihandler.send_error(400, reason='member `checksum` must be a dict with a sha512 hash',
                             file=apihandler.files_url)
             return False
-        if not self.is_valid_sha512(metadata['checksum']):
+        elif not self.is_valid_sha512(metadata['checksum']['sha512']):
             # force to use SHA512
-            apihandler.send_error(400, reason='`checksum` needs to be a SHA512 hash',
+            apihandler.send_error(400, reason='`checksum[sha512]` needs to be a SHA512 hash',
                             file=apihandler.files_url)
             return False
-        elif not isinstance(metadata['locations'], list):
-            # locations needs to be a list
-            apihandler.send_error(400, reason='member `locations` must be a list',
-                            file=apihandler.files_url)
-            return False
-        elif not metadata['locations']:
-            # location needs have at least one entry
-            apihandler.send_error(400, reason='member `locations` must be a list with at least one url',
-                            file=apihandler.files_url)
-            return False
-        elif not all(l for l in metadata['locations']):
-            # locations aren't allowed to be empty
+        elif ((not isinstance(metadata['locations'], list))
+              or (not metadata['locations'])
+              or not all(l for l in metadata['locations'])):
+            # locations needs to be a non-empty list
             apihandler.send_error(400, reason='member `locations` must be a list with at least one non-empty url',
                             file=apihandler.files_url)
             return False

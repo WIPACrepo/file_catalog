@@ -116,7 +116,12 @@ class TestServerAPI(unittest.TestCase):
         self.assertEquals(ret['status'], 403)
 
     def test_10_files(self):
-        metadata = {'uid': 'blah', 'checksum': hashlib.sha512('foo bar').hexdigest(), 'locations': ['blah.dat']}
+        metadata = {
+            'logical_name': 'blah',
+            'checksum': {'sha512':hashlib.sha512('foo bar').hexdigest()},
+            'file_size': 1,
+            'locations': ['blah.dat']
+        }
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
         self.assertEquals(ret['status'], 201)
@@ -153,12 +158,16 @@ class TestServerAPI(unittest.TestCase):
         self.assertEquals(ret['status'], 200)
         token = ret['data']['token']
         
-        metadata = {'uid': 'blah', 'checksum': hashlib.sha512('foo bar').hexdigest(), 'locations': ['blah.dat']}
+        metadata = {
+            'logical_name': 'blah',
+            'checksum': {'sha512':hashlib.sha512('foo bar').hexdigest()},
+            'file_size': 1,
+            'locations': ['blah.dat']
+        }
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
         self.assertEquals(ret['status'], 403)
         
-        metadata = {'uid': 'blah', 'checksum': hashlib.sha512('foo bar').hexdigest(), 'locations': ['blah.dat']}
         ret = self.curl('/files', 'POST', metadata, headers={'Authorization':'JWT '+token})
         print(ret)
         self.assertEquals(ret['status'], 201)
@@ -168,7 +177,12 @@ class TestServerAPI(unittest.TestCase):
         url = ret['data']['file']
 
     def test_20_file(self):
-        metadata = {'uid': 'blah', 'checksum': hashlib.sha512('foo bar').hexdigest(), 'locations': ['blah.dat']}
+        metadata = {
+            u'logical_name': u'blah',
+            u'checksum': {u'sha512':hashlib.sha512('foo bar').hexdigest()},
+            u'file_size': 1,
+            u'locations': [u'blah.dat']
+        }
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
 
@@ -178,16 +192,16 @@ class TestServerAPI(unittest.TestCase):
         print(ret)
 
         self.assertEquals(ret['status'], 200)
-        ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
         ret['data'].pop('meta_modify_date')
+        ret['data'].pop('uuid')
         self.assertDictEqual(metadata, ret['data'])
         self.assertIn('etag', ret['headers'])
 
         metadata['test'] = 100
 
         metadata_cpy = metadata.copy()
-        metadata_cpy['uid'] = 'something else'
+        metadata_cpy['uuid'] = 'something else'
         ret2 = self.curl(url, 'PUT', prefix='', args=metadata_cpy,
                         headers={'If-None-Match':ret['headers']['etag']})
         print(ret2)
@@ -198,14 +212,14 @@ class TestServerAPI(unittest.TestCase):
         print(ret)
         self.assertEquals(ret['status'], 200)
 
-        ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
         ret['data'].pop('meta_modify_date')
+        ret['data'].pop('uuid')
         self.assertDictEqual(metadata, ret['data'])
         ret = self.curl(url, 'GET', prefix='')
-        ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
         ret['data'].pop('meta_modify_date')
+        ret['data'].pop('uuid')
         self.assertDictEqual(metadata, ret['data'])
 
         ret = self.curl(url, 'PATCH', prefix='', args={'test2':200},
@@ -213,14 +227,14 @@ class TestServerAPI(unittest.TestCase):
         metadata['test2'] = 200
         print(ret)
         self.assertEquals(ret['status'], 200)
-        ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
         ret['data'].pop('meta_modify_date')
+        ret['data'].pop('uuid')
         self.assertDictEqual(metadata, ret['data'])
         ret = self.curl(url, 'GET', prefix='')
-        ret['data'].pop('mongo_id')
         ret['data'].pop('_links')
         ret['data'].pop('meta_modify_date')
+        ret['data'].pop('uuid')
         self.assertDictEqual(metadata, ret['data'])
         
         ret = self.curl(url, 'DELETE', prefix='')

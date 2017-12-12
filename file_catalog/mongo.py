@@ -24,6 +24,10 @@ class Mongo(object):
 
         self.client = MongoClient(**kwargs).file_catalog
         self.client.files.create_index('uuid', unique=True)
+        self.client.files.create_index('logical_name')
+        self.client.files.create_index('locations.archive')
+        self.client.files.create_index('craete_date')
+        self.client.files.create_index('processing_level', sparse=True)
 
         self.executor = ThreadPoolExecutor(max_workers=10)
 

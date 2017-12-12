@@ -50,6 +50,8 @@ class TestServerAPI(unittest.TestCase):
     def curl(self, url, method='GET', args=None, prefix='/api', headers=None):
         cmd = ['curl', '-X', method, '-s', '-i']
         if args:
+            if 'query' in args:
+                args['query'] = json_encode(args['query'])
             if method == 'GET':
                 cmd.extend(['-G', '--data-binary', jquery_encode(args)])
             else:
@@ -128,7 +130,7 @@ class TestServerAPI(unittest.TestCase):
             'logical_name': 'blah',
             'checksum': {'sha512':hashlib.sha512('foo bar').hexdigest()},
             'file_size': 1,
-            'locations': ['blah.dat']
+            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
@@ -169,7 +171,7 @@ class TestServerAPI(unittest.TestCase):
             'logical_name': 'blah',
             'checksum': {'sha512':hashlib.sha512('foo bar').hexdigest()},
             'file_size': 1,
-            'locations': ['blah.dat']
+            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
@@ -188,7 +190,7 @@ class TestServerAPI(unittest.TestCase):
             u'logical_name': u'blah',
             u'checksum': {u'sha512':hashlib.sha512('foo bar').hexdigest()},
             u'file_size': 1,
-            u'locations': [u'blah.dat']
+            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
@@ -254,7 +256,44 @@ class TestServerAPI(unittest.TestCase):
         
         ret = self.curl(url, 'POST', prefix='')
         self.assertEquals(ret['status'], 405)
-        
+
+    def test_30_archive(self):
+        metadata = {
+            u'logical_name': u'blah',
+            u'checksum': {u'sha512':hashlib.sha512('foo bar').hexdigest()},
+            u'file_size': 1,
+            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
+        }
+        metadata2 = {
+            u'logical_name': u'blah2',
+            u'checksum': {u'sha512':hashlib.sha512('foo bar baz').hexdigest()},
+            u'file_size': 2,
+            u'locations': [{u'site':u'test',u'path':u'blah.dat',u'archive':True}]
+        }
+        ret = self.curl('/files', 'POST', metadata)
+        url = ret['data']['file']
+        ret = self.curl('/files', 'POST', metadata2)
+        url2 = ret['data']['file']
+
+        ret = self.curl('/files', 'GET')
+        print(ret)
+        self.assertEquals(ret['status'], 200)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('files', ret['data'])
+        self.assertEqual(len(ret['data']['files']), 1)
+        self.assertIn(url, ret['data']['files'])
+        self.assertNotIn(url2, ret['data']['files'])
+
+        ret = self.curl('/files', 'GET', args={'query':{'locations.archive':True}})
+        print(ret)
+        self.assertEquals(ret['status'], 200)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('files', ret['data'])
+        self.assertEqual(len(ret['data']['files']), 1)
+        self.assertNotIn(url, ret['data']['files'])
+        self.assertIn(url2, ret['data']['files'])
 
 if __name__ == '__main__':
     suite = unittest.TestLoader().loadTestsFromTestCase(TestStringMethods)

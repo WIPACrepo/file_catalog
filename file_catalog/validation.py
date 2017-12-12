@@ -82,7 +82,7 @@ class Validation:
               or (not metadata['locations'])
               or not all(l for l in metadata['locations'])):
             # locations needs to be a non-empty list
-            apihandler.send_error(400, reason='member `locations` must be a list with at least one non-empty url',
+            apihandler.send_error(400, reason='member `locations` must be a list with at least one entry',
                             file=apihandler.files_url)
             return False
 

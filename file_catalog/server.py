@@ -336,6 +336,10 @@ class FilesHandler(APIHandler):
 
             if 'query' in kwargs:
                 kwargs['query'] = json_decode(kwargs['query'])
+            else:
+                kwargs['query'] = {}
+            if 'locations.archive' not in kwargs['query']:
+                kwargs['query'] = {'locations.archive':None}
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')

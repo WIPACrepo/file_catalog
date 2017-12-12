@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}File Catalog - Account{% end %}
+
+{% block head_scripts %}
+<style>
+
+</style>
+{% end %}
+
+{% block login %}{% end %}
+
+{% block content %}
+<h3>Account information for {{ current_user }}</h3>
+<br>
+<div>Long-lived API key: {{ authkey }}</div>
+{% if tempkey %}
+    <div>Temporary key: {{ tempkey }}</div>
+{% end %}
+<br>
+<h4>Generate temporary key:</h4>
+<form action="/account" method="post">
+    {% module xsrf_form_html() %}
+    <div>Expiration (seconds): <input type="text" name="expiration" value="3600" /></div>
+    <input type="submit" value="Create!" />
+</form>
+{% end %}

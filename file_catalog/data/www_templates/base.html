@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <title>{% block title %}File Catalog{% end %}</title>
+    <meta name="description" content="File catalog to track metadata and replicas">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+    <link rel="icon" href="/static/favicon.png">
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jquerymobile/1.4.5/jquery.mobile.min.css">
+    <link rel="stylesheet" href="/static/base.css" media="all" type="text/css" />
+    {% block head_scripts %}{% end %}
+  </head>
+  <body>
+<!--[if lt IE 9]>
+<p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
+<![endif]-->
+    <div class="page" data-role="page">
+        <header data-role="header">
+            <div class=".title">File Catalog</div>
+            {% block login %}
+            <div class="account float-right">
+                {% if current_user %}
+                <a href="/account" class="name">{{ current_user }}</a>
+                {% else %}
+                <a href="/login?redirect={{ request.path }}" class="login">Login</a>
+                {% end %}
+            </div>
+            {% end %}
+        </header>
+
+        <div class="ui-content">
+        {% block content %}{% end %}
+        </div>
+
+        <footer data-role="footer">
+            <div class="version align-right">File Catalog v{{ version }}</div>
+        </footer>
+    </div>
+
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/jquerymobile/1.4.5/jquery.mobile.min.js"></script>
+    <script src="/static/base.js"></script>
+    {% block body_scripts %}{% end %}
+  </body>
+</html>
+

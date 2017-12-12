@@ -1,0 +1,30 @@
+.left {
+    text-align: right;
+}
+.align-right {
+    text-align: right;
+}
+.float-right {
+    float: right;
+}
+.clear {
+    clear: both;
+}
+
+header {
+    height: 1em;
+}
+header .title {
+    font-size: 16pt;
+}
+header>div {
+    display: inline-block;
+}
+header .account {
+    font-size: 12pt;
+}
+
+footer .version {
+    font-size: 8pt;
+    color: black;
+}

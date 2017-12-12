@@ -10,6 +10,13 @@ from collections import OrderedDict
 import uuid
 import datetime
 
+try:
+    import urlparse
+    from urllib import urlencode
+except ImportError:
+    from urllib.parse import urlparse, urlencode
+
+
 import pymongo.errors
 
 import tornado.ioloop
@@ -101,9 +108,15 @@ class Server(object):
             'config': config,
         })
 
+        if 'auth' in config and 'cookie_secret' in config['auth']:
+            cookie_secret = config['auth']['cookie_secret']
+        else:
+            cookie_secret = ''.join(chr(random.randint(0,128)) for _ in range(16))
+
         app = tornado.web.Application([
                 (r"/", MainHandler, main_args),
                 (r"/login", LoginHandler, main_args),
+                (r"/account", AccountHandler, main_args),
                 (r"/api", HATEOASHandler, api_args),
                 (r"/api/token", TokenHandler, api_args),
                 (r"/api/files", FilesHandler, api_args),
@@ -112,8 +125,9 @@ class Server(object):
             static_path=static_path,
             template_path=template_path,
             log_function=tornado_logger,
+            login_url='/login',
             xsrf_cookies=True,
-            cookie_secret=''.join(chr(random.randint(0,128)) for _ in range(16)),
+            cookie_secret=cookie_secret,
         )
         app.listen(port)
 
@@ -128,18 +142,33 @@ class MainHandler(tornado.web.RequestHandler):
         self.config = config
         if 'auth' in self.config: # skip auth if not present
             self.auth = Auth(self.config)
+            self.auth_key = None
+        self.current_user_secure = None
 
     def get_template_namespace(self):
         namespace = super(MainHandler,self).get_template_namespace()
         namespace['version'] = file_catalog.__version__
         return namespace
-    
+
     def get_current_user(self):
         try:
             token = self.get_secure_cookie('token')
+            token_secure = self.get_secure_cookie("token_secure", max_age_days=0.01)
+            if token_secure:
+                logger.info('token_secure: %r', token_secure)
+                data = self.auth.authorize(token_secure)
+                self.current_user_secure = data['sub']
+            logger.info('token: %r', token)
             data = self.auth.authorize(token)
+            if self.current_user_secure and data['sub'] != self.current_user_secure:
+                logger.warn('mismatch between regular and secure tokens')
+                self.set_secure_cookie('token_secure', '', max_age_days=0.01)
+                self.set_secure_cookie('token', '')
+                return None
+            self.auth_key = token
             return data['sub']
         except Exception:
+            logger.warn('failed auth', exc_info=True)
             pass
         return None
 
@@ -166,23 +195,83 @@ class MainHandler(tornado.web.RequestHandler):
 
 
 class LoginHandler(MainHandler):
-    """Main HTML handler"""
+    """Login HTML handler"""
     def get(self):
-        redirect = self.get_argument("redirect", "/")
-        self.render('login.html', redirect=redirect, failed=False)
+        redirect = self.get_argument("next", "/")
+        secure = self.get_argument("secure", False)
+        self.render('login.html', redirect=redirect, secure=secure, failed=False)
 
     def post(self):
         username = self.get_argument("name")
         password = self.get_argument("password")
-        redirect = self.get_argument("redirect", "/")
+        redirect = self.get_argument("next", "/")
+        secure = self.get_argument("secure", False)
+        if secure == 'False':
+            secure = False
         try:
-            token = self.auth.new_appkey_ldap(username, password)
+            #token = self.auth.new_appkey_ldap(username, password)
+            token = self.auth._create_jwt(username, type='appkey')
         except Exception:
-            self.render('login.html', redirect=redirect, failed=True)
+            logger.warn('failed to login', exc_info=True)
+            self.render('login.html', redirect=redirect, secure=secure, failed=True)
         else:
             # successful login
-            self.set_secure_cookie('token', token)
+            if secure:
+                self.set_secure_cookie('token_secure', token, expires_days=0.01)
+            else:
+                self.set_secure_cookie('token', token)
             self.redirect(redirect)
+
+def authenticated_secure(method):
+    """Decorate methods with this to require that the user be logged in
+    to a secure area.
+
+    If the user is not logged in, they will be redirected to the configured
+    `login url <RequestHandler.get_login_url>`.
+
+    If you configure a login url with a query parameter, Tornado will
+    assume you know what you're doing and use it as-is.  If not, it
+    will add a `next` parameter so the login page knows where to send
+    you once you're logged in.
+    """
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        if not self.current_user_secure:
+            if self.request.method in ("GET", "HEAD"):
+                url = self.get_login_url()
+                if "?" not in url:
+                    if urlparse.urlsplit(url).scheme:
+                        # if login url is absolute, make next absolute too
+                        next_url = self.request.full_url()
+                    else:
+                        next_url = self.request.uri
+                    url += "?" + urlencode(dict(next=next_url,secure=True))
+                self.redirect(url)
+                return
+            raise HTTPError(403)
+        else:
+            if not self.current_user:
+                self.current_user = self.current_user_secure
+            elif self.current_user != self.current_user_secure:
+                raise HTTPError(403)
+        return method(self, *args, **kwargs)
+    return wrapper
+
+class AccountHandler(MainHandler):
+    """Account HTML handler"""
+    
+    @tornado.web.authenticated
+    @authenticated_secure
+    def get(self):
+        self.render('account.html', authkey=self.auth_key, tempkey=None)
+
+    @tornado.web.authenticated
+    @authenticated_secure
+    def post(self):
+        exp = self.get_argument("expiration", None)
+        logger.info("auth: %r", self.auth_key)
+        tempkey = self.auth.new_temp_key(self.auth_key, expiration=exp)
+        self.render('account.html', authkey=self.auth_key, tempkey=tempkey)
 
 def catch_error(method):
     """Decorator to catch and handle errors on api handlers"""

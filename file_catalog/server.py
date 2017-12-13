@@ -209,8 +209,7 @@ class LoginHandler(MainHandler):
         if secure == 'False':
             secure = False
         try:
-            #token = self.auth.new_appkey_ldap(username, password)
-            token = self.auth._create_jwt(username, type='appkey')
+            token = self.auth.new_appkey_ldap(username, password)
         except Exception:
             logger.warn('failed to login', exc_info=True)
             self.render('login.html', redirect=redirect, secure=secure, failed=True)

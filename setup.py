@@ -10,7 +10,7 @@ with open(path.join(here, 'README.md')) as f:
     long_description = f.read()
 
 
-install_requires = ['tornado>=4.2', 'pymongo>=3.3']
+install_requires = ['tornado>=4.2', 'pymongo>=3.3', 'PyJWT', 'ldap3']
 if sys.version_info < (3, 2):
     install_requires.extend(['futures'])
 

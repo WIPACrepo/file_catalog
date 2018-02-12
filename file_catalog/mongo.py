@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import logging
+from collections import Iterable
 
 import pymongo
 from pymongo import MongoClient
@@ -32,8 +33,12 @@ class Mongo(object):
         self.executor = ThreadPoolExecutor(max_workers=10)
 
     @run_on_executor
-    def find_files(self, query={}, limit=None, start=0):
-        projection = {'_id':False, 'uuid':True, 'logical_name':True}
+    def find_files(self, query={}, keys=None, limit=None, start=0):
+        if keys and isinstance(keys,Iterable) and not isinstance(keys,str):
+            projection = {k:True for k in keys}
+        else:
+            projection = {'uuid':True, 'logical_name':True}
+        projection['_id'] = False
 
         result = self.client.files.find(query, projection)
         ret = []

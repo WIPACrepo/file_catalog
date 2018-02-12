@@ -428,6 +428,23 @@ class FilesHandler(APIHandler):
                 kwargs['query'] = {}
             if 'locations.archive' not in kwargs['query']:
                 kwargs['query']['locations.archive'] = None
+
+            # shortcut query params
+            if 'run_number' in kwargs:
+                kwargs['query']['dif.run_number'] = kwargs.pop('run_number')
+            if 'dataset' in kwargs:
+                kwargs['query']['iceprod.dataset'] = kwargs.pop('dataset')
+            if 'event_id' in kwargs:
+                e = kwargs.pop('event_id')
+                kwargs['query']['dif.first_event'] = {'$lte': e}
+                kwargs['query']['dif.last_event'] = {'$gte': e}
+            if 'processing_level' in kwargs:
+                kwargs['query']['processing_level'] = kwargs.pop('processing_level')
+            if 'season' in kwargs:
+                kwargs['query']['offline.season'] = kwargs.pop('season')
+
+            if 'keys' in kwargs:
+                kwargs['keys'] = kwargs['keys'].split('|')
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
@@ -438,10 +455,7 @@ class FilesHandler(APIHandler):
                 'self': {'href': self.files_url},
                 'parent': {'href': self.base_url},
             },
-            '_embedded':{
-                'files': files,
-            },
-            'files': [os.path.join(self.files_url,f['uuid']) for f in files],
+            'files': files,
         })
 
     @validate_auth

@@ -430,6 +430,8 @@ class FilesHandler(APIHandler):
                 kwargs['query']['locations.archive'] = None
 
             # shortcut query params
+            if 'logical_name' in kwargs:
+                kwargs['query']['logical_name'] = kwargs.pop('logical_name')
             if 'run_number' in kwargs:
                 kwargs['query']['dif.run_number'] = kwargs.pop('run_number')
             if 'dataset' in kwargs:

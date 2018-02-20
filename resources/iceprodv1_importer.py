@@ -9,11 +9,18 @@ import hashlib
 import pymysql
 import requests
 
+level_types = {
+    'detector': ['detector'],
+    'L1': ['level1'],
+    'L2': ['level2'],
+    'L3': ['level3'],
+    'L4': ['level4'],
+}
 def get_level(path):
     """transforn path to processing level"""
     path = path.lower()
-    for k in ('detector','L1','L2','L3','L4'):
-        if k in path:
+    for k in level_types:
+        if any(l in path for l in level_types[k]):
             return k
     return 'unknown'
 

@@ -17,6 +17,18 @@ def get_level(path):
             return k
     return 'unknown'
 
+generator_types = {
+    'corsika': ['corsika'],
+    'nugen': ['nugen','neutrino','numu','nue','nutau'],
+}
+def get_generator(path):
+    """transform path to generator"""
+    path = path.lower()
+    for k in generator_types:
+        if any(g in path for g in generator_types[k]):
+            return k
+    return 'unknown'
+
 def main():
     parser = argparse.ArgumentParser(description='IceProd v1 simulation importer')
     parser.add_argument('--db_host', default=None, help='iceprod db address')
@@ -47,7 +59,6 @@ def main():
                     urlpath.md5sum, urlpath.size, job.job_id, job.status_changed from urlpath
              join job on urlpath.dataset_id = job.dataset_id and urlpath.queue_id = job.queue_id
              where job.status="OK"
-             limit 10000
           """
     cur.execute(sql)
     for row in cur.fetchall_unbuffered():
@@ -81,10 +92,12 @@ def main():
                 'job_id': row['job_id'],
                 'config': 'http://simprod.icecube.wisc.edu/cgi-bin/simulation/cgi/cfg?dataset='+str(row['dataset_id'])+';download=1',
             },
+            'simulation': {
+                'generator': get_generator(name),
+            },
         })
         r = s.post(args.fc_host+'/api/files', json=data)
         r.raise_for_status()
-    
 
 if __name__ == '__main__':
     main()

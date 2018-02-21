@@ -28,7 +28,12 @@ class Mongo(object):
         self.client.files.create_index('logical_name')
         self.client.files.create_index('locations.archive')
         self.client.files.create_index('create_date')
+        self.client.files.create_index('content_status')
         self.client.files.create_index('processing_level', sparse=True)
+        self.client.files.create_index('dif.start_datetime', sparse=True)
+        self.client.files.create_index('dif.end_datetime', sparse=True)
+        self.client.files.create_index('offline_processing_metadata.first_event', sparse=True)
+        self.client.files.create_index('offline_processing_metadata.last_event', sparse=True)
 
         self.executor = ThreadPoolExecutor(max_workers=10)
 

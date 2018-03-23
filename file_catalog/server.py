@@ -120,7 +120,13 @@ class Server(object):
                 (r"/api", HATEOASHandler, api_args),
                 (r"/api/token", TokenHandler, api_args),
                 (r"/api/files", FilesHandler, api_args),
-                (r"/api/files/(.*)", SingleFileHandler, api_args),
+                (r"/api/files/([^\/]+)", SingleFileHandler, api_args),
+                (r"/api/collections", CollectionsHandler, api_args),
+                (r"/api/collections/([^\/]+)", SingleCollectionHandler, api_args),
+                (r"/api/collections/(\w+)/files", SingleCollectionFilesHandler, api_args),
+#                (r"/api/collections/(\w+)/snapshots", SingleCollectionSnapshotsHandler, api_args),
+#                (r"/api/snapshots/(\w+)", SingleSnapshotHandler, api_args),
+#                (r"/api/snapshots/(\w+)/files", SingleSnapshotFilesHandler, api_args),
             ],
             static_path=static_path,
             template_path=template_path,
@@ -635,3 +641,181 @@ class SingleFileHandler(APIHandler):
                                 _links=links)
         else:
             self.send_error(404, message='not found')
+
+
+### Collections ###
+
+class CollectionBaseHandler(APIHandler):
+    def initialize(self, **kwargs):
+        super(CollectionBaseHandler, self).initialize(**kwargs)
+        self.collections_url = os.path.join(self.base_url,'collections')
+
+class CollectionsHandler(CollectionBaseHandler):
+    @catch_error
+    @coroutine
+    def get(self):
+        try:
+            kwargs = urlargparse.parse(self.request.query)
+            if 'limit' in kwargs:
+                kwargs['limit'] = int(kwargs['limit'])
+                if kwargs['limit'] < 1:
+                    raise Exception('limit is not positive')
+
+                # check with config
+                if kwargs['limit'] > self.config['filelist']['max_files']:
+                    kwargs['limit'] = self.config['filelist']['max_files']
+            else:
+                # if no limit has been defined, set max limit
+                kwargs['limit'] = self.config['filelist']['max_files']
+
+            if 'start' in kwargs:
+                kwargs['start'] = int(kwargs['start'])
+                if kwargs['start'] < 0:
+                    raise Exception('start is negative')
+
+            if 'keys' in kwargs:
+                kwargs['keys'] = kwargs['keys'].split('|')
+        except:
+            logging.warn('query parameter error', exc_info=True)
+            self.send_error(400, message='invalid query parameters')
+            return
+        collections = yield self.db.find_collections(**kwargs)
+        self.write({
+            '_links':{
+                'self': {'href': self.collections_url},
+                'parent': {'href': self.base_url},
+            },
+            'collections': collections,
+        })
+
+    @validate_auth
+    @catch_error
+    @coroutine
+    def post(self):
+        metadata = json_decode(self.request.body)
+
+        query = {}
+        try:
+            if 'query' in metadata:
+                query = metadata.pop('query')
+            if 'locations.archive' not in query:
+                query['locations.archive'] = None
+
+            # shortcut query params
+            if 'logical_name' in metadata:
+                query['logical_name'] = metadata.pop('logical_name')
+            if 'run_number' in metadata:
+                query['dif.run_number'] = metadata.pop('run_number')
+            if 'dataset' in metadata:
+                query['iceprod.dataset'] = metadata.pop('dataset')
+            if 'event_id' in metadata:
+                e = metadata.pop('event_id')
+                query['dif.first_event'] = {'$lte': e}
+                query['dif.last_event'] = {'$gte': e}
+            if 'processing_level' in metadata:
+                query['processing_level'] = metadata.pop('processing_level')
+            if 'season' in metadata:
+                query['offline.season'] = metadata.pop('season')
+
+        except:
+            logging.warn('query parameter error', exc_info=True)
+            self.send_error(400, message='invalid query parameters')
+            return
+        metadata['query'] = json_encode(query)
+        
+        if 'collection_name' not in metadata:
+            self.send_error(400, message='missing collection_name')
+            return
+        if 'owner' not in metadata:
+            self.send_error(400, message='missing owner')
+            return
+
+        # allow user-specified uuid, create if not found
+        if 'uuid' not in metadata:
+            metadata['uuid'] = str(uuid.uuid1())
+
+        set_last_modification_date(metadata)
+        metadata['creation_date'] = metadata['meta_modify_date']
+
+        ret = yield self.db.get_collection({'uuid':metadata['uuid']})
+
+        if ret:
+            # collection uuid already exists
+            self.send_error(409, message='conflict with existing file (uuid already exists)',
+                            file=os.path.join(self.files_url,ret['uuid']))
+            return
+        else:
+            ret = yield self.db.create_collection(metadata)
+            self.set_status(201)
+        self.write({
+            '_links':{
+                'self': {'href': self.collections_url},
+                'parent': {'href': self.base_url},
+            },
+            'collection': os.path.join(self.collections_url, ret),
+        })
+
+class SingleCollectionHandler(CollectionBaseHandler):
+    @catch_error
+    @coroutine
+    def get(self, uuid):
+        ret = yield self.db.get_collection({'uuid':uuid})
+        if not ret:
+            ret = yield self.db.get_collection({'collection_name':uuid})
+
+        if ret:
+            ret['_links'] = {
+                'self': {'href': os.path.join(self.collections_url,uuid)},
+                'parent': {'href': self.collections_url},
+            }
+
+            self.write(ret)
+        else:
+            self.send_error(404, message='collection not found')
+
+class SingleCollectionFilesHandler(CollectionBaseHandler):
+    @catch_error
+    @coroutine
+    def get(self, uuid):
+        ret = yield self.db.get_collection({'uuid':uuid})
+        if not ret:
+            ret = yield self.db.get_collection({'collection_name':uuid})
+
+        if ret:
+            try:
+                kwargs = urlargparse.parse(self.request.query)
+                if 'limit' in kwargs:
+                    kwargs['limit'] = int(kwargs['limit'])
+                    if kwargs['limit'] < 1:
+                        raise Exception('limit is not positive')
+
+                    # check with config
+                    if kwargs['limit'] > self.config['filelist']['max_files']:
+                        kwargs['limit'] = self.config['filelist']['max_files']
+                else:
+                    # if no limit has been defined, set max limit
+                    kwargs['limit'] = self.config['filelist']['max_files']
+
+                if 'start' in kwargs:
+                    kwargs['start'] = int(kwargs['start'])
+                    if kwargs['start'] < 0:
+                        raise Exception('start is negative')
+
+                kwargs['query'] = json_decode(ret['query'])
+
+                if 'keys' in kwargs:
+                    kwargs['keys'] = kwargs['keys'].split('|')
+            except:
+                logging.warn('query parameter error', exc_info=True)
+                self.send_error(400, message='invalid query parameters')
+                return
+            files = yield self.db.find_files(**kwargs)
+            self.write({
+                '_links':{
+                    'self': {'href': os.path.join(self.collections_url,uuid,'files')},
+                    'parent': {'href': os.path.join(self.collections_url,uuid)},
+                },
+                'files': files,
+            })
+        else:
+            self.send_error(404, message='collection not found')

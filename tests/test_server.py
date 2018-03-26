@@ -35,7 +35,7 @@ class TestServerAPI(unittest.TestCase):
                               '--dbpath', dbpath, '--smallfiles',
                               '--quiet', '--nounixsocket',
                               '--logpath', dblog])
-        self.addCleanup(partial(time.sleep, 0.1))
+        self.addCleanup(partial(time.sleep, 0.3))
         self.addCleanup(m.terminate)
 
         self.config = Config('resources/server.cfg')

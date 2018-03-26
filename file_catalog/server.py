@@ -123,10 +123,10 @@ class Server(object):
                 (r"/api/files/([^\/]+)", SingleFileHandler, api_args),
                 (r"/api/collections", CollectionsHandler, api_args),
                 (r"/api/collections/([^\/]+)", SingleCollectionHandler, api_args),
-                (r"/api/collections/(\w+)/files", SingleCollectionFilesHandler, api_args),
-#                (r"/api/collections/(\w+)/snapshots", SingleCollectionSnapshotsHandler, api_args),
-#                (r"/api/snapshots/(\w+)", SingleSnapshotHandler, api_args),
-#                (r"/api/snapshots/(\w+)/files", SingleSnapshotFilesHandler, api_args),
+                (r"/api/collections/([^\/]+)/files", SingleCollectionFilesHandler, api_args),
+                (r"/api/collections/([^\/]+)/snapshots", SingleCollectionSnapshotsHandler, api_args),
+                (r"/api/snapshots/([^\/]+)", SingleSnapshotHandler, api_args),
+                (r"/api/snapshots/([^\/]+)/files", SingleSnapshotFilesHandler, api_args),
             ],
             static_path=static_path,
             template_path=template_path,
@@ -649,6 +649,7 @@ class CollectionBaseHandler(APIHandler):
     def initialize(self, **kwargs):
         super(CollectionBaseHandler, self).initialize(**kwargs)
         self.collections_url = os.path.join(self.base_url,'collections')
+        self.snapshots_url = os.path.join(self.base_url,'snapshots')
 
 class CollectionsHandler(CollectionBaseHandler):
     @catch_error
@@ -758,14 +759,14 @@ class CollectionsHandler(CollectionBaseHandler):
 class SingleCollectionHandler(CollectionBaseHandler):
     @catch_error
     @coroutine
-    def get(self, uuid):
-        ret = yield self.db.get_collection({'uuid':uuid})
+    def get(self, uid):
+        ret = yield self.db.get_collection({'uuid':uid})
         if not ret:
-            ret = yield self.db.get_collection({'collection_name':uuid})
+            ret = yield self.db.get_collection({'collection_name':uid})
 
         if ret:
             ret['_links'] = {
-                'self': {'href': os.path.join(self.collections_url,uuid)},
+                'self': {'href': os.path.join(self.collections_url,uid)},
                 'parent': {'href': self.collections_url},
             }
 
@@ -776,10 +777,10 @@ class SingleCollectionHandler(CollectionBaseHandler):
 class SingleCollectionFilesHandler(CollectionBaseHandler):
     @catch_error
     @coroutine
-    def get(self, uuid):
-        ret = yield self.db.get_collection({'uuid':uuid})
+    def get(self, uid):
+        ret = yield self.db.get_collection({'uuid':uid})
         if not ret:
-            ret = yield self.db.get_collection({'collection_name':uuid})
+            ret = yield self.db.get_collection({'collection_name':uid})
 
         if ret:
             try:
@@ -812,10 +813,172 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
             files = yield self.db.find_files(**kwargs)
             self.write({
                 '_links':{
-                    'self': {'href': os.path.join(self.collections_url,uuid,'files')},
-                    'parent': {'href': os.path.join(self.collections_url,uuid)},
+                    'self': {'href': os.path.join(self.collections_url,uid,'files')},
+                    'parent': {'href': os.path.join(self.collections_url,uid)},
                 },
                 'files': files,
             })
         else:
             self.send_error(404, message='collection not found')
+
+class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
+    @catch_error
+    @coroutine
+    def get(self, uid):
+        ret = yield self.db.get_collection({'uuid':uid})
+        if not ret:
+            ret = yield self.db.get_collection({'collection_name':uid})
+        if not ret:
+            self.send_error(400, message='cannot find collection')
+            return
+
+        try:
+            kwargs = urlargparse.parse(self.request.query)
+            if 'limit' in kwargs:
+                kwargs['limit'] = int(kwargs['limit'])
+                if kwargs['limit'] < 1:
+                    raise Exception('limit is not positive')
+
+                # check with config
+                if kwargs['limit'] > self.config['filelist']['max_files']:
+                    kwargs['limit'] = self.config['filelist']['max_files']
+            else:
+                # if no limit has been defined, set max limit
+                kwargs['limit'] = self.config['filelist']['max_files']
+
+            if 'start' in kwargs:
+                kwargs['start'] = int(kwargs['start'])
+                if kwargs['start'] < 0:
+                    raise Exception('start is negative')
+
+            if 'keys' in kwargs:
+                kwargs['keys'] = kwargs['keys'].split('|')
+        except:
+            logging.warn('query parameter error', exc_info=True)
+            self.send_error(400, message='invalid query parameters')
+            return
+        kwargs['query'] = {'collection_id': ret['uuid']}
+        snapshots = yield self.db.find_snapshots(**kwargs)
+        self.write({
+            '_links':{
+                'self': {'href': os.path.join(self.collections_url,uid,'snapshots')},
+                'parent': {'href': os.path.join(self.collections_url,uid)},
+            },
+            'snapshots': snapshots,
+        })
+
+    @validate_auth
+    @catch_error
+    @coroutine
+    def post(self, uid):
+        ret = yield self.db.get_collection({'uuid':uid})
+        if not ret:
+            ret = yield self.db.get_collection({'collection_name':uid})
+        if not ret:
+            self.send_error(400, message='cannot find collection')
+            return
+
+        files_kwargs = {
+            'query': json_decode(ret['query']),
+            'keys': ['uuid'],
+        }
+
+        if self.request.body:
+            metadata = json_decode(self.request.body)
+        else:
+            metadata = {}
+
+        metadata['collection_id'] = uid
+        if 'owner' not in metadata:
+            metadata['owner'] = ret['owner']
+
+        # allow user-specified uuid, create if not found
+        if 'uuid' not in metadata:
+            metadata['uuid'] = str(uuid.uuid1())
+
+        set_last_modification_date(metadata)
+        metadata['creation_date'] = metadata['meta_modify_date']
+        del metadata['meta_modify_date']
+
+        ret = yield self.db.get_snapshot({'uuid':metadata['uuid']})
+
+        if ret:
+            # snapshot uuid already exists
+            self.send_error(409, message='conflict with existing snapshot (uuid already exists)')
+        else:
+            # find the list of files
+            files = yield self.db.find_files(**files_kwargs)
+            metadata['files'] = [row['uuid'] for row in files]
+            logger.warning('creating snapshot %s with files %r', metadata['uuid'], metadata['files'])
+            # create the snapshot
+            ret = yield self.db.create_snapshot(metadata)
+            self.set_status(201)
+            self.write({
+                '_links':{
+                    'self': {'href': os.path.join(self.collections_url,uid,'snapshots')},
+                    'parent': {'href': os.path.join(self.collections_url,uid)},
+                },
+                'snapshot': os.path.join(self.snapshots_url, ret),
+            })
+
+class SingleSnapshotHandler(CollectionBaseHandler):
+    @catch_error
+    @coroutine
+    def get(self, uid):
+        ret = yield self.db.get_snapshot({'uuid':uid})
+
+        if ret:
+            ret['_links'] = {
+                'self': {'href': os.path.join(self.snapshots_url,uid)},
+                'parent': {'href': self.collections_url},
+            }
+
+            self.write(ret)
+        else:
+            self.send_error(404, message='snapshot not found')
+
+class SingleSnapshotFilesHandler(CollectionBaseHandler):
+    @catch_error
+    @coroutine
+    def get(self, uid):
+        ret = yield self.db.get_snapshot({'uuid':uid})
+
+        if ret:
+            try:
+                kwargs = urlargparse.parse(self.request.query)
+                if 'limit' in kwargs:
+                    kwargs['limit'] = int(kwargs['limit'])
+                    if kwargs['limit'] < 1:
+                        raise Exception('limit is not positive')
+
+                    # check with config
+                    if kwargs['limit'] > self.config['filelist']['max_files']:
+                        kwargs['limit'] = self.config['filelist']['max_files']
+                else:
+                    # if no limit has been defined, set max limit
+                    kwargs['limit'] = self.config['filelist']['max_files']
+
+                if 'start' in kwargs:
+                    kwargs['start'] = int(kwargs['start'])
+                    if kwargs['start'] < 0:
+                        raise Exception('start is negative')
+
+                kwargs['query'] = {'uuid':{'$in':ret['files']}}
+                logger.warning('getting files: %r', kwargs['query'])
+
+                if 'keys' in kwargs:
+                    kwargs['keys'] = kwargs['keys'].split('|')
+            except:
+                logging.warn('query parameter error', exc_info=True)
+                self.send_error(400, message='invalid query parameters')
+                return
+            files = yield self.db.find_files(**kwargs)
+            self.write({
+                '_links':{
+                    'self': {'href': os.path.join(self.snapshots_url,uid,'files')},
+                    'parent': {'href': os.path.join(self.snapshots_url,uid)},
+                },
+                'files': files,
+            })
+        else:
+            self.send_error(404, message='snapshot not found')

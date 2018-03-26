@@ -155,3 +155,39 @@ class Mongo(object):
     def get_collection(self, filters):
         return self.client.collections.find_one(filters, {'_id':False})
 
+    @run_on_executor
+    def find_snapshots(self, query={}, keys=None, limit=None, start=0):
+        if keys and isinstance(keys,Iterable) and not isinstance(keys,str):
+            projection = {k:True for k in keys}
+        else:
+            projection = {} # show all fields
+        projection['_id'] = False
+
+        result = self.client.snapshots.find(query, projection)
+        ret = []
+
+        # `limit` and `skip` are ignored by __getitem__:
+        # http://api.mongodb.com/python/current/api/pymongo/cursor.html#pymongo.cursor.Cursor.__getitem__
+        #
+        # Therefore, implement it manually:
+        end = None
+
+        if limit is not None:
+            end = start + limit
+
+        for row in result[start:end]:
+            ret.append(row)
+        return ret
+
+    @run_on_executor
+    def create_snapshot(self, metadata):
+        result = self.client.snapshots.insert_one(metadata)
+        if (not result) or (not result.inserted_id):
+            logger.warn('did not insert snapshot')
+            raise Exception('did not insert new snapshot')
+        return metadata['uuid']
+
+    @run_on_executor
+    def get_snapshot(self, filters):
+        return self.client.snapshots.find_one(filters, {'_id':False})
+

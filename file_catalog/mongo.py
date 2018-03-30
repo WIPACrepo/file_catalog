@@ -31,10 +31,13 @@ class Mongo(object):
         self.client.files.create_index('create_date')
         self.client.files.create_index('content_status')
         self.client.files.create_index('processing_level', sparse=True)
+        self.client.files.create_index('dif.run_number', sparse=True)
         self.client.files.create_index('dif.start_datetime', sparse=True)
         self.client.files.create_index('dif.end_datetime', sparse=True)
         self.client.files.create_index('offline_processing_metadata.first_event', sparse=True)
         self.client.files.create_index('offline_processing_metadata.last_event', sparse=True)
+        self.client.files.create_index('offline.season', sparse=True)
+        self.client.files.create_index('iceprod.dataset', sparse=True)
 
         self.client.collections.create_index('uuid', unique=True)
         self.client.collections.create_index('collection_name')

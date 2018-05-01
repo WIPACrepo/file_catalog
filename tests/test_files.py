@@ -202,11 +202,9 @@ class TestFilesAPI(TestServerAPI):
             u'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}],
             u'processing_level':u'level2',
-            u'dif': {
-                u'run_number':12345,
-                u'first_event':345,
-                u'last_event':456,
-            },
+            u'run_number':12345,
+            u'first_event':345,
+            u'last_event':456,
             u'iceprod':{
                 u'dataset':23453,
             },
@@ -220,11 +218,9 @@ class TestFilesAPI(TestServerAPI):
             u'file_size': 2,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}],
             u'processing_level':u'level2',
-            u'dif': {
-                u'run_number':12356,
-                u'first_event':578,
-                u'last_event':698,
-            },
+            r'run_number':12356,
+            u'first_event':578,
+            u'last_event':698,
             u'iceprod':{
                 u'dataset':23454,
             },

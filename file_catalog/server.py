@@ -439,13 +439,13 @@ class FilesHandler(APIHandler):
             if 'logical_name' in kwargs:
                 kwargs['query']['logical_name'] = kwargs.pop('logical_name')
             if 'run_number' in kwargs:
-                kwargs['query']['dif.run_number'] = kwargs.pop('run_number')
+                kwargs['query']['run_number'] = kwargs.pop('run_number')
             if 'dataset' in kwargs:
                 kwargs['query']['iceprod.dataset'] = kwargs.pop('dataset')
             if 'event_id' in kwargs:
                 e = kwargs.pop('event_id')
-                kwargs['query']['dif.first_event'] = {'$lte': e}
-                kwargs['query']['dif.last_event'] = {'$gte': e}
+                kwargs['query']['first_event'] = {'$lte': e}
+                kwargs['query']['last_event'] = {'$gte': e}
             if 'processing_level' in kwargs:
                 kwargs['query']['processing_level'] = kwargs.pop('processing_level')
             if 'season' in kwargs:
@@ -706,13 +706,13 @@ class CollectionsHandler(CollectionBaseHandler):
             if 'logical_name' in metadata:
                 query['logical_name'] = metadata.pop('logical_name')
             if 'run_number' in metadata:
-                query['dif.run_number'] = metadata.pop('run_number')
+                query['run_number'] = metadata.pop('run_number')
             if 'dataset' in metadata:
                 query['iceprod.dataset'] = metadata.pop('dataset')
             if 'event_id' in metadata:
                 e = metadata.pop('event_id')
-                query['dif.first_event'] = {'$lte': e}
-                query['dif.last_event'] = {'$gte': e}
+                query['first_event'] = {'$lte': e}
+                query['last_event'] = {'$gte': e}
             if 'processing_level' in metadata:
                 query['processing_level'] = metadata.pop('processing_level')
             if 'season' in metadata:

@@ -4,7 +4,7 @@ Store file metadata information in a file catalog
 ## Prerequisites
 To get the prerequisites necessary for the file catalog:
 
-    sudo pip install futures pymongo
+    sudo pip install futures pymongo tornado ldap3 pyjwt
 
 ## Running the server
 To start an instance of the server running:
@@ -42,7 +42,7 @@ JSON format.
 Unique identifiers:
 
 * `mongo_id`
-  
+
   The id that the mongodb generates.
 
 * `uid`

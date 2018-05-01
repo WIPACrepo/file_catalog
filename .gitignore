@@ -90,3 +90,5 @@ ENV/
 
 testing.cfg
 server.cfg
+*.swp
+*.swo

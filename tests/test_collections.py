@@ -12,6 +12,7 @@ from .test_server import TestServerAPI
 
 class TestCollectionsAPI(TestServerAPI):
     def test_10_collections(self):
+        self.start_server()
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
@@ -32,6 +33,7 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertIn(uid,{row['uuid'] for row in ret['data']['collections']})
 
     def test_20_collection_by_id(self):
+        self.start_server()
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
@@ -53,6 +55,7 @@ class TestCollectionsAPI(TestServerAPI):
             self.assertEquals(metadata[k], ret['data'][k])
 
     def test_21_collection_by_name(self):
+        self.start_server()
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
@@ -74,6 +77,7 @@ class TestCollectionsAPI(TestServerAPI):
             self.assertEquals(metadata[k], ret['data'][k])
 
     def test_30_collection_files(self):
+        self.start_server()
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
@@ -117,6 +121,7 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertEquals(ret['data']['files'][0]['checksum'], metadata['checksum'])
 
     def test_70_snapshot_create(self):
+        self.start_server()
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
@@ -153,6 +158,7 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertEqual(ret['data']['snapshots'][0]['uuid'], snap_uid)
 
     def test_71_snapshot_find(self):
+        self.start_server()
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
@@ -188,6 +194,7 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertEqual(ret['data']['files'], [])
 
     def test_80_snapshot_files(self):
+        self.start_server()
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',

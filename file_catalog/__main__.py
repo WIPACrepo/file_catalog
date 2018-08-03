@@ -32,7 +32,11 @@ def main():
     kwargs['config'] = config
 
     logging.basicConfig(level=('DEBUG' if args.debug else 'INFO'))
-    Server(**kwargs).run()
+    try:
+        Server(**kwargs).run()
+    except Exception:
+        logging.fatal('Server error', exc_info=True)
+        raise
 
 if __name__ == '__main__':
     main()

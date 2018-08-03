@@ -92,9 +92,10 @@ class Server(object):
             raise Exception('bad template path')
 
         # print configuration
-        logger.info('db host: %s' % db_host)
-        logger.info('server port: %s' % port)
-        logger.info('debug: %s' % debug)
+        logger.info('db host: %s', db_host)
+        logger.info('server port: %r', port)
+        logger.info('debug: %r', debug)
+        logger.info('config: %r', config)
 
         main_args = {
             'base_url': '/api',

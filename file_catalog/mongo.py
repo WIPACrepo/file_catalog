@@ -22,6 +22,7 @@ class Mongo(object):
             if len(parts) == 2:
                 kwargs['port'] = int(parts[1])
             kwargs['host'] = parts[0]
+        logger.info('MongoClient args: %r', kwargs)
 
         self.client = MongoClient(**kwargs).file_catalog
 
@@ -48,6 +49,7 @@ class Mongo(object):
         self.client.snapshots.create_index('owner')
 
         self.executor = ThreadPoolExecutor(max_workers=10)
+        logger.info('done setting up Mongo')
 
     @run_on_executor
     def find_files(self, query={}, keys=None, limit=None, start=0):

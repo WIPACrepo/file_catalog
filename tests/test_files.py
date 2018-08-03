@@ -23,6 +23,7 @@ from .test_server import TestServerAPI
 
 class TestFilesAPI(TestServerAPI):
     def test_10_files(self):
+        self.start_server()
         metadata = {
             'logical_name': 'blah',
             'checksum': {'sha512':hashlib.sha512('foo bar').hexdigest()},
@@ -53,10 +54,13 @@ class TestFilesAPI(TestServerAPI):
 
     def test_15_files_auth(self):
         appkey = 'secret2'
-        self.config['auth'] = {
-            'secret': 'secret',
-            'expiration': 82400,
-        }
+        self.edit_config({
+            'auth':{
+                'secret': 'secret',
+                'expiration': 82400,
+            }
+        })
+        self.start_server()
         
         payload = {
             'iss': auth.ISSUER,
@@ -84,6 +88,7 @@ class TestFilesAPI(TestServerAPI):
         url = ret['data']['file']
 
     def test_20_file(self):
+        self.start_server()
         metadata = {
             u'logical_name': u'blah',
             u'checksum': {u'sha512':hashlib.sha512('foo bar').hexdigest()},
@@ -156,6 +161,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertEquals(ret['status'], 405)
 
     def test_30_archive(self):
+        self.start_server()
         metadata = {
             u'logical_name': u'blah',
             u'checksum': {u'sha512':hashlib.sha512('foo bar').hexdigest()},
@@ -196,6 +202,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertTrue(any(uid2 == f['uuid'] for f in ret['data']['files']))
 
     def test_40_simple_query(self):
+        self.start_server()
         metadata = {
             u'logical_name': u'blah',
             u'checksum': {u'sha512':hashlib.sha512('foo bar').hexdigest()},

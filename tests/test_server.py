@@ -10,6 +10,7 @@ from functools import partial
 from threading import Thread
 import unittest
 import hashlib
+from ConfigParser import SafeConfigParser
 
 from tornado.escape import json_encode,json_decode
 from tornado.ioloop import IOLoop
@@ -37,15 +38,34 @@ class TestServerAPI(unittest.TestCase):
                               '--logpath', dblog])
         self.addCleanup(partial(time.sleep, 0.3))
         self.addCleanup(m.terminate)
+        
+        self.config = os.path.join(self.tmpdir,'server.cfg')
+        shutil.copy('resources/server.cfg', self.config)
 
-        self.config = Config('resources/server.cfg')
-        self.server = Server(self.config, port=self.port,
-                             db_host='localhost:%d'%self.mongo_port,
-                             debug=True)
-        t = Thread(target=self.server.run)
-        t.start()
-        self.addCleanup(IOLoop.current().stop)
-        time.sleep(0.3)
+    def edit_config(self, new_cfg):
+        old_cfg = Config(self.config)
+        old_cfg.update(new_cfg)
+        
+        tmp = SafeConfigParser()
+        for k in old_cfg:
+            tmp.add_section(k)
+            for k2,v2 in old_cfg[k].items():
+                tmp.set(k,k2,str(v2))
+        with open(self.config,'wb') as f:
+            tmp.write(f)
+
+    def start_server(self):
+        s = subprocess.Popen(['python','-m','file_catalog','--config',
+                              self.config,'-p',str(self.port),'--debug',
+                              '--db_host','localhost:%d'%self.mongo_port])
+        #self.server = Server(self.config, port=self.port,
+        #                     db_host='localhost:%d'%self.mongo_port,
+        #                     debug=True)
+        #t = Thread(target=self.server.run)
+        #t.start()
+        #self.addCleanup(IOLoop.current().stop)
+        self.addCleanup(s.terminate)
+        time.sleep(2)
 
     def curl(self, url, method='GET', args=None, prefix='/api', headers=None):
         cmd = ['curl', '-X', method, '-s', '-i']
@@ -90,6 +110,7 @@ class TestServerAPI(unittest.TestCase):
         }
 
     def test_01_HATEOAS(self):
+        self.start_server()
         ret = self.curl('', 'GET')
         print(ret)
         self.assertEquals(ret['status'], 200)
@@ -103,10 +124,13 @@ class TestServerAPI(unittest.TestCase):
 
     def test_05_token(self):
         appkey = 'secret2'
-        self.config['auth'] = {
-            'secret': 'secret',
-            'expiration': 82400,
-        }
+        self.edit_config({
+            'auth':{
+                'secret': 'secret',
+                'expiration': 82400,
+            }
+        })
+        self.start_server()
         
         payload = {
             'iss': auth.ISSUER,

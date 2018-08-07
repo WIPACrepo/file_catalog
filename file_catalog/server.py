@@ -494,7 +494,7 @@ class FilesHandler(APIHandler):
         # for each provided location
         for loc in metadata['locations']:
             # try to find an existing document by this location
-            ret = yield self.db.get_file({'locations': [loc]})
+            ret = yield self.db.get_file({'locations': {'$elemMatch': loc}})
             # if we are able to find an existing document
             if ret:
                 # the location already exists
@@ -610,7 +610,7 @@ class SingleFileHandler(APIHandler):
             # for each location provided
             for loc in metadata['locations']:
                 # try to load a file by that location
-                check = yield self.db.get_file({'locations': [loc]})
+                check = yield self.db.get_file({'locations': {'$elemMatch': loc}})
                 # if we got a file by that location
                 if check:
                     # if the file we got isn't the one we're trying to update
@@ -685,7 +685,7 @@ class SingleFileHandler(APIHandler):
             # for each location provided
             for loc in metadata['locations']:
                 # try to load a file by that location
-                check = yield self.db.get_file({'locations': [loc]})
+                check = yield self.db.get_file({'locations': {'$elemMatch': loc}})
                 # if we got a file by that location
                 if check:
                     # if the file we got isn't the one we're trying to update

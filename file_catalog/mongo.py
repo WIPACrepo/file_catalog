@@ -27,7 +27,7 @@ class Mongo(object):
         self.client = MongoClient(**kwargs).file_catalog
 
         self.client.files.create_index('uuid', unique=True)
-        self.client.files.create_index('logical_name')
+        self.client.files.create_index('logical_name', unique=True)
         self.client.files.create_index('locations.archive')
         self.client.files.create_index('create_date')
         self.client.files.create_index('content_status')
@@ -43,7 +43,7 @@ class Mongo(object):
         self.client.collections.create_index('uuid', unique=True)
         self.client.collections.create_index('collection_name')
         self.client.collections.create_index('owner')
-        
+
         self.client.snapshots.create_index('uuid', unique=True)
         self.client.snapshots.create_index('collection_id')
         self.client.snapshots.create_index('owner')
@@ -195,4 +195,3 @@ class Mongo(object):
     @run_on_executor
     def get_snapshot(self, filters):
         return self.client.snapshots.find_one(filters, {'_id':False})
-

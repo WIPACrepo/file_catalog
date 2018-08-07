@@ -223,7 +223,7 @@ class TestFilesAPI(TestServerAPI):
             u'logical_name': u'blah2',
             u'checksum': {u'sha512':hashlib.sha512('foo bar baz').hexdigest()},
             u'file_size': 2,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat'}],
+            u'locations': [{u'site':u'test',u'path':u'blah2.dat'}],
             u'processing_level':u'level2',
             r'run_number':12356,
             u'first_event':578,
@@ -561,6 +561,257 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('logical_name', ret['data'])
+
+    def test_55_post_files_unique_locations(self):
+        """Test that locations is unique when creating a new file."""
+        self.start_server()
+
+        # define the files to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+        metadata2 = {
+            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+
+        # create the first file; should be OK
+        ret = self.curl('/files', 'POST', metadata)
+        print(ret)
+        self.assertEquals(ret['status'], 201)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('file', ret['data'])
+        url = ret['data']['file']
+        uid = url.split('/')[-1]
+
+        # check that the file was created properly
+        ret = self.curl('/files', 'GET')
+        print(ret)
+        self.assertEquals(ret['status'], 200)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('files', ret['data'])
+        self.assertEqual(len(ret['data']['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
+
+        # create the second file; should NOT be OK
+        ret = self.curl('/files', 'POST', metadata2)
+        print(ret)
+        # Conflict (if the file already exists); includes link to existing file
+        self.assertEquals(ret['status'], 409)
+        self.assertIn('message', ret['data'])
+        self.assertIn('file', ret['data'])
+        url = ret['data']['file']
+        uid = url.split('/')[-1]
+
+    def test_56_put_files_uuid_unique_locations(self):
+        """Test that locations is unique when replacing a file."""
+        self.start_server()
+
+        # define the files to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+        metadata2 = {
+            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
+        }
+        replace1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
+        }
+
+        # create the first file; should be OK
+        ret = self.curl('/files', 'POST', metadata)
+        print(ret)
+        self.assertEquals(ret['status'], 201)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('file', ret['data'])
+        url = ret['data']['file']
+        uid = url.split('/')[-1]
+
+        # get the record of the file for its etag header
+        ret = self.curl('/files/' + uid, 'GET')
+        print(ret)
+        self.assertEquals(ret['status'], 200)
+        self.assertIn('etag', ret['headers'])
+        etag = ret['headers']['etag']
+
+        # create the second file; should be OK
+        ret = self.curl('/files', 'POST', metadata2)
+        print(ret)
+        self.assertEquals(ret['status'], 201)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('file', ret['data'])
+
+        # try to replace the first file with a location collision with the second; should NOT be OK
+        ret = self.curl('/files/' + uid, 'PUT', replace1, '/api', {'If-None-Match': etag})
+        print(ret)
+        self.assertEquals(ret['status'], 409)
+        self.assertIn('message', ret['data'])
+        self.assertIn('file', ret['data'])
+
+    def test_57_put_files_uuid_replace_locations(self):
+        """Test that a file can replace with the same location."""
+        self.start_server()
+
+        # define the files to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+        metadata2 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+
+        # create the first file; should be OK
+        ret = self.curl('/files', 'POST', metadata)
+        print(ret)
+        self.assertEquals(ret['status'], 201)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('file', ret['data'])
+        url = ret['data']['file']
+        uid = url.split('/')[-1]
+
+        # get the record of the file for its etag header
+        ret = self.curl('/files/' + uid, 'GET')
+        print(ret)
+        self.assertEquals(ret['status'], 200)
+        self.assertIn('etag', ret['headers'])
+        etag = ret['headers']['etag']
+
+        # try to replace the first file with the second; should be OK
+        ret = self.curl('/files/' + uid, 'PUT', metadata2, '/api', {'If-None-Match': etag})
+        print(ret)
+        self.assertEquals(ret['status'], 200)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('logical_name', ret['data'])
+
+    def test_58_patch_files_uuid_unique_locations(self):
+        """Test that locations is unique when updating a file."""
+        self.start_server()
+
+        # define the files to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+        metadata2 = {
+            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
+        }
+
+        # this is a PATCH to metadata; steps on metadata2's location
+        patch1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
+        }
+
+        # create the first file; should be OK
+        ret = self.curl('/files', 'POST', metadata)
+        print(ret)
+        self.assertEquals(ret['status'], 201)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('file', ret['data'])
+        url = ret['data']['file']
+        uid = url.split('/')[-1]
+
+        # get the record of the file for its etag header
+        ret = self.curl('/files/' + uid, 'GET')
+        print(ret)
+        self.assertEquals(ret['status'], 200)
+        self.assertIn('etag', ret['headers'])
+        etag = ret['headers']['etag']
+
+        # create the second file; should be OK
+        ret = self.curl('/files', 'POST', metadata2)
+        print(ret)
+        self.assertEquals(ret['status'], 201)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('file', ret['data'])
+
+        # try to update the first file with a patch; should NOT be OK
+        ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
+        print(ret)
+        self.assertEquals(ret['status'], 409)
+        self.assertIn('message', ret['data'])
+        self.assertIn('file', ret['data'])
+
+    def test_59_patch_files_uuid_replace_locations(self):
+        """Test that a file can be updated with the same location."""
+        self.start_server()
+
+        # define the file to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+
+        # this is a PATCH to metadata; matches the old location
+        patch1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
+            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+
+        # create the file; should be OK
+        ret = self.curl('/files', 'POST', metadata)
+        print(ret)
+        self.assertEquals(ret['status'], 201)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('file', ret['data'])
+        url = ret['data']['file']
+        uid = url.split('/')[-1]
+
+        # get the record of the file for its etag header
+        ret = self.curl('/files/' + uid, 'GET')
+        print(ret)
+        self.assertEquals(ret['status'], 200)
+        self.assertIn('etag', ret['headers'])
+        etag = ret['headers']['etag']
+
+        # try to update the file with a patch; should be OK
+        ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
+        print(ret)
+        self.assertEquals(ret['status'], 200)
+        self.assertIn('_links', ret['data'])
+        self.assertIn('self', ret['data']['_links'])
+        self.assertIn('logical_name', ret['data'])
+        self.assertIn('locations', ret['data'])
 
 
 if __name__ == '__main__':

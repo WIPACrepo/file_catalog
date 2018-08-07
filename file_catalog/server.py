@@ -491,6 +491,18 @@ class FilesHandler(APIHandler):
                             file=os.path.join(self.files_url, ret['uuid']))
             return
 
+        # for each provided location
+        for loc in metadata['locations']:
+            # try to find an existing document by this location
+            ret = yield self.db.get_file({'locations': [loc]})
+            # if we are able to find an existing document
+            if ret:
+                # the location already exists
+                self.send_error(409, message='conflict with existing file (location already exists)',
+                                file=os.path.join(self.files_url, ret['uuid']),
+                                location=loc)
+                return
+
         ret = yield self.db.get_file({'uuid':metadata['uuid']})
 
         if ret:
@@ -593,6 +605,22 @@ class SingleFileHandler(APIHandler):
                                     file=os.path.join(self.files_url, check['uuid']))
                     return
 
+        # if the user provided locations
+        if 'locations' in metadata:
+            # for each location provided
+            for loc in metadata['locations']:
+                # try to load a file by that location
+                check = yield self.db.get_file({'locations': [loc]})
+                # if we got a file by that location
+                if check:
+                    # if the file we got isn't the one we're trying to update
+                    if check['uuid'] != uuid:
+                        # then that location belongs to another file (already exists)
+                        self.send_error(409, message='conflict with existing file (location already exists)',
+                                        file=os.path.join(self.files_url, check['uuid']),
+                                        location=loc)
+                        return
+
         set_last_modification_date(metadata)
 
         if ret:
@@ -651,6 +679,22 @@ class SingleFileHandler(APIHandler):
                     self.send_error(409, message='conflict with existing file (logical_name already exists)',
                                     file=os.path.join(self.files_url, check['uuid']))
                     return
+
+        # if the user provided locations
+        if 'locations' in metadata:
+            # for each location provided
+            for loc in metadata['locations']:
+                # try to load a file by that location
+                check = yield self.db.get_file({'locations': [loc]})
+                # if we got a file by that location
+                if check:
+                    # if the file we got isn't the one we're trying to update
+                    if check['uuid'] != uuid:
+                        # then that location belongs to another file (already exists)
+                        self.send_error(409, message='conflict with existing file (location already exists)',
+                                        file=os.path.join(self.files_url, check['uuid']),
+                                        location=loc)
+                        return
 
         metadata['uuid'] = uuid
         set_last_modification_date(metadata)

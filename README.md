@@ -164,3 +164,11 @@ Operations:
   * 429: Too many requests (if server is being hammered)
   * 500: Unspecified server error
   * 503: Service unavailable (maintenance, etc.)
+
+## Development
+
+### Unit testing
+In case it comes in handy, the following command can be used to run
+a single unit test. Replace the name of the test as necessary.
+
+    python -m unittest tests.test_files.TestFilesAPI.test_20_file

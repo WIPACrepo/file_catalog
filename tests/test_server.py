@@ -16,6 +16,7 @@ from tornado.escape import json_encode,json_decode
 from tornado.ioloop import IOLoop
 
 import jwt
+from pymongo import MongoClient
 
 from file_catalog.urlargparse import encode as jquery_encode
 from file_catalog.server import Server
@@ -32,12 +33,13 @@ class TestServerAPI(unittest.TestCase):
         os.mkdir(dbpath)
         dblog = os.path.join(dbpath,'logfile')
 
-        m = subprocess.Popen(['mongod', '--port', str(self.mongo_port),
-                              '--dbpath', dbpath, '--smallfiles',
-                              '--quiet', '--nounixsocket',
-                              '--logpath', dblog])
-        self.addCleanup(partial(time.sleep, 0.3))
-        self.addCleanup(m.terminate)
+        if 'TEST_DATABASE_URL' not in os.environ:
+            m = subprocess.Popen(['mongod', '--port', str(self.mongo_port),
+                                  '--dbpath', dbpath, '--smallfiles',
+                                  '--quiet', '--nounixsocket',
+                                  '--logpath', dblog])
+            self.addCleanup(partial(time.sleep, 0.3))
+            self.addCleanup(m.terminate)
         
         self.config = os.path.join(self.tmpdir,'server.cfg')
         shutil.copy('resources/server.cfg', self.config)
@@ -54,10 +56,20 @@ class TestServerAPI(unittest.TestCase):
         with open(self.config,'wb') as f:
             tmp.write(f)
 
+    def clean_db(self, addr):
+        db = MongoClient(addr).file_catalog
+        colls = db.list_collection_names()
+        for c in colls:
+            db.drop_collection(c)
+
     def start_server(self):
-        s = subprocess.Popen(['python','-m','file_catalog','--config',
-                              self.config,'-p',str(self.port),'--debug',
-                              '--db_host','localhost:%d'%self.mongo_port])
+        cmd = ['python','-m','file_catalog','--config',
+               self.config,'-p',str(self.port),'--debug',
+               '--db_host','localhost:%d'%self.mongo_port]
+        if 'TEST_DATABASE_URL' in os.environ:
+            cmd[-1] = os.environ['TEST_DATABASE_URL']
+            self.cleandb(os.environ['TEST_DATABASE_URL'])
+        s = subprocess.Popen(cmd)
         #self.server = Server(self.config, port=self.port,
         #                     db_host='localhost:%d'%self.mongo_port,
         #                     debug=True)

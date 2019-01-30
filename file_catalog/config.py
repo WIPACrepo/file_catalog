@@ -1,6 +1,6 @@
 try:
     from ConfigParser import SafeConfigParser
-except ImportError:
+except ModuleNotFoundError:
     try:
         from configparser import SafeConfigParser
     except ImportError:

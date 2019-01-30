@@ -1,5 +1,10 @@
-
-from ConfigParser import SafeConfigParser
+try:
+    from ConfigParser import SafeConfigParser
+except ImportError:
+    try:
+        from configparser import SafeConfigParser
+    except ImportError:
+        from configparser import ConfigParser as SafeConfigParser
 
 import os
 import ast

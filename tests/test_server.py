@@ -10,7 +10,6 @@ from functools import partial
 from threading import Thread
 import unittest
 import hashlib
-from ConfigParser import SafeConfigParser
 
 from tornado.escape import json_encode,json_decode
 from tornado.ioloop import IOLoop
@@ -20,7 +19,7 @@ from pymongo import MongoClient
 
 from file_catalog.urlargparse import encode as jquery_encode
 from file_catalog.server import Server
-from file_catalog.config import Config
+from file_catalog.config import SafeConfigParser, Config
 from file_catalog import auth
 
 class TestServerAPI(unittest.TestCase):

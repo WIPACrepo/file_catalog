@@ -1,6 +1,8 @@
 # file_catalog
 Store file metadata information in a file catalog
 
+[![CircleCI](https://circleci.com/gh/WIPACrepo/file_catalog/tree/master.svg?style=shield)](https://circleci.com/gh/WIPACrepo/file_catalog/tree/master)
+
 ## Prerequisites
 To get the prerequisites necessary for the file catalog:
 

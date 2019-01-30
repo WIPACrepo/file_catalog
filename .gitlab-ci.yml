@@ -1,0 +1,9 @@
+image: centos:latest
+
+test:
+  script:
+    - yum install -y epel-release
+    - yum -y install mongodb mongodb-server python-pip
+    - pip install --upgrade pip
+    - pip install futures pymongo tornado pyjwt ldap3
+    - python -m unittest discover

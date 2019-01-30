@@ -28,7 +28,7 @@ class Auth:
             'iat': now,
             'type': type,
         })
-        return jwt.encode(payload, self.secret, algorithm='HS512')
+        return jwt.encode(payload, self.secret, algorithm='HS512').decode('utf-8')
 
     def new_appkey_ldap(self, username, password, expiration=None):
         """Create a new appkey from LDAP login.

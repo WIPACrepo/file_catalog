@@ -4,11 +4,11 @@ import os
 import time
 import random
 import unittest
-import hashlib
 
 from file_catalog import auth
 
 from .test_server import TestServerAPI
+from .test_files import hex
 
 class TestCollectionsAPI(TestServerAPI):
     def test_10_collections(self):
@@ -19,7 +19,7 @@ class TestCollectionsAPI(TestServerAPI):
         }
         ret = self.curl('/collections', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('collection', ret['data'])
@@ -28,7 +28,7 @@ class TestCollectionsAPI(TestServerAPI):
 
         ret = self.curl('/collections', 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('collections', ret['data'])
         self.assertIn(uid,{row['uuid'] for row in ret['data']['collections']})
 
@@ -40,7 +40,7 @@ class TestCollectionsAPI(TestServerAPI):
         }
         ret = self.curl('/collections', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('collection', ret['data'])
@@ -49,10 +49,10 @@ class TestCollectionsAPI(TestServerAPI):
 
         ret = self.curl('/collections/%s'%(uid,), 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         for k in metadata:
             self.assertIn(k, ret['data'])
-            self.assertEquals(metadata[k], ret['data'][k])
+            self.assertEqual(metadata[k], ret['data'][k])
 
     def test_21_collection_by_name(self):
         self.start_server()
@@ -62,7 +62,7 @@ class TestCollectionsAPI(TestServerAPI):
         }
         ret = self.curl('/collections', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('collection', ret['data'])
@@ -71,10 +71,10 @@ class TestCollectionsAPI(TestServerAPI):
 
         ret = self.curl('/collections/%s'%('blah',), 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         for k in metadata:
             self.assertIn(k, ret['data'])
-            self.assertEquals(metadata[k], ret['data'][k])
+            self.assertEqual(metadata[k], ret['data'][k])
 
     def test_30_collection_files(self):
         self.start_server()
@@ -84,7 +84,7 @@ class TestCollectionsAPI(TestServerAPI):
         }
         ret = self.curl('/collections', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('collection', ret['data'])
@@ -93,19 +93,19 @@ class TestCollectionsAPI(TestServerAPI):
 
         ret = self.curl('/collections/%s/files'%('blah',), 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
-        self.assertEquals(ret['data']['files'], [])
+        self.assertEqual(ret['status'], 200)
+        self.assertEqual(ret['data']['files'], [])
 
         # add a file
         metadata = {
             'logical_name': 'blah',
-            'checksum': {'sha512':hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512':hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -115,10 +115,10 @@ class TestCollectionsAPI(TestServerAPI):
         ret = self.curl('/collections/%s/files'%('blah',), 'GET',
                         args={'keys':'uuid|logical_name|checksum|locations'})
         print(ret)
-        self.assertEquals(ret['status'], 200)
-        self.assertEquals(len(ret['data']['files']), 1)
-        self.assertEquals(ret['data']['files'][0]['uuid'], uid)
-        self.assertEquals(ret['data']['files'][0]['checksum'], metadata['checksum'])
+        self.assertEqual(ret['status'], 200)
+        self.assertEqual(len(ret['data']['files']), 1)
+        self.assertEqual(ret['data']['files'][0]['uuid'], uid)
+        self.assertEqual(ret['data']['files'][0]['checksum'], metadata['checksum'])
 
     def test_70_snapshot_create(self):
         self.start_server()
@@ -128,7 +128,7 @@ class TestCollectionsAPI(TestServerAPI):
         }
         ret = self.curl('/collections', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('collection', ret['data'])
@@ -137,11 +137,11 @@ class TestCollectionsAPI(TestServerAPI):
 
         ret = self.curl('/collections/%s'%(uid,), 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
 
         ret = self.curl('/collections/%s/snapshots'%(uid,), 'POST', {})
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('snapshot', ret['data'])
@@ -150,7 +150,7 @@ class TestCollectionsAPI(TestServerAPI):
 
         ret = self.curl('/collections/%s/snapshots'%(uid,), 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('snapshots', ret['data'])
@@ -165,7 +165,7 @@ class TestCollectionsAPI(TestServerAPI):
         }
         ret = self.curl('/collections', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('collection', ret['data'])
@@ -174,11 +174,11 @@ class TestCollectionsAPI(TestServerAPI):
 
         ret = self.curl('/collections/%s'%(uid,), 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
 
         ret = self.curl('/collections/%s/snapshots'%(uid,), 'POST', {})
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('snapshot', ret['data'])
@@ -187,7 +187,7 @@ class TestCollectionsAPI(TestServerAPI):
 
         ret = self.curl('/snapshots/%s'%(snap_uid,), 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files',ret['data'])
@@ -201,7 +201,7 @@ class TestCollectionsAPI(TestServerAPI):
         }
         ret = self.curl('/collections', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('collection', ret['data'])
@@ -210,7 +210,7 @@ class TestCollectionsAPI(TestServerAPI):
 
         ret = self.curl('/collections/%s/snapshots'%(uid,), 'POST', {})
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('snapshot', ret['data'])
@@ -219,19 +219,19 @@ class TestCollectionsAPI(TestServerAPI):
 
         ret = self.curl('/snapshots/%s/files'%(snap_uid,), 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
-        self.assertEquals(ret['data']['files'], [])
+        self.assertEqual(ret['status'], 200)
+        self.assertEqual(ret['data']['files'], [])
 
         # add a file
         metadata = {
             'logical_name': 'blah',
-            'checksum': {'sha512':hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512':hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -241,13 +241,13 @@ class TestCollectionsAPI(TestServerAPI):
         # old snapshot stays empty
         ret = self.curl('/snapshots/%s/files'%(snap_uid,), 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
-        self.assertEquals(ret['data']['files'], [])
+        self.assertEqual(ret['status'], 200)
+        self.assertEqual(ret['data']['files'], [])
 
         # new snapshot should have file
         ret = self.curl('/collections/%s/snapshots'%(uid,), 'POST', {})
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('snapshot', ret['data'])
@@ -257,10 +257,10 @@ class TestCollectionsAPI(TestServerAPI):
         ret = self.curl('/snapshots/%s/files'%(snap_uid,), 'GET',
                         args={'keys':'uuid|logical_name|checksum|locations'})
         print(ret)
-        self.assertEquals(ret['status'], 200)
-        self.assertEquals(len(ret['data']['files']), 1)
-        self.assertEquals(ret['data']['files'][0]['uuid'], file_uid)
-        self.assertEquals(ret['data']['files'][0]['checksum'], metadata['checksum'])
+        self.assertEqual(ret['status'], 200)
+        self.assertEqual(len(ret['data']['files']), 1)
+        self.assertEqual(ret['data']['files'][0]['uuid'], file_uid)
+        self.assertEqual(ret['data']['files'][0]['checksum'], metadata['checksum'])
         
 
 if __name__ == '__main__':

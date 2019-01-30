@@ -21,18 +21,23 @@ from file_catalog import auth
 
 from .test_server import TestServerAPI
 
+def hex(data):
+    if isinstance(data, str):
+        data = data.encode('utf-8')
+    return hashlib.sha512(data).hexdigest()
+
 class TestFilesAPI(TestServerAPI):
     def test_10_files(self):
         self.start_server()
         metadata = {
             'logical_name': 'blah',
-            'checksum': {'sha512':hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512':hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -41,7 +46,7 @@ class TestFilesAPI(TestServerAPI):
 
         ret = self.curl('/files', 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -50,7 +55,7 @@ class TestFilesAPI(TestServerAPI):
 
         for m in ('PUT','DELETE','PATCH'):
             ret = self.curl('/files', m)
-            self.assertEquals(ret['status'], 405)
+            self.assertEqual(ret['status'], 405)
 
     def test_15_files_auth(self):
         appkey = 'secret2'
@@ -67,21 +72,21 @@ class TestFilesAPI(TestServerAPI):
             'sub': 'test',
             'type': 'appkey'
         }
-        appkey = jwt.encode(payload, 'secret', algorithm='HS512')
+        appkey = jwt.encode(payload, 'secret', algorithm='HS512').decode('utf-8')
 
         metadata = {
             'logical_name': 'blah',
-            'checksum': {'sha512':hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512':hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 403)
+        self.assertEqual(ret['status'], 403)
 
         ret = self.curl('/files', 'POST', metadata, headers={'Authorization':'JWT '+appkey})
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -91,7 +96,7 @@ class TestFilesAPI(TestServerAPI):
         self.start_server()
         metadata = {
             u'logical_name': u'blah',
-            u'checksum': {u'sha512':hashlib.sha512('foo bar').hexdigest()},
+            u'checksum': {u'sha512':hex('foo bar')},
             u'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
@@ -103,7 +108,7 @@ class TestFilesAPI(TestServerAPI):
         ret = self.curl(url, 'GET', prefix='')
         print(ret)
 
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         ret['data'].pop('_links')
         ret['data'].pop('meta_modify_date')
         ret['data'].pop('uuid')
@@ -117,12 +122,12 @@ class TestFilesAPI(TestServerAPI):
         ret2 = self.curl(url, 'PUT', prefix='', args=metadata_cpy,
                         headers={'If-None-Match':ret['headers']['etag']})
         print(ret2)
-        self.assertEquals(ret2['status'], 400)
+        self.assertEqual(ret2['status'], 400)
 
         ret = self.curl(url, 'PUT', prefix='', args=metadata,
                         headers={'If-None-Match':ret['headers']['etag']})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
 
         ret['data'].pop('_links')
         ret['data'].pop('meta_modify_date')
@@ -138,7 +143,7 @@ class TestFilesAPI(TestServerAPI):
                         headers={'If-None-Match':ret['headers']['etag']})
         metadata['test2'] = 200
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         ret['data'].pop('_links')
         ret['data'].pop('meta_modify_date')
         ret['data'].pop('uuid')
@@ -151,26 +156,26 @@ class TestFilesAPI(TestServerAPI):
 
         ret = self.curl(url, 'DELETE', prefix='')
         print(ret)
-        self.assertEquals(ret['status'], 204)
+        self.assertEqual(ret['status'], 204)
 
         ret = self.curl(url, 'DELETE', prefix='')
         print(ret)
-        self.assertEquals(ret['status'], 404)
+        self.assertEqual(ret['status'], 404)
 
         ret = self.curl(url, 'POST', prefix='')
-        self.assertEquals(ret['status'], 405)
+        self.assertEqual(ret['status'], 405)
 
     def test_30_archive(self):
         self.start_server()
         metadata = {
             u'logical_name': u'blah',
-            u'checksum': {u'sha512':hashlib.sha512('foo bar').hexdigest()},
+            u'checksum': {u'sha512':hex('foo bar')},
             u'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
         metadata2 = {
             u'logical_name': u'blah2',
-            u'checksum': {u'sha512':hashlib.sha512('foo bar baz').hexdigest()},
+            u'checksum': {u'sha512':hex('foo bar baz')},
             u'file_size': 2,
             u'locations': [{u'site':u'test',u'path':u'blah.dat',u'archive':True}]
         }
@@ -183,7 +188,7 @@ class TestFilesAPI(TestServerAPI):
 
         ret = self.curl('/files', 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -193,7 +198,7 @@ class TestFilesAPI(TestServerAPI):
 
         ret = self.curl('/files', 'GET', args={'query':{'locations.archive':True}})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -205,7 +210,7 @@ class TestFilesAPI(TestServerAPI):
         self.start_server()
         metadata = {
             u'logical_name': u'blah',
-            u'checksum': {u'sha512':hashlib.sha512('foo bar').hexdigest()},
+            u'checksum': {u'sha512':hex('foo bar')},
             u'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}],
             u'processing_level':u'level2',
@@ -221,7 +226,7 @@ class TestFilesAPI(TestServerAPI):
         }
         metadata2 = {
             u'logical_name': u'blah2',
-            u'checksum': {u'sha512':hashlib.sha512('foo bar baz').hexdigest()},
+            u'checksum': {u'sha512':hex('foo bar baz')},
             u'file_size': 2,
             u'locations': [{u'site':u'test',u'path':u'blah2.dat'}],
             u'processing_level':u'level2',
@@ -244,7 +249,7 @@ class TestFilesAPI(TestServerAPI):
 
         ret = self.curl('/files', 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -254,7 +259,7 @@ class TestFilesAPI(TestServerAPI):
 
         ret = self.curl('/files', 'GET', args={'processing_level':'level2'})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -264,7 +269,7 @@ class TestFilesAPI(TestServerAPI):
 
         ret = self.curl('/files', 'GET', args={'run_number':12345})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -274,7 +279,7 @@ class TestFilesAPI(TestServerAPI):
 
         ret = self.curl('/files', 'GET', args={'dataset':23454})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -284,7 +289,7 @@ class TestFilesAPI(TestServerAPI):
 
         ret = self.curl('/files', 'GET', args={'event_id':400})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -294,7 +299,7 @@ class TestFilesAPI(TestServerAPI):
 
         ret = self.curl('/files', 'GET', args={'season':2017})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -304,7 +309,7 @@ class TestFilesAPI(TestServerAPI):
 
         ret = self.curl('/files', 'GET', args={'event_id':400, 'keys':'|'.join(['checksum','file_size','uuid'])})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -321,7 +326,7 @@ class TestFilesAPI(TestServerAPI):
         # define the file to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
@@ -329,7 +334,7 @@ class TestFilesAPI(TestServerAPI):
         # create the file the first time; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -339,7 +344,7 @@ class TestFilesAPI(TestServerAPI):
         # check that the file was created properly
         ret = self.curl('/files', 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -350,7 +355,7 @@ class TestFilesAPI(TestServerAPI):
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
         # Conflict (if the file already exists); includes link to existing file
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
         url = ret['data']['file']
@@ -359,7 +364,7 @@ class TestFilesAPI(TestServerAPI):
         # check that the second file was not created
         ret = self.curl('/files', 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -373,13 +378,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
         }
@@ -387,7 +392,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -397,14 +402,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # create the second file; should be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -412,7 +417,7 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with a copy of the second; should NOT be OK
         ret = self.curl('/files/' + uid, 'PUT', metadata2, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
 
@@ -423,13 +428,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
@@ -437,7 +442,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -447,14 +452,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # try to replace the first file with the second; should be OK
         ret = self.curl('/files/' + uid, 'PUT', metadata2, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('logical_name', ret['data'])
@@ -466,13 +471,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
         }
@@ -480,7 +485,7 @@ class TestFilesAPI(TestServerAPI):
         # this is a PATCH to metadata; steps on metadata2's logical_name
         patch1 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
         }
@@ -488,7 +493,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -498,14 +503,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # create the second file; should be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -513,7 +518,7 @@ class TestFilesAPI(TestServerAPI):
         # try to update the first file with a patch; should NOT be OK
         ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
 
@@ -524,7 +529,7 @@ class TestFilesAPI(TestServerAPI):
         # define the file to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
@@ -532,7 +537,7 @@ class TestFilesAPI(TestServerAPI):
         # this is a PATCH to metadata; matches the old logical_name
         patch1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
@@ -540,7 +545,7 @@ class TestFilesAPI(TestServerAPI):
         # create the file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -550,14 +555,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # try to update the file with a patch; should be OK
         ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('logical_name', ret['data'])
@@ -569,13 +574,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
@@ -583,7 +588,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -593,7 +598,7 @@ class TestFilesAPI(TestServerAPI):
         # check that the file was created properly
         ret = self.curl('/files', 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -604,7 +609,7 @@ class TestFilesAPI(TestServerAPI):
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
         # Conflict (if the file already exists); includes link to existing file
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
         url = ret['data']['file']
@@ -617,19 +622,19 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
         }
         replace1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
         }
@@ -637,7 +642,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -647,14 +652,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # create the second file; should be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -662,7 +667,7 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with a location collision with the second; should NOT be OK
         ret = self.curl('/files/' + uid, 'PUT', replace1, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
 
@@ -673,13 +678,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
@@ -687,7 +692,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -697,14 +702,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # try to replace the first file with the second; should be OK
         ret = self.curl('/files/' + uid, 'PUT', metadata2, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('logical_name', ret['data'])
@@ -716,13 +721,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
         }
@@ -730,7 +735,7 @@ class TestFilesAPI(TestServerAPI):
         # this is a PATCH to metadata; steps on metadata2's location
         patch1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
         }
@@ -738,7 +743,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -748,14 +753,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # create the second file; should be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -763,7 +768,7 @@ class TestFilesAPI(TestServerAPI):
         # try to update the first file with a patch; should NOT be OK
         ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
 
@@ -774,7 +779,7 @@ class TestFilesAPI(TestServerAPI):
         # define the file to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
@@ -782,7 +787,7 @@ class TestFilesAPI(TestServerAPI):
         # this is a PATCH to metadata; matches the old location
         patch1 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
@@ -790,7 +795,7 @@ class TestFilesAPI(TestServerAPI):
         # create the file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -800,14 +805,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # try to update the file with a patch; should be OK
         ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('logical_name', ret['data'])
@@ -829,13 +834,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [loc1a]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': locs3a
         }
@@ -843,7 +848,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -853,7 +858,7 @@ class TestFilesAPI(TestServerAPI):
         # check that the file was created properly
         ret = self.curl('/files', 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -864,7 +869,7 @@ class TestFilesAPI(TestServerAPI):
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
         # Conflict (if the file already exists); includes link to existing file
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
         url = ret['data']['file']
@@ -886,13 +891,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': locs3b
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [loc1c]
         }
@@ -900,7 +905,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -910,7 +915,7 @@ class TestFilesAPI(TestServerAPI):
         # check that the file was created properly
         ret = self.curl('/files', 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -919,13 +924,13 @@ class TestFilesAPI(TestServerAPI):
 
         # check that the file was created properly, part deux
         ret = self.curl('/files/' + uid, 'GET')
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
 
         # create the second file; should NOT be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
         # Conflict (if the file already exists); includes link to existing file
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
         url = ret['data']['file']
@@ -947,13 +952,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': locs3a
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': locs3c
         }
@@ -961,7 +966,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -971,7 +976,7 @@ class TestFilesAPI(TestServerAPI):
         # check that the file was created properly
         ret = self.curl('/files', 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
@@ -980,13 +985,13 @@ class TestFilesAPI(TestServerAPI):
 
         # check that the file was created properly, part deux
         ret = self.curl('/files/' + uid, 'GET')
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
 
         # create the second file; should NOT be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
         # Conflict (if the file already exists); includes link to existing file
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
         url = ret['data']['file']
@@ -1008,19 +1013,19 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [loc1a]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [loc1b]
         }
         replace1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': locs3c
         }
@@ -1028,7 +1033,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1038,14 +1043,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # create the second file; should be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1053,7 +1058,7 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with a location collision with the second; should NOT be OK
         ret = self.curl('/files/' + uid, 'PUT', replace1, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
 
@@ -1073,19 +1078,19 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [loc1d]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': locs3a
         }
         replace1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [loc1a]
         }
@@ -1093,7 +1098,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1103,14 +1108,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # create the second file; should be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1118,7 +1123,7 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with a location collision with the second; should NOT be OK
         ret = self.curl('/files/' + uid, 'PUT', replace1, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
 
@@ -1138,19 +1143,19 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [loc1d]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': locs3a
         }
         replace1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': locs3b
         }
@@ -1158,7 +1163,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1168,14 +1173,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # create the second file; should be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1183,7 +1188,7 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with a location collision with the second; should NOT be OK
         ret = self.curl('/files/' + uid, 'PUT', replace1, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
 
@@ -1203,13 +1208,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [loc1a]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [loc1b]
         }
@@ -1217,7 +1222,7 @@ class TestFilesAPI(TestServerAPI):
         # this is a PATCH to metadata; steps on metadata2's location
         patch1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': locs3c
         }
@@ -1225,7 +1230,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1235,14 +1240,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # create the second file; should be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1250,7 +1255,7 @@ class TestFilesAPI(TestServerAPI):
         # try to update the first file with a patch; should NOT be OK
         ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
 
@@ -1270,13 +1275,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [loc1a]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': locs3b
         }
@@ -1284,7 +1289,7 @@ class TestFilesAPI(TestServerAPI):
         # this is a PATCH to metadata; steps on metadata2's location
         patch1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': [loc1c]
         }
@@ -1292,7 +1297,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1302,14 +1307,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # create the second file; should be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1317,7 +1322,7 @@ class TestFilesAPI(TestServerAPI):
         # try to update the first file with a patch; should NOT be OK
         ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
 
@@ -1337,13 +1342,13 @@ class TestFilesAPI(TestServerAPI):
         # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [loc1a]
         }
         metadata2 = {
             'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar').hexdigest()},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': locs3b
         }
@@ -1351,7 +1356,7 @@ class TestFilesAPI(TestServerAPI):
         # this is a PATCH to metadata; steps on metadata2's location
         patch1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hashlib.sha512('foo bar2').hexdigest()},
+            'checksum': {'sha512': hex('foo bar2')},
             'file_size': 2,
             u'locations': locs3c
         }
@@ -1359,7 +1364,7 @@ class TestFilesAPI(TestServerAPI):
         # create the first file; should be OK
         ret = self.curl('/files', 'POST', metadata)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1369,14 +1374,14 @@ class TestFilesAPI(TestServerAPI):
         # get the record of the file for its etag header
         ret = self.curl('/files/' + uid, 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('etag', ret['headers'])
         etag = ret['headers']['etag']
 
         # create the second file; should be OK
         ret = self.curl('/files', 'POST', metadata2)
         print(ret)
-        self.assertEquals(ret['status'], 201)
+        self.assertEqual(ret['status'], 201)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('file', ret['data'])
@@ -1384,7 +1389,7 @@ class TestFilesAPI(TestServerAPI):
         # try to update the first file with a patch; should NOT be OK
         ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
         print(ret)
-        self.assertEquals(ret['status'], 409)
+        self.assertEqual(ret['status'], 409)
         self.assertIn('message', ret['data'])
         self.assertIn('file', ret['data'])
 

@@ -52,7 +52,7 @@ class TestServerAPI(unittest.TestCase):
             tmp.add_section(k)
             for k2,v2 in old_cfg[k].items():
                 tmp.set(k,k2,str(v2))
-        with open(self.config,'wb') as f:
+        with open(self.config,'w') as f:
             tmp.write(f)
 
     def clean_db(self, addr):
@@ -124,14 +124,14 @@ class TestServerAPI(unittest.TestCase):
         self.start_server()
         ret = self.curl('', 'GET')
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
         self.assertIn('_links', ret['data'])
         self.assertIn('self', ret['data']['_links'])
         self.assertIn('files', ret['data'])
 
         for m in ('POST','PUT','DELETE','PATCH'):
             ret = self.curl('', m)
-            self.assertEquals(ret['status'], 405)
+            self.assertEqual(ret['status'], 405)
 
     def test_05_token(self):
         appkey = 'secret2'
@@ -148,17 +148,17 @@ class TestServerAPI(unittest.TestCase):
             'sub': 'test',
             'type': 'appkey'
         }
-        appkey = jwt.encode(payload, 'secret', algorithm='HS512')
+        appkey = jwt.encode(payload, 'secret', algorithm='HS512').decode('utf-8')
 
         ret = self.curl('/token', 'GET', headers={'Authorization':'JWT '+appkey})
         print(ret)
-        self.assertEquals(ret['status'], 200)
+        self.assertEqual(ret['status'], 200)
 
         ret = self.curl('/token', 'GET', headers={'Authorization':'JWT blah'})
-        self.assertEquals(ret['status'], 403)
+        self.assertEqual(ret['status'], 403)
 
         ret = self.curl('/token', 'GET')
-        self.assertEquals(ret['status'], 403)
+        self.assertEqual(ret['status'], 403)
 
 
 if __name__ == '__main__':

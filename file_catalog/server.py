@@ -64,16 +64,16 @@ def tornado_logger(handler):
 
 def sort_dict(d):
     """
-    Creates an OrderedDict by taking the `dict` named `d` and orderes its keys.
+    Creates an OrderedDict by taking the `dict` named `d` and orders its keys.
     If a key contains a `dict` it will call this function recursively.
     """
 
     od = OrderedDict(sorted(d.items()))
 
     # check for dicts in values
-    for key, value in od.iteritems():
-        if isinstance(value, dict):
-            od[key] = sort_dict(value)
+    for key in od:
+        if isinstance(od[key], dict):
+            od[key] = sort_dict(od[key])
 
     return od
 

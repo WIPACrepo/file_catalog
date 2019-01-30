@@ -67,7 +67,7 @@ class TestServerAPI(unittest.TestCase):
                '--db_host','localhost:%d'%self.mongo_port]
         if 'TEST_DATABASE_URL' in os.environ:
             cmd[-1] = os.environ['TEST_DATABASE_URL']
-            self.cleandb(os.environ['TEST_DATABASE_URL'])
+            self.clean_db(os.environ['TEST_DATABASE_URL'])
         s = subprocess.Popen(cmd)
         #self.server = Server(self.config, port=self.port,
         #                     db_host='localhost:%d'%self.mongo_port,

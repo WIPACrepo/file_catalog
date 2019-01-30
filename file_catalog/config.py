@@ -1,10 +1,7 @@
 try:
     from ConfigParser import SafeConfigParser
-except ModuleNotFoundError:
-    try:
-        from configparser import SafeConfigParser
-    except ImportError:
-        from configparser import ConfigParser as SafeConfigParser
+except ModuleNotFoundError: # python 3 changed the names
+    from configparser import ConfigParser as SafeConfigParser
 
 import os
 import ast

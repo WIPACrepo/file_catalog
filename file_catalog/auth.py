@@ -3,11 +3,11 @@ import time
 import jwt
 import ldap3
 
-ISSUER = 'file_catalog'
+ISSUER = 'https://tokens.icecube.wisc.edu'
 
 class Auth:
     def __init__(self, config):
-        self.secret = config['auth']['secret']
+        self.secret = config['auth']['secret'].encode('utf-8')
         self.max_exp = config['auth'].get('expiration', 86400) # 1 day
         self.max_exp_appkey = config['auth'].get('expiration_appkey', 31622400) # 1 year
         self.ldap_uri = config['auth'].get('ldap_uri', '')
@@ -83,7 +83,12 @@ class Auth:
         Raises:
             Exception: if app key is invalid
         """
-        ret = jwt.decode(auth_key, self.secret, issuer=ISSUER, algorithms=['HS512'])
+        try:
+            ret = jwt.decode(auth_key, self.secret, issuer=ISSUER,
+                             algorithms=['HS512'])
+        except jwt.exceptions.InvalidAudienceError:
+            ret = jwt.decode(auth_key, self.secret, issuer=ISSUER,
+                             algorithms=['HS512'], audience=['ANY'])
         if 'type' not in ret:
             raise Exception('no type information')
         return ret

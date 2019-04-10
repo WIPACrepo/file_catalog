@@ -4,7 +4,9 @@
 
 {% block head_scripts %}
 <style>
-
+    .wrap {
+        word-wrap: anywhere;
+    }
 </style>
 {% end %}
 
@@ -13,15 +15,11 @@
 {% block content %}
 <h3>Account information for {{ current_user }}</h3>
 <br>
-<div>Long-lived API key: {{ authkey }}</div>
-{% if tempkey %}
-    <div>Temporary key: {{ tempkey }}</div>
-{% end %}
+Long-lived API key:
+<div class="wrap">{{ authkey }}</div>
 <br>
-<h4>Generate temporary key:</h4>
-<form action="/account" method="post">
-    {% module xsrf_form_html() %}
-    <div>Expiration (seconds): <input type="text" name="expiration" value="3600" /></div>
-    <input type="submit" value="Create!" />
-</form>
+{% if tempkey %}
+    Temporary key:
+    <div class="wrap">{{ tempkey }}</div>
+{% end %}
 {% end %}

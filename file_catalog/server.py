@@ -21,6 +21,7 @@ import pymongo.errors
 
 import tornado.ioloop
 import tornado.web
+from tornado.httputil import url_concat
 from tornado.escape import json_encode,json_decode
 from tornado.gen import coroutine
 from tornado.httpclient import HTTPError
@@ -135,6 +136,7 @@ class Server(object):
             login_url='/login',
             xsrf_cookies=True,
             cookie_secret=cookie_secret,
+            debug=debug,
         )
         app.listen(port)
 
@@ -151,6 +153,7 @@ class MainHandler(tornado.web.RequestHandler):
             self.auth = Auth(self.config)
             self.auth_key = None
         self.current_user_secure = None
+        self.address = config['server']['address']
 
     def get_template_namespace(self):
         namespace = super(MainHandler,self).get_template_namespace()
@@ -160,18 +163,8 @@ class MainHandler(tornado.web.RequestHandler):
     def get_current_user(self):
         try:
             token = self.get_secure_cookie('token')
-            token_secure = self.get_secure_cookie("token_secure", max_age_days=0.01)
-            if token_secure:
-                logger.info('token_secure: %r', token_secure)
-                data = self.auth.authorize(token_secure)
-                self.current_user_secure = data['sub']
             logger.info('token: %r', token)
             data = self.auth.authorize(token)
-            if self.current_user_secure and data['sub'] != self.current_user_secure:
-                logger.warn('mismatch between regular and secure tokens')
-                self.set_secure_cookie('token_secure', '', max_age_days=0.01)
-                self.set_secure_cookie('token', '')
-                return None
             self.auth_key = token
             return data['sub']
         except Exception:
@@ -200,85 +193,6 @@ class MainHandler(tornado.web.RequestHandler):
             self.write('<br />'.join(kwargs['message'].split('\n')))
         self.finish()
 
-
-class LoginHandler(MainHandler):
-    """Login HTML handler"""
-    def get(self):
-        redirect = self.get_argument("next", "/")
-        secure = self.get_argument("secure", False)
-        self.render('login.html', redirect=redirect, secure=secure, failed=False)
-
-    def post(self):
-        username = self.get_argument("name")
-        password = self.get_argument("password")
-        redirect = self.get_argument("next", "/")
-        secure = self.get_argument("secure", False)
-        if secure == 'False':
-            secure = False
-        try:
-            token = self.auth.new_appkey_ldap(username, password)
-        except Exception:
-            logger.warn('failed to login', exc_info=True)
-            self.render('login.html', redirect=redirect, secure=secure, failed=True)
-        else:
-            # successful login
-            if secure:
-                self.set_secure_cookie('token_secure', token, expires_days=0.01)
-            else:
-                self.set_secure_cookie('token', token)
-            self.redirect(redirect)
-
-def authenticated_secure(method):
-    """Decorate methods with this to require that the user be logged in
-    to a secure area.
-
-    If the user is not logged in, they will be redirected to the configured
-    `login url <RequestHandler.get_login_url>`.
-
-    If you configure a login url with a query parameter, Tornado will
-    assume you know what you're doing and use it as-is.  If not, it
-    will add a `next` parameter so the login page knows where to send
-    you once you're logged in.
-    """
-    @wraps(method)
-    def wrapper(self, *args, **kwargs):
-        if not self.current_user_secure:
-            if self.request.method in ("GET", "HEAD"):
-                url = self.get_login_url()
-                if "?" not in url:
-                    if urlparse.urlsplit(url).scheme:
-                        # if login url is absolute, make next absolute too
-                        next_url = self.request.full_url()
-                    else:
-                        next_url = self.request.uri
-                    url += "?" + urlencode(dict(next=next_url,secure=True))
-                self.redirect(url)
-                return
-            raise HTTPError(403)
-        else:
-            if not self.current_user:
-                self.current_user = self.current_user_secure
-            elif self.current_user != self.current_user_secure:
-                raise HTTPError(403)
-        return method(self, *args, **kwargs)
-    return wrapper
-
-class AccountHandler(MainHandler):
-    """Account HTML handler"""
-
-    @tornado.web.authenticated
-    @authenticated_secure
-    def get(self):
-        self.render('account.html', authkey=self.auth_key, tempkey=None)
-
-    @tornado.web.authenticated
-    @authenticated_secure
-    def post(self):
-        exp = self.get_argument("expiration", None)
-        logger.info("auth: %r", self.auth_key)
-        tempkey = self.auth.new_temp_key(self.auth_key, expiration=exp)
-        self.render('account.html', authkey=self.auth_key, tempkey=tempkey)
-
 def catch_error(method):
     """Decorator to catch and handle errors on api handlers"""
     @wraps(method)
@@ -292,6 +206,44 @@ def catch_error(method):
                 kwargs['exception'] = str(e)
             self.send_error(**kwargs)
     return wrapper
+
+class LoginHandler(MainHandler):
+    """Login HTML handler"""
+    @catch_error
+    def get(self):
+        if not self.get_argument('access', False):
+            url = url_concat('https://tokens.icecube.wisc.edu/token', {
+                'redirect': self.address + self.request.uri,
+                'state': self.get_argument('next', '/'),
+                'scope': 'file-catalog',
+            })
+            logging.info('redirect to %s', url)
+            self.redirect(url)
+            return
+
+        redirect = self.get_argument('state', '/')
+        access = self.get_argument('access')
+        self.set_secure_cookie('token', access)
+        logging.info('request: %r %r', redirect, access)
+        if redirect:
+            self.redirect(redirect)
+
+
+class AccountHandler(MainHandler):
+    """Account HTML handler"""
+    @catch_error
+    def get(self):
+        if not self.get_argument('access', False):
+            url = url_concat('https://tokens.icecube.wisc.edu/token', {
+                'redirect': self.address + self.request.uri,
+                'scope': 'file-catalog',
+            })
+            self.redirect(url)
+            return
+
+        access = self.get_argument('access')
+        refresh = self.get_argument('refresh')
+        self.render('account.html', authkey=refresh, tempkey=access)
 
 def validate_auth(method):
     """Decorator to check auth key on api handlers"""

@@ -14,9 +14,11 @@ To start an instance of the server running:
     python -m file_catalog --config server.cfg
 
 ## Running the unit tests
-To run the unit tests for the service:
+To run the unit tests for the service, you need the
+[CircleCI CLI](https://circleci.com/docs/2.0/local-cli/).
+Then run it with:
 
-    python -m unittest discover
+    circleci local execute --job test
 
 ## Configuration
 By default, the service listens on port 8888. This is specified
@@ -173,4 +175,6 @@ Operations:
 In case it comes in handy, the following command can be used to run
 a single unit test. Replace the name of the test as necessary.
 
-    python -m unittest tests.test_files.TestFilesAPI.test_20_file
+    circleci local execute --job test -e PYTEST_ADDOPTS='-s tests/test_files.py -k test_10_files'
+
+Note that for a file to be picked up, it must be added to git first (with git add).

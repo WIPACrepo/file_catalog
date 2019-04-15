@@ -79,7 +79,7 @@ class TestServerAPI(unittest.TestCase):
         time.sleep(2)
 
     def curl(self, url, method='GET', args=None, prefix='/api', headers=None):
-        cmd = ['curl', '-X', method, '-s', '-i']
+        cmd = ['curl', '-X', method, '-L', '-s', '-i']
         if args:
             if 'query' in args:
                 args['query'] = json_encode(args['query'])
@@ -133,32 +133,12 @@ class TestServerAPI(unittest.TestCase):
             ret = self.curl('', m)
             self.assertEqual(ret['status'], 405)
 
-    def test_05_token(self):
-        appkey = 'secret2'
-        self.edit_config({
-            'auth':{
-                'secret': 'secret',
-                'expiration': 82400,
-            }
-        })
+    def test_05_login(self):
         self.start_server()
-        
-        payload = {
-            'iss': auth.ISSUER,
-            'sub': 'test',
-            'type': 'appkey'
-        }
-        appkey = jwt.encode(payload, 'secret', algorithm='HS512').decode('utf-8')
 
-        ret = self.curl('/token', 'GET', headers={'Authorization':'JWT '+appkey})
+        ret = self.curl('/login', 'GET', prefix='')
         print(ret)
         self.assertEqual(ret['status'], 200)
-
-        ret = self.curl('/token', 'GET', headers={'Authorization':'JWT blah'})
-        self.assertEqual(ret['status'], 403)
-
-        ret = self.curl('/token', 'GET')
-        self.assertEqual(ret['status'], 403)
 
 
 if __name__ == '__main__':

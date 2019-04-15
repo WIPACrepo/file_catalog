@@ -120,7 +120,6 @@ class Server(object):
                 (r"/login", LoginHandler, main_args),
                 (r"/account", AccountHandler, main_args),
                 (r"/api", HATEOASHandler, api_args),
-                (r"/api/token", TokenHandler, api_args),
                 (r"/api/files", FilesHandler, api_args),
                 (r"/api/files/([^\/]+)", SingleFileHandler, api_args),
                 (r"/api/collections", CollectionsHandler, api_args),
@@ -212,7 +211,7 @@ class LoginHandler(MainHandler):
     @catch_error
     def get(self):
         if not self.get_argument('access', False):
-            url = url_concat('https://tokens.icecube.wisc.edu/token', {
+            url = url_concat(self.config['TOKEN_SERVICE']+'/token', {
                 'redirect': self.address + self.request.uri,
                 'state': self.get_argument('next', '/'),
                 'scope': 'file-catalog',
@@ -234,7 +233,7 @@ class AccountHandler(MainHandler):
     @catch_error
     def get(self):
         if not self.get_argument('access', False):
-            url = url_concat('https://tokens.icecube.wisc.edu/token', {
+            url = url_concat(self.config['TOKEN_SERVICE']+'/token', {
                 'redirect': self.address + self.request.uri,
                 'scope': 'file-catalog',
             })
@@ -320,22 +319,6 @@ class APIHandler(tornado.web.RequestHandler):
         if kwargs:
             self.write(kwargs)
         self.finish()
-
-class TokenHandler(APIHandler):
-    @validate_auth
-    @catch_error
-    def get(self):
-        if 'auth' in self.config: # skip auth if not present
-            try:
-                exp = self.get_argument('expiration',None)
-                token = self.auth.new_temp_key(self.auth_key, expiration=exp)
-            except Exception:
-                logger.warn('failed auth for key: %r', self.auth_key, exc_info=True)
-                self.send_error(status_code=403, message='Authorization failed')
-            else:
-                self.write({'token':token})
-        else:
-            self.send_error(status_code=400, message='Authorization disabled')
 
 class HATEOASHandler(APIHandler):
     def initialize(self, **kwargs):

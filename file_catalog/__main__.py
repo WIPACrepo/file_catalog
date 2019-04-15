@@ -7,6 +7,20 @@ import os
 from file_catalog.server import Server
 from file_catalog.config import Config
 
+ENV_CONFIG = {
+    'TOKEN_SERVICE': 'https://tokens.icecube.wisc.edu',
+}
+def cfg_from_env():
+    ret = {}
+    for k in ENV_CONFIG:
+        if k in os.environ:
+            ret[k] = os.environ[k]
+        elif ENV_CONFIG[k] is None:
+            raise Exception('{} required for env config'.format(k))
+        else:
+            ret[k] = ENV_CONFIG[k]
+    return ret
+
 def main():
     parser = argparse.ArgumentParser(description='File catalog')
     parser.add_argument('-p', '--port', help='port to listen on')
@@ -27,6 +41,8 @@ def main():
     add_config(kwargs, 'port')
     add_config(kwargs, 'db_host')
     add_config(kwargs, 'debug')
+
+    config.update(cfg_from_env())
 
     # add config
     kwargs['config'] = config

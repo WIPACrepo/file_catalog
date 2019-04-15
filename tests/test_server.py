@@ -138,7 +138,7 @@ class TestServerAPI(unittest.TestCase):
 
         ret = self.curl('/login', 'GET', prefix='')
         print(ret)
-        self.assertEqual(ret['status'], 200)
+        self.assertEqual(ret['status'], 302)
 
 
 if __name__ == '__main__':

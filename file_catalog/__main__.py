@@ -9,6 +9,7 @@ from file_catalog.config import Config
 
 ENV_CONFIG = {
     'TOKEN_SERVICE': 'https://tokens.icecube.wisc.edu',
+    'AUTH_SECRET': '',
 }
 def cfg_from_env():
     ret = {}

@@ -25,13 +25,12 @@ from tornado.httputil import url_concat
 from tornado.escape import json_encode,json_decode
 from tornado.gen import coroutine
 from tornado.httpclient import HTTPError
-
+from rest_tools.server import Auth
 
 import file_catalog
 from file_catalog.mongo import Mongo
 from file_catalog import urlargparse
 from file_catalog.validation import Validation
-from file_catalog.auth import Auth
 
 logger = logging.getLogger('server')
 
@@ -148,9 +147,12 @@ class MainHandler(tornado.web.RequestHandler):
         self.base_url = base_url
         self.debug = debug
         self.config = config
-        if 'auth' in self.config: # skip auth if not present
-            self.auth = Auth(self.config)
+        if 'AUTH_SECRET' in self.config:
+            self.auth = Auth(secret=self.config['AUTH_SECRET'],
+                             issuer=self.config['TOKEN_SERVICE'])
             self.auth_key = None
+        else:
+            self.auth = None
         self.current_user_secure = None
         self.address = config['server']['address']
 
@@ -163,7 +165,7 @@ class MainHandler(tornado.web.RequestHandler):
         try:
             token = self.get_secure_cookie('token')
             logger.info('token: %r', token)
-            data = self.auth.authorize(token)
+            data = self.auth.validate(token, audience=['ANY'])
             self.auth_key = token
             return data['sub']
         except Exception:
@@ -224,8 +226,7 @@ class LoginHandler(MainHandler):
         access = self.get_argument('access')
         self.set_secure_cookie('token', access)
         logging.info('request: %r %r', redirect, access)
-        if redirect:
-            self.redirect(redirect)
+        self.redirect(redirect)
 
 
 class AccountHandler(MainHandler):
@@ -248,16 +249,16 @@ def validate_auth(method):
     """Decorator to check auth key on api handlers"""
     @wraps(method)
     def wrapper(self, *args, **kwargs):
-        if 'auth' not in self.config: # skip auth if not present
+        if not self.auth: # skip auth if not present
             return method(self, *args, **kwargs)
         try:
             auth_key = self.request.headers['Authorization'].split(' ',1)
-            if not auth_key[0] == 'JWT':
-                raise Exception('not a JWT token')
-            self.auth.authorize(auth_key[1])
+            if not auth_key[0].lower() == 'bearer':
+                raise Exception('not a bearer token')
+            self.auth.validate(auth_key[1], audience=['ANY'])
             self.auth_key = auth_key[1]
         except Exception as e:
-            logger.warn('auth error')
+            logger.warn('auth error', exc_info=True)
             kwargs = {'message':'Authorization error','status_code':403}
             if self.debug:
                 kwargs['exception'] = str(e)
@@ -273,9 +274,12 @@ class APIHandler(tornado.web.RequestHandler):
         self.base_url = base_url
         self.debug = debug
         self.config = config
-        if 'auth' in self.config: # skip auth if not present
-            self.auth = Auth(self.config)
+        if 'AUTH_SECRET' in self.config:
+            self.auth = Auth(secret=self.config['AUTH_SECRET'],
+                             issuer=self.config['TOKEN_SERVICE'])
             self.auth_key = None
+        else:
+            self.auth = None
 
         # subtract 1 to test before current connection is added
         self.rate_limit = rate_limit-1
@@ -456,7 +460,7 @@ class FilesHandler(APIHandler):
                 # add replica
                 ret['locations'].extend(metadata['locations'])
 
-                yield self.db.update_file(ret)
+                yield self.db.update_file(ret['uuid'], {'locations': ret['locations']})
                 self.set_status(200)
                 ret = ret['uuid']
         else:
@@ -559,26 +563,13 @@ class SingleFileHandler(APIHandler):
         set_last_modification_date(metadata)
 
         if ret:
-            # check if this is the same version we're trying to patch
-            test_write = ret.copy()
-            test_write['_links'] = links
-            self.write(test_write)
-            self.set_etag_header()
-            same = self.check_etag_header()
-            self._write_buffer = []
-            if same:
-                ret.update(metadata)
+            ret.update(metadata)
+            if not self.validation.validate_metadata_modification(self, ret):
+                return
 
-                if not self.validation.validate_metadata_modification(self, ret):
-                    return
-
-                yield self.db.update_file(ret.copy())
-                ret['_links'] = links
-                self.write(ret)
-                self.set_etag_header()
-            else:
-                self.send_error(409, message='conflict (version mismatch)',
-                                _links=links)
+            yield self.db.update_file(uuid, metadata)
+            ret['_links'] = links
+            self.write(ret)
         else:
             self.send_error(404, message='not found')
 
@@ -635,25 +626,12 @@ class SingleFileHandler(APIHandler):
         set_last_modification_date(metadata)
 
         if ret:
-            # check if this is the same version we're trying to patch
-            test_write = ret.copy()
-            test_write['_links'] = links
-            self.write(test_write)
+            if not self.validation.validate_metadata_modification(self, metadata):
+                return
 
-            self.set_etag_header()
-            same = self.check_etag_header()
-            self._write_buffer = []
-            if same:
-                if not self.validation.validate_metadata_modification(self, metadata):
-                    return
-
-                yield self.db.replace_file(metadata.copy())
-                metadata['_links'] = links
-                self.write(metadata)
-                self.set_etag_header()
-            else:
-                self.send_error(409, message='conflict (version mismatch)',
-                                _links=links)
+            yield self.db.replace_file(metadata.copy())
+            metadata['_links'] = links
+            self.write(metadata)
         else:
             self.send_error(404, message='not found')
 

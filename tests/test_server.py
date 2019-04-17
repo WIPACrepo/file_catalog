@@ -13,20 +13,20 @@ import hashlib
 
 from tornado.escape import json_encode,json_decode
 from tornado.ioloop import IOLoop
-
+import requests
 import jwt
 from pymongo import MongoClient
+from rest_tools.server import Auth
 
 from file_catalog.urlargparse import encode as jquery_encode
 from file_catalog.server import Server
 from file_catalog.config import SafeConfigParser, Config
-from file_catalog import auth
 
 class TestServerAPI(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(dir=os.getcwd())
         self.addCleanup(partial(shutil.rmtree, self.tmpdir))
-        self.port = random.randint(10000,50000)
+        self.address = 'http://localhost:8888'
         self.mongo_port = random.randint(10000,50000)
         dbpath = os.path.join(self.tmpdir,'db')
         os.mkdir(dbpath)
@@ -63,82 +63,41 @@ class TestServerAPI(unittest.TestCase):
 
     def start_server(self):
         cmd = ['python','-m','file_catalog','--config',
-               self.config,'-p',str(self.port),'--debug',
+               self.config,'-p','8888','--debug',
                '--db_host','localhost:%d'%self.mongo_port]
         if 'TEST_DATABASE_URL' in os.environ:
             cmd[-1] = os.environ['TEST_DATABASE_URL']
             self.clean_db(os.environ['TEST_DATABASE_URL'])
         s = subprocess.Popen(cmd)
-        #self.server = Server(self.config, port=self.port,
-        #                     db_host='localhost:%d'%self.mongo_port,
-        #                     debug=True)
-        #t = Thread(target=self.server.run)
-        #t.start()
-        #self.addCleanup(IOLoop.current().stop)
         self.addCleanup(s.terminate)
         time.sleep(2)
 
-    def curl(self, url, method='GET', args=None, prefix='/api', headers=None):
-        cmd = ['curl', '-X', method, '-L', '-s', '-i']
-        if args:
-            if 'query' in args:
-                args['query'] = json_encode(args['query'])
-            if method == 'GET':
-                cmd.extend(['-G', '--data-binary', jquery_encode(args)])
-            else:
-                cmd.extend(['--data-binary', json_encode(args)])
-        if headers:
-            for h in headers:
-                cmd.extend(['-H',h+': '+headers[h]])
-        output = os.path.join(self.tmpdir, 'curl_out')
-        cmd.extend(['-o', output, ('http://localhost:%d'%self.port)+prefix+url])
-        subprocess.check_call(cmd)
-        status = 0
-        headers = {}
-        data = {}
-        with open(output) as f:
-            lines = f.read().split('\n')
-            for i,line in enumerate(lines):
-                if line.startswith('HTTP/'):
-                    status = int(line.split()[1])
-                elif not line.strip():
-                    break
-                else:
-                    parts = line.split(':',1)
-                    if len(parts) == 2:
-                        headers[parts[0].lower()] = parts[1].strip()
-                    else:
-                        print('skipping header',line)
-            try:
-                print('\n'.join(lines[i:]))
-                data = json_decode('\n'.join(lines[i:]))
-            except:
-                pass
-        return {
-            'status': status,
-            'headers': headers,
-            'data': data,
-        }
+    def get_token(self):
+        if 'TOKEN_SERVICE' in os.environ:
+            r = requests.get(os.environ['TOKEN_SERVICE']+'/token?scope=file_catalg')
+            r.raise_for_status()
+            return r.json()['access']
+        else:
+            raise Exception('testing token service not defined')
 
     def test_01_HATEOAS(self):
         self.start_server()
-        ret = self.curl('', 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
+        r = requests.get(self.address+'/api')
+        r.raise_for_status()
+        data = r.json()
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
 
-        for m in ('POST','PUT','DELETE','PATCH'):
-            ret = self.curl('', m)
-            self.assertEqual(ret['status'], 405)
+        for m in ('post','put','delete','patch'):
+            r = getattr(requests, m)(self.address+'/api')
+            with self.assertRaises(Exception):
+                r.raise_for_status()
 
     def test_05_login(self):
         self.start_server()
-
-        ret = self.curl('/login', 'GET', prefix='')
-        print(ret)
-        self.assertEqual(ret['status'], 302)
+        r = requests.get(self.address+'/login')
+        r.raise_for_status()
 
 
 if __name__ == '__main__':

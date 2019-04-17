@@ -13,11 +13,9 @@ import hashlib
 
 from tornado.escape import json_encode,json_decode
 from tornado.ioloop import IOLoop
-
-import jwt
+from rest_tools.client import RestClient
 
 from file_catalog.config import Config
-from file_catalog import auth
 
 from .test_server import TestServerAPI
 
@@ -29,33 +27,32 @@ def hex(data):
 class TestFilesAPI(TestServerAPI):
     def test_10_files(self):
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
         metadata = {
             'logical_name': 'blah',
             'checksum': {'sha512':hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        ret = self.curl('/files', 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files')
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
 
         for m in ('PUT','DELETE','PATCH'):
-            ret = self.curl('/files', m)
-            self.assertEqual(ret['status'], 405)
+            with self.assertRaises(Exception):
+                r.request_seq(m, '/api/files')
 
     def test_15_files_auth(self):
         appkey = 'secret2'
@@ -66,13 +63,8 @@ class TestFilesAPI(TestServerAPI):
             }
         })
         self.start_server()
-
-        payload = {
-            'iss': auth.ISSUER,
-            'sub': 'test',
-            'type': 'appkey'
-        }
-        appkey = jwt.encode(payload, 'secret', algorithm='HS512').decode('utf-8')
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
             'logical_name': 'blah',
@@ -80,93 +72,83 @@ class TestFilesAPI(TestServerAPI):
             'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 403)
+        r2 = RestClient(self.address, 'blah', timeout=1, retries=1)
+        with self.assertRaises(Exception):
+            r2.request_seq('POST', '/api/files', metadata)
 
-        ret = self.curl('/files', 'POST', metadata, headers={'Authorization':'JWT '+appkey})
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
 
     def test_20_file(self):
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
         metadata = {
             u'logical_name': u'blah',
             u'checksum': {u'sha512':hex('foo bar')},
             u'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
+        data = r.request_seq('POST', '/api/files', metadata)
 
-        url = ret['data']['file']
+        url = data['file']
 
-        ret = self.curl(url, 'GET', prefix='')
-        print(ret)
-
-        self.assertEqual(ret['status'], 200)
-        ret['data'].pop('_links')
-        ret['data'].pop('meta_modify_date')
-        ret['data'].pop('uuid')
-        self.assertDictEqual(metadata, ret['data'])
-        self.assertIn('etag', ret['headers'])
+        data = r.request_seq('GET', url)
+        data.pop('_links')
+        data.pop('meta_modify_date')
+        data.pop('uuid')
+        self.assertDictEqual(metadata, data)
 
         metadata['test'] = 100
 
         metadata_cpy = metadata.copy()
         metadata_cpy['uuid'] = 'something else'
-        ret2 = self.curl(url, 'PUT', prefix='', args=metadata_cpy,
-                        headers={'If-None-Match':ret['headers']['etag']})
-        print(ret2)
-        self.assertEqual(ret2['status'], 400)
+        with self.assertRaises(Exception):
+            data = r.request_seq('PUT', url, metadata_cpy)
 
-        ret = self.curl(url, 'PUT', prefix='', args=metadata,
-                        headers={'If-None-Match':ret['headers']['etag']})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
+        data = r.request_seq('PUT', url, metadata)
+        data.pop('_links')
+        data.pop('meta_modify_date')
+        data.pop('uuid')
+        self.assertDictEqual(metadata, data)
 
-        ret['data'].pop('_links')
-        ret['data'].pop('meta_modify_date')
-        ret['data'].pop('uuid')
-        self.assertDictEqual(metadata, ret['data'])
-        ret = self.curl(url, 'GET', prefix='')
-        ret['data'].pop('_links')
-        ret['data'].pop('meta_modify_date')
-        ret['data'].pop('uuid')
-        self.assertDictEqual(metadata, ret['data'])
+        data = r.request_seq('GET', url)
+        data.pop('_links')
+        data.pop('meta_modify_date')
+        data.pop('uuid')
+        self.assertDictEqual(metadata, data)
 
-        ret = self.curl(url, 'PATCH', prefix='', args={'test2':200},
-                        headers={'If-None-Match':ret['headers']['etag']})
         metadata['test2'] = 200
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        ret['data'].pop('_links')
-        ret['data'].pop('meta_modify_date')
-        ret['data'].pop('uuid')
-        self.assertDictEqual(metadata, ret['data'])
-        ret = self.curl(url, 'GET', prefix='')
-        ret['data'].pop('_links')
-        ret['data'].pop('meta_modify_date')
-        ret['data'].pop('uuid')
-        self.assertDictEqual(metadata, ret['data'])
+        data = r.request_seq('PATCH', url, {'test2':200})
+        data.pop('_links')
+        data.pop('meta_modify_date')
+        data.pop('uuid')
+        self.assertDictEqual(metadata, data)
 
-        ret = self.curl(url, 'DELETE', prefix='')
-        print(ret)
-        self.assertEqual(ret['status'], 204)
+        data = r.request_seq('GET', url)
+        data.pop('_links')
+        data.pop('meta_modify_date')
+        data.pop('uuid')
+        self.assertDictEqual(metadata, data)
 
-        ret = self.curl(url, 'DELETE', prefix='')
-        print(ret)
-        self.assertEqual(ret['status'], 404)
+        data = r.request_seq('DELETE', url)
 
-        ret = self.curl(url, 'POST', prefix='')
-        self.assertEqual(ret['status'], 405)
+        # second delete should raise error
+        with self.assertRaises(Exception):
+            data = r.request_seq('DELETE', url)
+
+        with self.assertRaises(Exception):
+            data = r.request_seq('POST', url)
 
     def test_30_archive(self):
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
         metadata = {
             u'logical_name': u'blah',
             u'checksum': {u'sha512':hex('foo bar')},
@@ -179,35 +161,34 @@ class TestFilesAPI(TestServerAPI):
             u'file_size': 2,
             u'locations': [{u'site':u'test',u'path':u'blah.dat',u'archive':True}]
         }
-        ret = self.curl('/files', 'POST', metadata)
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        url = data['file']
         uid = url.split('/')[-1]
-        ret = self.curl('/files', 'POST', metadata2)
-        url2 = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata2)
+        url2 = data['file']
         uid2 = url2.split('/')[-1]
 
-        ret = self.curl('/files', 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
-        self.assertFalse(any(uid2 == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files')
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
+        self.assertFalse(any(uid2 == f['uuid'] for f in data['files']))
 
-        ret = self.curl('/files', 'GET', args={'query':{'locations.archive':True}})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertFalse(any(uid == f['uuid'] for f in ret['data']['files']))
-        self.assertTrue(any(uid2 == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files', {'query':json_encode({'locations.archive':True})})
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertFalse(any(uid == f['uuid'] for f in data['files']))
+        self.assertTrue(any(uid2 == f['uuid'] for f in data['files']))
 
     def test_40_simple_query(self):
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
         metadata = {
             u'logical_name': u'blah',
             u'checksum': {u'sha512':hex('foo bar')},
@@ -240,88 +221,76 @@ class TestFilesAPI(TestServerAPI):
                 u'season':2017,
             },
         }
-        ret = self.curl('/files', 'POST', metadata)
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        url = data['file']
         uid = url.split('/')[-1]
-        ret = self.curl('/files', 'POST', metadata2)
-        url2 = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata2)
+        url2 = data['file']
         uid2 = url2.split('/')[-1]
 
-        ret = self.curl('/files', 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 2)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
-        self.assertTrue(any(uid2 == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files')
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 2)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
+        self.assertTrue(any(uid2 == f['uuid'] for f in data['files']))
 
-        ret = self.curl('/files', 'GET', args={'processing_level':'level2'})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 2)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
-        self.assertTrue(any(uid2 == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files', {'processing_level':'level2'})
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 2)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
+        self.assertTrue(any(uid2 == f['uuid'] for f in data['files']))
 
-        ret = self.curl('/files', 'GET', args={'run_number':12345})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
-        self.assertFalse(any(uid2 == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files', {'run_number':12345})
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
+        self.assertFalse(any(uid2 == f['uuid'] for f in data['files']))
 
-        ret = self.curl('/files', 'GET', args={'dataset':23454})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertFalse(any(uid == f['uuid'] for f in ret['data']['files']))
-        self.assertTrue(any(uid2 == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files', {'dataset':23454})
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertFalse(any(uid == f['uuid'] for f in data['files']))
+        self.assertTrue(any(uid2 == f['uuid'] for f in data['files']))
 
-        ret = self.curl('/files', 'GET', args={'event_id':400})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
-        self.assertFalse(any(uid2 == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files', {'event_id':400})
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
+        self.assertFalse(any(uid2 == f['uuid'] for f in data['files']))
 
-        ret = self.curl('/files', 'GET', args={'season':2017})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 2)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
-        self.assertTrue(any(uid2 == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files', {'season':2017})
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 2)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
+        self.assertTrue(any(uid2 == f['uuid'] for f in data['files']))
 
-        ret = self.curl('/files', 'GET', args={'event_id':400, 'keys':'|'.join(['checksum','file_size','uuid'])})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
-        self.assertFalse(any(uid2 == f['uuid'] for f in ret['data']['files']))
-        self.assertIn('checksum', ret['data']['files'][0])
-        self.assertIn('file_size', ret['data']['files'][0])
+        data = r.request_seq('GET', '/api/files', {'event_id':400, 'keys':'|'.join(['checksum','file_size','uuid'])})
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
+        self.assertFalse(any(uid2 == f['uuid'] for f in data['files']))
+        self.assertIn('checksum', data['files'][0])
+        self.assertIn('file_size', data['files'][0])
 
     def test_50_post_files_unique_logical_name(self):
         """Test that logical_name is unique when creating a new file."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the file to be created
         metadata = {
@@ -332,48 +301,38 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the file the first time; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
         # check that the file was created properly
-        ret = self.curl('/files', 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files')
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
 
         # create the file the second time; should NOT be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        # Conflict (if the file already exists); includes link to existing file
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
-        uid = url.split('/')[-1]
+        with self.assertRaises(Exception):
+            data = r.request_seq('POST', '/api/files', metadata)
 
         # check that the second file was not created
-        ret = self.curl('/files', 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files')
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
 
     def test_51_put_files_uuid_unique_logical_name(self):
         """Test that logical_name is unique when replacing a file."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
         metadata = {
@@ -390,40 +349,28 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # create the second file; should be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
+        data = r.request_seq('POST', '/api/files', metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
 
         # try to replace the first file with a copy of the second; should NOT be OK
-        ret = self.curl('/files/' + uid, 'PUT', metadata2, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
+        with self.assertRaises(Exception):
+            r.request_seq('PUT', '/api/files/' + uid, metadata2)
 
     def test_52_put_files_uuid_replace_logical_name(self):
         """Test that a file can replace with the same logical_name."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
         metadata = {
@@ -440,33 +387,24 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # try to replace the first file with the second; should be OK
-        ret = self.curl('/files/' + uid, 'PUT', metadata2, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('logical_name', ret['data'])
+        data = r.request_seq('PUT', '/api/files/' + uid, metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('logical_name', data)
 
     def test_53_patch_files_uuid_unique_logical_name(self):
         """Test that logical_name is unique when updating a file."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
         metadata = {
@@ -491,40 +429,28 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # create the second file; should be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
+        data = r.request_seq('POST', '/api/files', metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
 
         # try to update the first file with a patch; should NOT be OK
-        ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
+        with self.assertRaises(Exception):
+            r.request_seq('PATCH', '/api/files/'+uuid, patch1)
 
     def test_54_patch_files_uuid_replace_logical_name(self):
         """Test that a file can be updated with the same logical_name."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the file to be created
         metadata = {
@@ -543,33 +469,24 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # try to update the file with a patch; should be OK
-        ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('logical_name', ret['data'])
+        data = r.request_seq('PATCH', '/api/files/' + uid, patch1)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('logical_name', data)
 
     def test_55_post_files_unique_locations(self):
         """Test that locations is unique when creating a new file."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
         metadata = {
@@ -586,38 +503,30 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
         # check that the file was created properly
-        ret = self.curl('/files', 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files')
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
 
         # create the second file; should NOT be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        # Conflict (if the file already exists); includes link to existing file
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
-        uid = url.split('/')[-1]
+        with self.assertRaises(Exception):
+            r.request_seq('POST', '/api/files', metadata2)
 
     def test_56_put_files_uuid_unique_locations(self):
         """Test that locations is unique when replacing a file."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
         metadata = {
@@ -640,40 +549,28 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # create the second file; should be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
+        data = r.request_seq('POST', '/api/files', metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
 
         # try to replace the first file with a location collision with the second; should NOT be OK
-        ret = self.curl('/files/' + uid, 'PUT', replace1, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
+        with self.assertRaises(Exception):
+            r.request_seq('PUT', '/api/files/' + uuid, replace1)
 
     def test_57_put_files_uuid_replace_locations(self):
         """Test that a file can replace with the same location."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
         metadata = {
@@ -690,33 +587,24 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # try to replace the first file with the second; should be OK
-        ret = self.curl('/files/' + uid, 'PUT', metadata2, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('logical_name', ret['data'])
+        data = r.request_seq('PUT', '/api/files/'+uid, metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('logical_name', data)
 
     def test_58_patch_files_uuid_unique_locations(self):
         """Test that locations is unique when updating a file."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
         metadata = {
@@ -741,40 +629,28 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # create the second file; should be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
+        data = r.request_seq('POST', '/api/files', metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
 
         # try to update the first file with a patch; should NOT be OK
-        ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
+        with self.assertRaises(Exception):
+            r.request_seq('PATCH', '/api/files/' + uuid, patch1)
 
     def test_59_patch_files_uuid_replace_locations(self):
         """Test that a file can be updated with the same location."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the file to be created
         metadata = {
@@ -793,34 +669,25 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # try to update the file with a patch; should be OK
-        ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('logical_name', ret['data'])
-        self.assertIn('locations', ret['data'])
+        data = r.request_seq('PATCH', '/api/files/' + uid, patch1)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('logical_name', data)
+        self.assertIn('locations', data)
 
     def test_60_post_files_locations_1xN(self):
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
         loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
@@ -846,38 +713,30 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
         # check that the file was created properly
-        ret = self.curl('/files', 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files')
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
 
         # create the second file; should NOT be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        # Conflict (if the file already exists); includes link to existing file
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
-        uid = url.split('/')[-1]
+        with self.assertRaises(Exception):
+            r.request_seq('POST', '/api/files', metadata2)
 
     def test_61_post_files_locations_Nx1(self):
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
         loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
@@ -903,42 +762,33 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
         # check that the file was created properly
-        ret = self.curl('/files', 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files')
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
 
         # check that the file was created properly, part deux
-        ret = self.curl('/files/' + uid, 'GET')
-        self.assertEqual(ret['status'], 200)
+        data = r.request_seq('GET', '/api/files/' + uid)
 
         # create the second file; should NOT be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        # Conflict (if the file already exists); includes link to existing file
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
-        uid = url.split('/')[-1]
+        with self.assertRaises(Exception):
+            r.request_seq('POST', '/api/files', metadata2)
 
     def test_62_post_files_locations_NxN(self):
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
         loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
@@ -964,42 +814,33 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
         # check that the file was created properly
-        ret = self.curl('/files', 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files', ret['data'])
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertTrue(any(uid == f['uuid'] for f in ret['data']['files']))
+        data = r.request_seq('GET', '/api/files')
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertTrue(any(uid == f['uuid'] for f in data['files']))
 
         # check that the file was created properly, part deux
-        ret = self.curl('/files/' + uid, 'GET')
-        self.assertEqual(ret['status'], 200)
+        data = r.request_seq('GET', '/api/files/' + uid)
 
         # create the second file; should NOT be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        # Conflict (if the file already exists); includes link to existing file
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
-        uid = url.split('/')[-1]
+        with self.assertRaises(Exception):
+            r.request_seq('POST', '/api/files', metadata2)
 
     def test_63_put_files_uuid_locations_1xN(self):
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
         loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
@@ -1031,40 +872,28 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # create the second file; should be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
+        data = r.request_seq('POST', '/api/files', metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
 
         # try to replace the first file with a location collision with the second; should NOT be OK
-        ret = self.curl('/files/' + uid, 'PUT', replace1, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
+        with self.assertRaises(Exception):
+            r.request_seq('PUT', '/api/files/' + uid, replace1)
 
     def test_64_put_files_uuid_locations_Nx1(self):
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
         loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
@@ -1096,40 +925,28 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # create the second file; should be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
+        data = r.request_seq('POST', '/api/files', metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
 
         # try to replace the first file with a location collision with the second; should NOT be OK
-        ret = self.curl('/files/' + uid, 'PUT', replace1, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
+        with self.assertRaises(Exception):
+            r.request_seq('PUT', '/api/files/' + uid, replace1)
 
     def test_65_put_files_uuid_locations_NxN(self):
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
         loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
@@ -1161,40 +978,28 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # create the second file; should be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
+        data = r.request_seq('POST', '/api/files', metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
 
         # try to replace the first file with a location collision with the second; should NOT be OK
-        ret = self.curl('/files/' + uid, 'PUT', replace1, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
+        with self.assertRaises(Exception):
+            r.request_seq('PUT', '/api/files/' + uid, replace1)
 
     def test_66_patch_files_uuid_locations_1xN(self):
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
         loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
@@ -1228,40 +1033,28 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # create the second file; should be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
+        data = r.request_seq('POST', '/api/files', metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
 
         # try to update the first file with a patch; should NOT be OK
-        ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
+        with self.assertRaises(Exception):
+            r.request_seq('PATCH', '/api/files/' + uid, patch1)
 
     def test_67_patch_files_uuid_locations_Nx1(self):
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
         loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
@@ -1295,40 +1088,28 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # create the second file; should be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
+        data = r.request_seq('POST', '/api/files', metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
 
         # try to update the first file with a patch; should NOT be OK
-        ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
+        with self.assertRaises(Exception):
+            r.request_seq('PATCH', '/api/files/' + uid, patch1)
 
     def test_68_patch_files_uuid_locations_NxN(self):
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
         loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
@@ -1362,36 +1143,22 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        # get the record of the file for its etag header
-        ret = self.curl('/files/' + uid, 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('etag', ret['headers'])
-        etag = ret['headers']['etag']
-
         # create the second file; should be OK
-        ret = self.curl('/files', 'POST', metadata2)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
+        data = r.request_seq('POST', '/api/files', metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
 
         # try to update the first file with a patch; should NOT be OK
-        ret = self.curl('/files/' + uid, 'PATCH', patch1, '/api', {'If-None-Match': etag})
-        print(ret)
-        self.assertEqual(ret['status'], 409)
-        self.assertIn('message', ret['data'])
-        self.assertIn('file', ret['data'])
+        with self.assertRaises(Exception):
+            r.request_seq('PATCH', '/api/files/' + uid, patch1)
 
 
 if __name__ == '__main__':

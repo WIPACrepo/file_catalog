@@ -5,7 +5,7 @@ import time
 import random
 import unittest
 
-from file_catalog import auth
+from rest_tools.client import RestClient
 
 from .test_server import TestServerAPI
 from .test_files import hex
@@ -13,88 +13,84 @@ from .test_files import hex
 class TestCollectionsAPI(TestServerAPI):
     def test_10_collections(self):
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
         }
-        ret = self.curl('/collections', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('collection', ret['data'])
-        url = ret['data']['collection']
+        data = r.request_seq('POST', '/api/collections', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('collection', data)
+        url = data['collection']
         uid = url.split('/')[-1]
 
-        ret = self.curl('/collections', 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('collections', ret['data'])
-        self.assertIn(uid,{row['uuid'] for row in ret['data']['collections']})
+        data = r.request_seq('GET', '/api/collections')
+        self.assertIn('collections', data)
+        self.assertIn(uid,{row['uuid'] for row in data['collections']})
 
     def test_20_collection_by_id(self):
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
         }
-        ret = self.curl('/collections', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('collection', ret['data'])
-        url = ret['data']['collection']
+        data = r.request_seq('POST', '/api/collections', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('collection', data)
+        url = data['collection']
         uid = url.split('/')[-1]
 
-        ret = self.curl('/collections/%s'%(uid,), 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
+        data = r.request_seq('GET', '/api/collections/' + uid)
         for k in metadata:
-            self.assertIn(k, ret['data'])
-            self.assertEqual(metadata[k], ret['data'][k])
+            self.assertIn(k, data)
+            self.assertEqual(metadata[k], data[k])
 
     def test_21_collection_by_name(self):
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
         }
-        ret = self.curl('/collections', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('collection', ret['data'])
-        url = ret['data']['collection']
+        data = r.request_seq('POST', '/api/collections', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('collection', data)
+        url = data['collection']
         uid = url.split('/')[-1]
 
-        ret = self.curl('/collections/%s'%('blah',), 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
+        data = r.request_seq('GET', '/api/collections/blah')
         for k in metadata:
-            self.assertIn(k, ret['data'])
-            self.assertEqual(metadata[k], ret['data'][k])
+            self.assertIn(k, data)
+            self.assertEqual(metadata[k], data[k])
 
     def test_30_collection_files(self):
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
         }
-        ret = self.curl('/collections', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('collection', ret['data'])
-        url = ret['data']['collection']
+        data = r.request_seq('POST', '/api/collections', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('collection', data)
+        url = data['collection']
         uid = url.split('/')[-1]
 
-        ret = self.curl('/collections/%s/files'%('blah',), 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertEqual(ret['data']['files'], [])
+        data = r.request_seq('GET', '/api/collections/blah/files')
+        self.assertEqual(data['files'], [])
 
         # add a file
         metadata = {
@@ -103,124 +99,109 @@ class TestCollectionsAPI(TestServerAPI):
             'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         uid = url.split('/')[-1]
 
-        ret = self.curl('/collections/%s/files'%('blah',), 'GET',
-                        args={'keys':'uuid|logical_name|checksum|locations'})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertEqual(ret['data']['files'][0]['uuid'], uid)
-        self.assertEqual(ret['data']['files'][0]['checksum'], metadata['checksum'])
+        data = r.request_seq('GET', '/api/collections/blah/files',
+                             {'keys':'uuid|logical_name|checksum|locations'})
+        self.assertEqual(len(data['files']), 1)
+        self.assertEqual(data['files'][0]['uuid'], uid)
+        self.assertEqual(data['files'][0]['checksum'], metadata['checksum'])
 
     def test_70_snapshot_create(self):
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
         }
-        ret = self.curl('/collections', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('collection', ret['data'])
-        url = ret['data']['collection']
+        data = r.request_seq('POST', '/api/collections', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('collection', data)
+        url = data['collection']
         uid = url.split('/')[-1]
 
-        ret = self.curl('/collections/%s'%(uid,), 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
+        data = r.request_seq('GET', '/api/collections/' + uid)
 
-        ret = self.curl('/collections/%s/snapshots'%(uid,), 'POST', {})
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('snapshot', ret['data'])
-        url = ret['data']['snapshot']
+        data = r.request_seq('POST', '/api/collections/{}/snapshots'.format(uid))
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('snapshot', data)
+        url = data['snapshot']
         snap_uid = url.split('/')[-1]
 
-        ret = self.curl('/collections/%s/snapshots'%(uid,), 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('snapshots', ret['data'])
-        self.assertEqual(len(ret['data']['snapshots']), 1)
-        self.assertEqual(ret['data']['snapshots'][0]['uuid'], snap_uid)
+        data = r.request_seq('GET', '/api/collections/{}/snapshots'.format(uid))
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('snapshots', data)
+        self.assertEqual(len(data['snapshots']), 1)
+        self.assertEqual(data['snapshots'][0]['uuid'], snap_uid)
 
     def test_71_snapshot_find(self):
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
         }
-        ret = self.curl('/collections', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('collection', ret['data'])
-        url = ret['data']['collection']
+        data = r.request_seq('POST', '/api/collections', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('collection', data)
+        url = data['collection']
         uid = url.split('/')[-1]
 
-        ret = self.curl('/collections/%s'%(uid,), 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
+        data = r.request_seq('GET', '/api/collections/' + uid)
 
-        ret = self.curl('/collections/%s/snapshots'%(uid,), 'POST', {})
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('snapshot', ret['data'])
-        url = ret['data']['snapshot']
+        data = r.request_seq('POST', '/api/collections/{}/snapshots'.format(uid))
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('snapshot', data)
+        url = data['snapshot']
         snap_uid = url.split('/')[-1]
 
-        ret = self.curl('/snapshots/%s'%(snap_uid,), 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('files',ret['data'])
-        self.assertEqual(ret['data']['files'], [])
+        data = r.request_seq('GET', '/api/snapshots/' + snap_uid)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files',data)
+        self.assertEqual(data['files'], [])
 
     def test_80_snapshot_files(self):
         self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
         metadata = {
             'collection_name': 'blah',
             'owner': 'foo',
         }
-        ret = self.curl('/collections', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('collection', ret['data'])
-        url = ret['data']['collection']
+        data = r.request_seq('POST', '/api/collections', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('collection', data)
+        url = data['collection']
         uid = url.split('/')[-1]
 
-        ret = self.curl('/collections/%s/snapshots'%(uid,), 'POST', {})
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('snapshot', ret['data'])
-        url = ret['data']['snapshot']
+        data = r.request_seq('GET', '/api/collections/' + uid)
+
+        data = r.request_seq('POST', '/api/collections/{}/snapshots'.format(uid))
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('snapshot', data)
+        url = data['snapshot']
         snap_uid = url.split('/')[-1]
 
-        ret = self.curl('/snapshots/%s/files'%(snap_uid,), 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertEqual(ret['data']['files'], [])
+        data = r.request_seq('GET', '/api/snapshots/{}/files'.format(snap_uid))
+        self.assertEqual(data['files'], [])
 
         # add a file
         metadata = {
@@ -229,38 +210,30 @@ class TestCollectionsAPI(TestServerAPI):
             'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
-        ret = self.curl('/files', 'POST', metadata)
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('file', ret['data'])
-        url = ret['data']['file']
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
         file_uid = url.split('/')[-1]
         
         # old snapshot stays empty
-        ret = self.curl('/snapshots/%s/files'%(snap_uid,), 'GET')
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertEqual(ret['data']['files'], [])
+        data = r.request_seq('GET', '/api/snapshots/{}/files'.format(snap_uid))
+        self.assertEqual(data['files'], [])
 
         # new snapshot should have file
-        ret = self.curl('/collections/%s/snapshots'%(uid,), 'POST', {})
-        print(ret)
-        self.assertEqual(ret['status'], 201)
-        self.assertIn('_links', ret['data'])
-        self.assertIn('self', ret['data']['_links'])
-        self.assertIn('snapshot', ret['data'])
-        url = ret['data']['snapshot']
+        data = r.request_seq('POST', '/api/collections/{}/snapshots'.format(uid))
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('snapshot', data)
+        url = data['snapshot']
         snap_uid = url.split('/')[-1]
 
-        ret = self.curl('/snapshots/%s/files'%(snap_uid,), 'GET',
-                        args={'keys':'uuid|logical_name|checksum|locations'})
-        print(ret)
-        self.assertEqual(ret['status'], 200)
-        self.assertEqual(len(ret['data']['files']), 1)
-        self.assertEqual(ret['data']['files'][0]['uuid'], file_uid)
-        self.assertEqual(ret['data']['files'][0]['checksum'], metadata['checksum'])
+        data = r.request_seq('GET', '/api/snapshots/{}/files'.format(snap_uid),
+                             {'keys':'uuid|logical_name|checksum|locations'})
+        self.assertEqual(len(data['files']), 1)
+        self.assertEqual(data['files'][0]['uuid'], file_uid)
+        self.assertEqual(data['files'][0]['checksum'], metadata['checksum'])
         
 
 if __name__ == '__main__':

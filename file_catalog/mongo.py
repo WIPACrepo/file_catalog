@@ -1,7 +1,10 @@
 from __future__ import absolute_import, division, print_function
 
 import logging
-from collections import Iterable
+try:
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 
 import pymongo
 from pymongo import MongoClient
@@ -89,9 +92,7 @@ class Mongo(object):
         return self.client.files.find_one(filters, {'_id':False})
 
     @run_on_executor
-    def update_file(self, metadata):
-        uuid = metadata['uuid']
-
+    def update_file(self, uuid, metadata):
         result = self.client.files.update_one({'uuid': uuid},
                                               {'$set': metadata})
 

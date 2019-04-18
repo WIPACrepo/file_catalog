@@ -74,7 +74,7 @@ class TestServerAPI(unittest.TestCase):
 
     def get_token(self):
         if 'TOKEN_SERVICE' in os.environ:
-            r = requests.get(os.environ['TOKEN_SERVICE']+'/token?scope=file_catalg')
+            r = requests.get(os.environ['TOKEN_SERVICE']+'/token?scope=file_catalog')
             r.raise_for_status()
             return r.json()['access']
         else:

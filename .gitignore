@@ -89,7 +89,5 @@ env2/
 # Rope project settings
 .ropeproject
 
-testing.cfg
-server.cfg
 *.swp
 *.swo

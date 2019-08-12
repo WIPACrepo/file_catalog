@@ -1,21 +1,11 @@
 from __future__ import absolute_import, division, print_function
 
 import os
-import time
-import tempfile
-import shutil
-import random
-import subprocess
-from functools import partial
-from threading import Thread
 import unittest
 import hashlib
 
 from tornado.escape import json_encode,json_decode
-from tornado.ioloop import IOLoop
 from rest_tools.client import RestClient
-
-from file_catalog.config import Config
 
 from .test_server import TestServerAPI
 
@@ -55,14 +45,7 @@ class TestFilesAPI(TestServerAPI):
                 r.request_seq(m, '/api/files')
 
     def test_15_files_auth(self):
-        appkey = 'secret2'
-        self.edit_config({
-            'auth':{
-                'secret': 'secret',
-                'expiration': 82400,
-            }
-        })
-        self.start_server()
+        self.start_server(config_override={'SECRET':'secret'})
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
 

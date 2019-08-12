@@ -6,51 +6,25 @@ import os
 
 from file_catalog.server import Server
 from file_catalog.config import Config
-
-ENV_CONFIG = {
-    'TOKEN_SERVICE': 'https://tokens.icecube.wisc.edu',
-    'AUTH_SECRET': '',
-}
-def cfg_from_env():
-    ret = {}
-    for k in ENV_CONFIG:
-        if k in os.environ:
-            ret[k] = os.environ[k]
-        elif ENV_CONFIG[k] is None:
-            raise Exception('{} required for env config'.format(k))
-        else:
-            ret[k] = ENV_CONFIG[k]
-    return ret
+from pprint import pprint
 
 def main():
     parser = argparse.ArgumentParser(description='File catalog')
-    parser.add_argument('-p', '--port', help='port to listen on')
-    parser.add_argument('--db_host', help='MongoDB host')
-    parser.add_argument('--debug', action='store_true', default=False, help='Debug flag')
-    parser.add_argument('--config', required=True, help='Path to config file')
+    parser.add_argument('--show-config-spec', action='store_true',
+            help='Print configuration specification, including defaults, and exit')
     args = parser.parse_args()
-    kwargs = {k:v for k,v in vars(args).items() if v}
 
-    # create config dict
-    config = Config(args.config)
+    if args.show_config_spec:
+        pprint(Config.SPEC)
+        parser.exit()
+    
+    config = Config()
+    config.update_from_env()
 
-    # Use config file if not defined explicitly
-    def add_config(kwargs, key):
-        if key not in kwargs:
-            kwargs[key] = config['server'][key]
-
-    add_config(kwargs, 'port')
-    add_config(kwargs, 'db_host')
-    add_config(kwargs, 'debug')
-
-    config.update(cfg_from_env())
-
-    # add config
-    kwargs['config'] = config
-
-    logging.basicConfig(level=('DEBUG' if args.debug else 'INFO'))
+    logging.basicConfig(level=('DEBUG' if config['DEBUG'] else 'INFO'))
     try:
-        Server(**kwargs).run()
+        Server(config, port=config['FC_PORT'], debug=config['DEBUG'],
+                db_host=config['MONGODB_HOST'], db_port=config['MONGODB_PORT']).run()
     except Exception:
         logging.fatal('Server error', exc_info=True)
         raise

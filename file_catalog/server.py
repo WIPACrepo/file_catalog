@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import copy
 import sys
 import os
 import logging
@@ -96,7 +97,7 @@ class Server(object):
         logger.info('db user: %s', db_user)
         logger.info('server port: %r', port)
         logger.info('debug: %r', debug)
-        redacted_config = dict(config)
+        redacted_config = copy.deepcopy(config)
         redacted_config['MONGODB_AUTH_PASS'] = 'REDACTED'
         logger.info('redacted config: %r', redacted_config)
 

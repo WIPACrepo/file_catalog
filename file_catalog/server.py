@@ -1,6 +1,5 @@
 from __future__ import absolute_import, division, print_function
 
-import hashlib
 import sys
 import os
 import logging
@@ -92,7 +91,14 @@ class Server(object):
         if template_path is None:
             raise Exception('bad template path')
 
-        self.print_config(config, port, debug, db_host, db_port, db_user, db_pass)
+        logger.info('db host: %s', db_host)
+        logger.info('db port: %s', db_port)
+        logger.info('db user: %s', db_user)
+        logger.info('server port: %r', port)
+        logger.info('debug: %r', debug)
+        redacted_config = dict(config)
+        redacted_config['MONGODB_AUTH_PASS'] = 'REDACTED'
+        logger.info('redacted config: %r', redacted_config)
 
         main_args = {
             'base_url': '/api',
@@ -134,18 +140,6 @@ class Server(object):
             debug=debug,
         )
         app.listen(port)
-
-    def print_config(self, config, port, debug, db_host, db_port, db_user, db_pass):
-        logger.info('db host: %s', db_host)
-        logger.info('db port: %s', db_port)
-        logger.info('db user: %s', db_user)
-        db_pass_hash = (hashlib.sha256(db_pass.encode('utf-8')).hexdigest() if db_pass else None)
-        logger.info('db pass hash: %s', db_pass_hash)
-        logger.info('server port: %r', port)
-        logger.info('debug: %r', debug)
-        redacted_config = dict(config)
-        redacted_config['MONGODB_AUTH_PASS'] = db_pass_hash
-        logger.info('redacted config: %r', redacted_config)
 
     def run(self):
         tornado.ioloop.IOLoop.current().start()

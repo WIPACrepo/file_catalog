@@ -19,8 +19,6 @@ from pymongo import MongoClient
 from rest_tools.server import Auth
 
 from file_catalog.urlargparse import encode as jquery_encode
-from file_catalog.server import Server
-from file_catalog.config import SafeConfigParser, Config
 
 class TestServerAPI(unittest.TestCase):
     def setUp(self):
@@ -32,7 +30,7 @@ class TestServerAPI(unittest.TestCase):
         os.mkdir(dbpath)
         dblog = os.path.join(dbpath,'logfile')
 
-        if 'TEST_DATABASE_URL' not in os.environ:
+        if 'TEST_DATABASE_HOST' not in os.environ:
             m = subprocess.Popen(['mongod', '--port', str(self.mongo_port),
                                   '--dbpath', dbpath, '--smallfiles',
                                   '--quiet', '--nounixsocket',
@@ -40,41 +38,30 @@ class TestServerAPI(unittest.TestCase):
             self.addCleanup(partial(time.sleep, 0.3))
             self.addCleanup(m.terminate)
         
-        self.config = os.path.join(self.tmpdir,'server.cfg')
-        shutil.copy('resources/server.cfg', self.config)
-
-    def edit_config(self, new_cfg):
-        old_cfg = Config(self.config)
-        old_cfg.update(new_cfg)
-        
-        tmp = SafeConfigParser()
-        for k in old_cfg:
-            tmp.add_section(k)
-            for k2,v2 in old_cfg[k].items():
-                tmp.set(k,k2,str(v2))
-        with open(self.config,'w') as f:
-            tmp.write(f)
-
-    def clean_db(self, addr):
-        db = MongoClient(addr).file_catalog
+    def clean_db(self, host, port):
+        db = MongoClient(host=host, port=port).file_catalog
         colls = db.list_collection_names()
         for c in colls:
             db.drop_collection(c)
 
-    def start_server(self):
-        cmd = ['python','-m','file_catalog','--config',
-               self.config,'-p','8888','--debug',
-               '--db_host','localhost:%d'%self.mongo_port]
-        if 'TEST_DATABASE_URL' in os.environ:
-            cmd[-1] = os.environ['TEST_DATABASE_URL']
-            self.clean_db(os.environ['TEST_DATABASE_URL'])
-        s = subprocess.Popen(cmd)
+    def start_server(self, config_override={}):
+        env = dict(os.environ)
+        env.update(config_override)
+        env['MONGODB_PORT'] = str(self.mongo_port)
+        env['DEBUG'] = '1'
+
+        if 'TEST_DATABASE_HOST' in os.environ:
+            env['MONGODB_HOST'] = os.environ['TEST_DATABASE_HOST']
+        if 'TEST_DATABASE_PORT' in os.environ:
+            env['MONGODB_PORT'] = os.environ['TEST_DATABASE_PORT']
+        self.clean_db(env['MONGODB_HOST'], int(env['MONGODB_PORT']))
+        s = subprocess.Popen(['python', '-m', 'file_catalog'], env=env)
         self.addCleanup(s.terminate)
         time.sleep(2)
 
     def get_token(self):
-        if 'TOKEN_SERVICE' in os.environ:
-            r = requests.get(os.environ['TOKEN_SERVICE']+'/token?scope=file_catalog')
+        if 'TOKEN_SERVICE_URL' in os.environ:
+            r = requests.get(os.environ['TOKEN_SERVICE_URL']+'/token?scope=file_catalog')
             r.raise_for_status()
             return r.json()['access']
         else:

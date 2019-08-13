@@ -18,13 +18,12 @@ logger = logging.getLogger('mongo')
 
 class Mongo(object):
     """A ThreadPoolExecutor-based MongoDB client"""
-    def __init__(self, host=None):
+    def __init__(self, host=None, port=None):
         kwargs = {}
         if host:
-            parts = host.split(':')
-            if len(parts) == 2:
-                kwargs['port'] = int(parts[1])
-            kwargs['host'] = parts[0]
+            kwargs['host'] = host
+        if port:
+            kwargs['port'] = port
         logger.info('MongoClient args: %r', kwargs)
 
         self.client = MongoClient(**kwargs).file_catalog

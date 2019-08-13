@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [1.1.1] - 2019-08-13
+### Added
+- All configuration is now loaded from environment variables
+### Changed
+- Configuration parameter names changed to be more descriptive
+### Removed
+- Configuration via command-line and config files is no longer possible
+
 ## [1.1.0] - 2018-08-07
 ### Added
 - Configuration for flake8 linting tool in setup.cfg

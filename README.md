@@ -11,7 +11,7 @@ To get the prerequisites necessary for the file catalog:
 ## Running the server
 To start an instance of the server running:
 
-    python -m file_catalog --config server.cfg
+    python -m file_catalog
 
 ## Running the unit tests
 To run the unit tests for the service, you need the
@@ -21,8 +21,10 @@ Then run it with:
     circleci local execute --job test
 
 ## Configuration
-By default, the service listens on port 8888. This is specified
-in `server.py` in the constructor for the `Server` class.
+All configuration is done using environment variables.
+To get the list of possible configuration parameters and their defaults, run
+
+    python -m file_catalog --show-config-spec
 
 ## Interface
 

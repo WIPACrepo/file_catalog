@@ -8,4 +8,4 @@ RUN apk add --no-cache python py-pip && \
 
 USER app
 
-CMD ["python","-m","file_catalog","--config","/mnt/server.cfg"]
+CMD ["python", "-m", "file_catalog"]

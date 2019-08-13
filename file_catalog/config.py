@@ -1,44 +1,56 @@
-try:
-    from ConfigParser import SafeConfigParser
-except ModuleNotFoundError: # python 3 changed the names
-    from configparser import ConfigParser as SafeConfigParser
-
 import os
-import ast
+
+from collections import namedtuple
+
+class ConfigValidationError(Exception):
+    pass
+
+cps = namedtuple('ConfigParamSpec', 'default env_adapter description')
 
 class Config(dict):
-    def __init__(self, path):
-        self.path = path
+    SPEC = {
+        'DEBUG': cps(False, bool,
+                'debug mode (set to "" or unset to disable)'),
+        'FC_COOKIE_SECRET': cps(None, str,
+                'Value of cookie_secret argument for tornado.web.Application'),
+        'FC_HOST': cps('localhost', str,
+                'Host name that can be used to access this instance of File Catalog'),
+        'FC_PORT': cps(8888, int,
+                'Port for File Catalog server to listen on'),
+        'FC_QUERY_FILE_LIST_LIMIT': cps(10000, int,
+                'Maximal number of files that are returned in the file list by the server'),
+        'MONGODB_HOST': cps('localhost', str,
+                'MongoDB host'),
+        'MONGODB_PORT': cps(27017, int,
+                'MongoDB port'),
+        'META_FORBIDDEN_FIELDS_CREATION': cps(
+                ['mongo_id', '_id', 'meta_modify_date'], str.split,
+                'List of fields not allowed in the metadata for creation'),
+        'META_FORBIDDEN_FIELDS_UPDATE': cps(
+                ['mongo_id', '_id', 'meta_modify_date', 'uuid'], str.split,
+                'List of fields not allowed in the metadata for update/replace'),
+        'META_MANDATORY_FIELDS': cps(
+                ['uuid', 'logical_name', 'locations', 'file_size', 'checksum.sha512'], str.split,
+                'List of mandatory metadata fields'),
+        'TOKEN_SERVICE_URL': cps(None, str,
+                'Token service URL, e.g. https://tokens.icecube.wisc.edu/'),
+        'TOKEN_AUTH_SECRET': cps(None, str,
+                'Token service authentication secret'),
+    }
 
-        # read file
-        tmp = SafeConfigParser()
-        tmp.read(path)
-        self._config_options_dict(tmp)
+    def __init__(self):
+        super().__init__([(name, spec.default) for name,spec in self.SPEC.items()])
 
-    def _config_options_dict(self, config):
-        """
-        Parsing config file
-        Args:
-            config: Python config parser object
-        """
-        # Method copied from https://github.com/WIPACrepo/pyglidein/blob/master/client_util.py#L96
+    def update_from_env(self, env=None):
+        if env is None:
+            env = os.environ
+        for name,spec in self.SPEC.items():
+            if name in env:
+                self[name] = spec.env_adapter(env[name])
 
-        for section in config.sections():
-            self[section] = {}
-            for option in config.options(section):
-                val = config.get(section, option)
-                try:
-                    val = ast.literal_eval(val)
-                except Exception:
-                    pass
-                self[section][option] = val
-
-    def get_list(self, section, name):
-        """
-        Parses the value of a given `section`/`name` pair and returns a list.
-        It is expected that the value is a comma separated list, e.g. `a, b, c,d,e ,f , g`.
-        Note that all white spaces are removed before and after a comma.
-        """
-        value = self[section][name]
-        return [e.strip() for e in value.split(',') if e.strip()]
+    def __setitem__(self, key, val):
+        if key not in self.SPEC:
+            raise ConfigValidationError('%s is not a valid configuration parameter')
+        else:
+            super().__setitem__(key, val)
 

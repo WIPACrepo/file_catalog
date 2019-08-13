@@ -83,7 +83,7 @@ def set_last_modification_date(d):
 class Server(object):
     """A file_catalog server instance"""
 
-    def __init__(self, config, port=8888, db_host='localhost', debug=False):
+    def __init__(self, config, port=8888, db_host='localhost', db_port=27017, debug=False):
         static_path = get_pkgdata_filename('file_catalog', 'data/www')
         if static_path is None:
             raise Exception('bad static path')
@@ -93,6 +93,7 @@ class Server(object):
 
         # print configuration
         logger.info('db host: %s', db_host)
+        logger.info('db port: %s', db_port)
         logger.info('server port: %r', port)
         logger.info('debug: %r', debug)
         logger.info('config: %r', config)
@@ -105,12 +106,12 @@ class Server(object):
 
         api_args = main_args.copy()
         api_args.update({
-            'db': Mongo(db_host),
+            'db': Mongo(host=db_host, port=db_port),
             'config': config,
         })
 
-        if 'auth' in config and 'cookie_secret' in config['auth']:
-            cookie_secret = config['auth']['cookie_secret']
+        if config['FC_COOKIE_SECRET'] is not None:
+            cookie_secret = config['FC_COOKIE_SECRET']
         else:
             cookie_secret = ''.join(chr(random.randint(0,128)) for _ in range(16))
 
@@ -147,14 +148,14 @@ class MainHandler(tornado.web.RequestHandler):
         self.base_url = base_url
         self.debug = debug
         self.config = config
-        if 'AUTH_SECRET' in self.config:
-            self.auth = Auth(secret=self.config['AUTH_SECRET'],
-                             issuer=self.config['TOKEN_SERVICE'])
+        if 'TOKEN_AUTH_SECRET' in self.config:
+            self.auth = Auth(secret=self.config['TOKEN_AUTH_SECRET'],
+                             issuer=self.config['TOKEN_SERVICE_URL'])
             self.auth_key = None
         else:
             self.auth = None
         self.current_user_secure = None
-        self.address = config['server']['address']
+        self.address = 'http://%s:%s' % (config['FC_HOST'], config['FC_PORT'])
 
     def get_template_namespace(self):
         namespace = super(MainHandler,self).get_template_namespace()
@@ -213,7 +214,7 @@ class LoginHandler(MainHandler):
     @catch_error
     def get(self):
         if not self.get_argument('access', False):
-            url = url_concat(self.config['TOKEN_SERVICE']+'/token', {
+            url = url_concat(self.config['TOKEN_SERVICE_URL']+'/token', {
                 'redirect': self.address + self.request.uri,
                 'state': self.get_argument('next', '/'),
                 'scope': 'file-catalog',
@@ -234,7 +235,7 @@ class AccountHandler(MainHandler):
     @catch_error
     def get(self):
         if not self.get_argument('access', False):
-            url = url_concat(self.config['TOKEN_SERVICE']+'/token', {
+            url = url_concat(self.config['TOKEN_SERVICE_URL']+'/token', {
                 'redirect': self.address + self.request.uri,
                 'scope': 'file-catalog',
             })
@@ -274,9 +275,9 @@ class APIHandler(tornado.web.RequestHandler):
         self.base_url = base_url
         self.debug = debug
         self.config = config
-        if 'AUTH_SECRET' in self.config:
-            self.auth = Auth(secret=self.config['AUTH_SECRET'],
-                             issuer=self.config['TOKEN_SERVICE'])
+        if 'TOKEN_AUTH_SECRET' in self.config:
+            self.auth = Auth(secret=self.config['TOKEN_AUTH_SECRET'],
+                             issuer=self.config['TOKEN_SERVICE_URL'])
             self.auth_key = None
         else:
             self.auth = None
@@ -357,11 +358,11 @@ class FilesHandler(APIHandler):
                     raise Exception('limit is not positive')
 
                 # check with config
-                if kwargs['limit'] > self.config['filelist']['max_files']:
-                    kwargs['limit'] = self.config['filelist']['max_files']
+                if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
+                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
             else:
                 # if no limit has been defined, set max limit
-                kwargs['limit'] = self.config['filelist']['max_files']
+                kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
 
             if 'start' in kwargs:
                 kwargs['start'] = int(kwargs['start'])
@@ -656,11 +657,11 @@ class CollectionsHandler(CollectionBaseHandler):
                     raise Exception('limit is not positive')
 
                 # check with config
-                if kwargs['limit'] > self.config['filelist']['max_files']:
-                    kwargs['limit'] = self.config['filelist']['max_files']
+                if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
+                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
             else:
                 # if no limit has been defined, set max limit
-                kwargs['limit'] = self.config['filelist']['max_files']
+                kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
 
             if 'start' in kwargs:
                 kwargs['start'] = int(kwargs['start'])
@@ -784,11 +785,11 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
                         raise Exception('limit is not positive')
 
                     # check with config
-                    if kwargs['limit'] > self.config['filelist']['max_files']:
-                        kwargs['limit'] = self.config['filelist']['max_files']
+                    if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
+                        kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
                 else:
                     # if no limit has been defined, set max limit
-                    kwargs['limit'] = self.config['filelist']['max_files']
+                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
 
                 if 'start' in kwargs:
                     kwargs['start'] = int(kwargs['start'])
@@ -833,11 +834,11 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
                     raise Exception('limit is not positive')
 
                 # check with config
-                if kwargs['limit'] > self.config['filelist']['max_files']:
-                    kwargs['limit'] = self.config['filelist']['max_files']
+                if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
+                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
             else:
                 # if no limit has been defined, set max limit
-                kwargs['limit'] = self.config['filelist']['max_files']
+                kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
 
             if 'start' in kwargs:
                 kwargs['start'] = int(kwargs['start'])
@@ -945,11 +946,11 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
                         raise Exception('limit is not positive')
 
                     # check with config
-                    if kwargs['limit'] > self.config['filelist']['max_files']:
-                        kwargs['limit'] = self.config['filelist']['max_files']
+                    if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
+                        kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
                 else:
                     # if no limit has been defined, set max limit
-                    kwargs['limit'] = self.config['filelist']['max_files']
+                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
 
                 if 'start' in kwargs:
                     kwargs['start'] = int(kwargs['start'])

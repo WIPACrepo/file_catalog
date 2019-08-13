@@ -1,4 +1,3 @@
-
 import re
 
 class Validation:
@@ -15,7 +14,7 @@ class Validation:
 
         Returns `True` if it has forbidden attributes.
         """
-        for key in set(self.config.get_list('metadata', 'forbidden_fields_creation')).intersection(metadata):
+        for key in set(self.config['META_FORBIDDEN_FIELDS_CREATION']).intersection(metadata):
             if key not in old_metadata or metadata[key] != old_metadata[key]:
                 # forbidden fields
                 apihandler.send_error(400, reason='forbidden attributes',
@@ -27,7 +26,7 @@ class Validation:
         """
         Same as `has_forbidden_attributes_creation()` but it has additional forbidden attributes.
         """
-        for key in set(self.config.get_list('metadata', 'forbidden_fields_update')).intersection(metadata):
+        for key in set(self.config['META_FORBIDDEN_FIELDS_UPDATE']).intersection(metadata):
             if key not in old_metadata or metadata[key] != old_metadata[key]:
                 # forbidden fields
                 apihandler.send_error(400, reason='forbidden attributes',
@@ -53,18 +52,22 @@ class Validation:
         Utilizes `send_error` and returnes `False` if validation failed.
         If validation was successful, `True` is returned.
         """
-        for field in self.config.get_list('metadata', 'mandatory_fields'):
+        for field in self.config['META_MANDATORY_FIELDS']:
             # check metadata for mandatory fields
             if '.' in field:
                 m = metadata
                 for p in field.split('.'):
                     if p not in m:
-                        apihandler.send_error(400, reason='mandatory metadata missing (mandatory fields: %s)' % self.config['metadata']['mandatory_fields'],
+                        apihandler.send_error(400,
+                                        reason='mandatory metadata missing (mandatory fields: %s)'
+                                            % ', '.join(self.config['META_MANDATORY_FIELDS']),
                                         file=apihandler.files_url)
                         return False
                     m = m[p]
             elif field not in metadata:
-                apihandler.send_error(400, reason='mandatory metadata missing (mandatory fields: %s)' % self.config['metadata']['mandatory_fields'],
+                apihandler.send_error(400,
+                                reason='mandatory metadata missing (mandatory fields: %s)'
+                                    % ', '.join(self.config['META_MANDATORY_FIELDS']),
                                 file=apihandler.files_url)
                 return False
         if ((not isinstance(metadata['checksum'], dict))

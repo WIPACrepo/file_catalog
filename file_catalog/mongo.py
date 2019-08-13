@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import hashlib
 import logging
 try:
     from collections.abc import Iterable
@@ -18,15 +19,14 @@ logger = logging.getLogger('mongo')
 
 class Mongo(object):
     """A ThreadPoolExecutor-based MongoDB client"""
-    def __init__(self, host=None, port=None):
-        kwargs = {}
-        if host:
-            kwargs['host'] = host
-        if port:
-            kwargs['port'] = port
-        logger.info('MongoClient args: %r', kwargs)
+    def __init__(self, host=None, port=None, username=None, password=None):
+        password_hash = (hashlib.sha256(password.encode('utf-8')).hexdigest() if password else None)
+        logger.info('MongoClient args: host=%s, port=%s, username=%s, '
+                               'sha256(password)=%s' %
+                            (host, port, username, password_hash))
 
-        self.client = MongoClient(**kwargs).file_catalog
+        self.client = MongoClient(host=host, port=port,
+                            username=username, password=password).file_catalog
 
         self.client.files.create_index('uuid', unique=True)
         self.client.files.create_index('logical_name', unique=True)

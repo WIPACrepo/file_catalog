@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import copy
 import sys
 import os
 import logging
@@ -15,7 +16,6 @@ try:
     from urllib import urlencode
 except ImportError:
     from urllib.parse import urlparse, urlencode
-
 
 import pymongo.errors
 
@@ -83,7 +83,8 @@ def set_last_modification_date(d):
 class Server(object):
     """A file_catalog server instance"""
 
-    def __init__(self, config, port=8888, db_host='localhost', db_port=27017, debug=False):
+    def __init__(self, config, port=8888, debug=False,
+            db_host='localhost', db_port=27017, db_user=None, db_pass=None):
         static_path = get_pkgdata_filename('file_catalog', 'data/www')
         if static_path is None:
             raise Exception('bad static path')
@@ -91,12 +92,14 @@ class Server(object):
         if template_path is None:
             raise Exception('bad template path')
 
-        # print configuration
         logger.info('db host: %s', db_host)
         logger.info('db port: %s', db_port)
+        logger.info('db user: %s', db_user)
         logger.info('server port: %r', port)
         logger.info('debug: %r', debug)
-        logger.info('config: %r', config)
+        redacted_config = copy.deepcopy(config)
+        redacted_config['MONGODB_AUTH_PASS'] = 'REDACTED'
+        logger.info('redacted config: %r', redacted_config)
 
         main_args = {
             'base_url': '/api',
@@ -106,7 +109,7 @@ class Server(object):
 
         api_args = main_args.copy()
         api_args.update({
-            'db': Mongo(host=db_host, port=db_port),
+            'db': Mongo(host=db_host, port=db_port, username=db_user, password=db_pass),
             'config': config,
         })
 

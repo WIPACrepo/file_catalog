@@ -37,7 +37,9 @@ class Config(dict):
                 ['uuid', 'logical_name', 'locations', 'file_size', 'checksum.sha512'], str.split,
                 'List of mandatory metadata fields'),
         'TOKEN_SERVICE_URL': cps(None, str,
-                'Token service URL, e.g. https://tokens.icecube.wisc.edu/'),
+                'Token security service URL, e.g. https://tokens.icecube.wisc.edu'),
+        'TOKEN_AUTH_ALGORITHM': cps('RS512', str,
+                'Token signature algorithm'),
         'TOKEN_AUTH_SECRET': cps(None, str,
                 'Token service authentication secret'),
     }

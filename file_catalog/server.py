@@ -152,8 +152,9 @@ class MainHandler(tornado.web.RequestHandler):
         self.debug = debug
         self.config = config
         if 'TOKEN_AUTH_SECRET' in self.config:
-            self.auth = Auth(secret=self.config['TOKEN_AUTH_SECRET'],
-                             issuer=self.config['TOKEN_SERVICE_URL'])
+            self.auth = Auth(algorithm=self.config['TOKEN_AUTH_ALGORITHM'],
+                                secret=self.config['TOKEN_AUTH_SECRET'],
+                                issuer=self.config['TOKEN_SERVICE_URL'])
             self.auth_key = None
         else:
             self.auth = None
@@ -279,8 +280,9 @@ class APIHandler(tornado.web.RequestHandler):
         self.debug = debug
         self.config = config
         if 'TOKEN_AUTH_SECRET' in self.config:
-            self.auth = Auth(secret=self.config['TOKEN_AUTH_SECRET'],
-                             issuer=self.config['TOKEN_SERVICE_URL'])
+            self.auth = Auth(algorithm=self.config['TOKEN_AUTH_ALGORITHM'],
+                                secret=self.config['TOKEN_AUTH_SECRET'],
+                                issuer=self.config['TOKEN_SERVICE_URL'])
             self.auth_key = None
         else:
             self.auth = None

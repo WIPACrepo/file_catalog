@@ -16,7 +16,6 @@ from tornado.ioloop import IOLoop
 import requests
 import jwt
 from pymongo import MongoClient
-from rest_tools.server import Auth
 
 from file_catalog.urlargparse import encode as jquery_encode
 

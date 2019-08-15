@@ -13,7 +13,7 @@ class TestCollectionsAPI(TestServerAPI):
     def test_10_collections(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -34,7 +34,7 @@ class TestCollectionsAPI(TestServerAPI):
     def test_20_collection_by_id(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -56,7 +56,7 @@ class TestCollectionsAPI(TestServerAPI):
     def test_21_collection_by_name(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -78,7 +78,7 @@ class TestCollectionsAPI(TestServerAPI):
     def test_30_collection_files(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -118,7 +118,7 @@ class TestCollectionsAPI(TestServerAPI):
     def test_70_snapshot_create(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -151,7 +151,7 @@ class TestCollectionsAPI(TestServerAPI):
     def test_71_snapshot_find(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -183,7 +183,7 @@ class TestCollectionsAPI(TestServerAPI):
     def test_80_snapshot_files(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {

@@ -19,7 +19,7 @@ class TestFilesAPI(TestServerAPI):
     def test_10_files(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -49,7 +49,7 @@ class TestFilesAPI(TestServerAPI):
     def test_15_files_auth(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'SECRET':'secret', 'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'SECRET':'secret', 'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -71,7 +71,7 @@ class TestFilesAPI(TestServerAPI):
     def test_20_file(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -134,7 +134,7 @@ class TestFilesAPI(TestServerAPI):
     def test_30_archive(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -175,7 +175,7 @@ class TestFilesAPI(TestServerAPI):
     def test_40_simple_query(self):
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -279,7 +279,7 @@ class TestFilesAPI(TestServerAPI):
         """Test that logical_name is unique when creating a new file."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the file to be created
@@ -322,7 +322,7 @@ class TestFilesAPI(TestServerAPI):
         """Test that logical_name is unique when replacing a file."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
@@ -361,7 +361,7 @@ class TestFilesAPI(TestServerAPI):
         """Test that a file can replace with the same logical_name."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
@@ -396,7 +396,7 @@ class TestFilesAPI(TestServerAPI):
         """Test that logical_name is unique when updating a file."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
@@ -443,7 +443,7 @@ class TestFilesAPI(TestServerAPI):
         """Test that a file can be updated with the same logical_name."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the file to be created
@@ -480,7 +480,7 @@ class TestFilesAPI(TestServerAPI):
         """Test that locations is unique when creating a new file."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
@@ -521,7 +521,7 @@ class TestFilesAPI(TestServerAPI):
         """Test that locations is unique when replacing a file."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
@@ -566,7 +566,7 @@ class TestFilesAPI(TestServerAPI):
         """Test that a file can replace with the same location."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
@@ -601,7 +601,7 @@ class TestFilesAPI(TestServerAPI):
         """Test that locations is unique when updating a file."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the files to be created
@@ -648,7 +648,7 @@ class TestFilesAPI(TestServerAPI):
         """Test that a file can be updated with the same location."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the file to be created
@@ -686,7 +686,7 @@ class TestFilesAPI(TestServerAPI):
         """Test locations uniqueness under 1xN multiplicity."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
@@ -736,7 +736,7 @@ class TestFilesAPI(TestServerAPI):
         """Test locations uniqueness under Nx1 multiplicity."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
@@ -789,7 +789,7 @@ class TestFilesAPI(TestServerAPI):
         """Test locations uniqueness under NxN multiplicity."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
@@ -842,7 +842,7 @@ class TestFilesAPI(TestServerAPI):
         """Test locations uniqueness under 1xN multiplicity."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
@@ -896,7 +896,7 @@ class TestFilesAPI(TestServerAPI):
         """Test locations uniqueness under Nx1 multiplicity."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
@@ -950,7 +950,7 @@ class TestFilesAPI(TestServerAPI):
         """Test locations uniqueness under NxN multiplicity."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
@@ -1004,7 +1004,7 @@ class TestFilesAPI(TestServerAPI):
         """Test locations uniqueness under 1xN multiplicity."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
@@ -1060,7 +1060,7 @@ class TestFilesAPI(TestServerAPI):
         """Test locations uniqueness under Nx1 multiplicity."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested
@@ -1116,7 +1116,7 @@ class TestFilesAPI(TestServerAPI):
         """Test locations uniqueness under NxN multiplicity."""
         token = self.get_token()
         alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_AUTH_ALGORITHM':alg})
+        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # define the locations to be tested

@@ -8,8 +8,8 @@ jobs:
                 # Things will break if host is defined and port isn't or vice-versa.
                 TEST_DATABASE_HOST: localhost
                 TEST_DATABASE_PORT: 27017
-                TOKEN_SERVICE_URL: http://localhost:12345
-                TOKEN_AUTH_SECRET: lkjlksdldkfjlsdjflsdnfkl
+                TOKEN_URL: http://localhost:12345
+                TOKEN_KEY: lkjlksdldkfjlsdjflsdnfkl
                 PYTEST_ADDOPTS: tests/
             - image: circleci/mongo:3.7.9-ram
             - image: wipac/token-service:latest

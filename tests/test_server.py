@@ -14,7 +14,6 @@ import hashlib
 from tornado.escape import json_encode,json_decode
 from tornado.ioloop import IOLoop
 import requests
-import jwt
 from pymongo import MongoClient
 
 from file_catalog.urlargparse import encode as jquery_encode

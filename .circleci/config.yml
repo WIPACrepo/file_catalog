@@ -10,6 +10,7 @@ jobs:
                 TEST_DATABASE_PORT: 27017
                 TOKEN_URL: http://localhost:12345
                 TOKEN_KEY: lkjlksdldkfjlsdjflsdnfkl
+                TOKEN_ALGORITHM: HS512
                 PYTEST_ADDOPTS: tests/
             - image: circleci/mongo:3.7.9-ram
             - image: wipac/token-service:latest

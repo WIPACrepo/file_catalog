@@ -1,6 +1,5 @@
 from __future__ import absolute_import, division, print_function
 
-import jwt
 import os
 import unittest
 
@@ -11,9 +10,8 @@ from .test_files import hex
 
 class TestCollectionsAPI(TestServerAPI):
     def test_10_collections(self):
+        self.start_server()
         token = self.get_token()
-        alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -32,9 +30,8 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertIn(uid,{row['uuid'] for row in data['collections']})
 
     def test_20_collection_by_id(self):
+        self.start_server()
         token = self.get_token()
-        alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -54,9 +51,8 @@ class TestCollectionsAPI(TestServerAPI):
             self.assertEqual(metadata[k], data[k])
 
     def test_21_collection_by_name(self):
+        self.start_server()
         token = self.get_token()
-        alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -76,9 +72,8 @@ class TestCollectionsAPI(TestServerAPI):
             self.assertEqual(metadata[k], data[k])
 
     def test_30_collection_files(self):
+        self.start_server()
         token = self.get_token()
-        alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -116,9 +111,8 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertEqual(data['files'][0]['checksum'], metadata['checksum'])
 
     def test_70_snapshot_create(self):
+        self.start_server()
         token = self.get_token()
-        alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
@@ -149,41 +143,8 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertEqual(data['snapshots'][0]['uuid'], snap_uid)
 
     def test_71_snapshot_find(self):
+        self.start_server()
         token = self.get_token()
-        alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
-        r = RestClient(self.address, token, timeout=1, retries=1)
-
-        metadata = {
-            'collection_name': 'blah',
-            'owner': 'foo',
-        }
-        data = r.request_seq('POST', '/api/collections', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('collection', data)
-        url = data['collection']
-        uid = url.split('/')[-1]
-
-        data = r.request_seq('GET', '/api/collections/' + uid)
-
-        data = r.request_seq('POST', '/api/collections/{}/snapshots'.format(uid))
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('snapshot', data)
-        url = data['snapshot']
-        snap_uid = url.split('/')[-1]
-
-        data = r.request_seq('GET', '/api/snapshots/' + snap_uid)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('files',data)
-        self.assertEqual(data['files'], [])
-
-    def test_80_snapshot_files(self):
-        token = self.get_token()
-        alg = jwt.get_unverified_header(token)['alg']
-        self.start_server(config_override={'TOKEN_ALGORITHM':alg})
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {

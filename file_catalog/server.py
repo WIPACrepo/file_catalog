@@ -159,7 +159,7 @@ class MainHandler(tornado.web.RequestHandler):
         else:
             self.auth = None
         self.current_user_secure = None
-        self.address = 'http://%s:%s' % (config['FC_HOST'], config['FC_PORT'])
+        self.address = config['FC_PUBLIC_URL']
 
     def get_template_namespace(self):
         namespace = super(MainHandler,self).get_template_namespace()

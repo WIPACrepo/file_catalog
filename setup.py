@@ -6,23 +6,18 @@ import file_catalog
 
 here = path.abspath(path.dirname(__file__))
 
-with open(path.join(here, 'README.md')) as f:
-    long_description = f.read()
-
-
-install_requires = ['tornado>=4.2', 'pymongo>=3.3', 'PyJWT', 'ldap3']
-if sys.version_info < (3, 2):
-    install_requires.extend(['futures'])
+long_description = open(path.join(here, 'README.md')).read()
+install_requires = [l.strip() for l in open(path.join(here, 'requirements.txt'))]
 
 setup(
     name='file_catalog',
     version=file_catalog.__version__,
     description='File catalog',
     long_description=long_description,
-    url='https://github.com/dsschult/file_catalog',
+    url='https://github.com/WIPACrepo/file_catalog',
     license='MIT',
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
@@ -30,6 +25,7 @@ setup(
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
     ],
     keywords='file catalog',
     packages=['file_catalog'],

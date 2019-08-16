@@ -1,11 +1,13 @@
-FROM alpine:3.5
+FROM alpine:3.10
 
-COPY . /usr/src/file_catalog
+RUN apk add --no-cache gcc git libffi-dev musl-dev openssl-dev python3-dev
+RUN pip3 install --upgrade pip # as of alpine:3.10, /usr/bin/pip won't exist until this command runs
 
-RUN apk add --no-cache python py-pip && \
-    pip install --no-cache-dir "/usr/src/file_catalog" && \
-    addgroup -S app && adduser -S -g app app
+COPY README.md requirements.txt setup.cfg setup.py /usr/src/file_catalog/
+COPY file_catalog /usr/src/file_catalog/file_catalog
+RUN pip install --no-cache-dir /usr/src/file_catalog
 
+RUN addgroup -S app && adduser -S -g app app
 USER app
 
-CMD ["python", "-m", "file_catalog"]
+CMD ["python3", "-m", "file_catalog"]

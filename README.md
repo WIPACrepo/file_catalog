@@ -6,7 +6,7 @@ Store file metadata information in a file catalog
 ## Prerequisites
 To get the prerequisites necessary for the file catalog:
 
-    sudo pip install futures pymongo tornado ldap3 pyjwt
+    pip install -r requirements.txt
 
 ## Running the server
 To start an instance of the server running:

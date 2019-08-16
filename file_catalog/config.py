@@ -36,10 +36,12 @@ class Config(dict):
         'META_MANDATORY_FIELDS': cps(
                 ['uuid', 'logical_name', 'locations', 'file_size', 'checksum.sha512'], str.split,
                 'List of mandatory metadata fields'),
-        'TOKEN_SERVICE_URL': cps(None, str,
-                'Token service URL, e.g. https://tokens.icecube.wisc.edu/'),
-        'TOKEN_AUTH_SECRET': cps(None, str,
-                'Token service authentication secret'),
+        'TOKEN_ALGORITHM': cps('RS512', str,
+                'Token signature algorithm'),
+        'TOKEN_KEY': cps(None, str,
+                'Token signature verification key, e.g. public or symmetric key of the token service'),
+        'TOKEN_URL': cps(None, str,
+                'Token service URL, e.g. https://tokens.icecube.wisc.edu'),
     }
 
     def __init__(self):

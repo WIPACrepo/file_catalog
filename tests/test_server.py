@@ -14,9 +14,7 @@ import hashlib
 from tornado.escape import json_encode,json_decode
 from tornado.ioloop import IOLoop
 import requests
-import jwt
 from pymongo import MongoClient
-from rest_tools.server import Auth
 
 from file_catalog.urlargparse import encode as jquery_encode
 
@@ -60,8 +58,8 @@ class TestServerAPI(unittest.TestCase):
         time.sleep(2)
 
     def get_token(self):
-        if 'TOKEN_SERVICE_URL' in os.environ:
-            r = requests.get(os.environ['TOKEN_SERVICE_URL']+'/token?scope=file_catalog')
+        if 'TOKEN_URL' in os.environ:
+            r = requests.get(os.environ['TOKEN_URL']+'/token?scope=file_catalog')
             r.raise_for_status()
             return r.json()['access']
         else:

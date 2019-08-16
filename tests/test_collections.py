@@ -167,37 +167,6 @@ class TestCollectionsAPI(TestServerAPI):
         url = data['snapshot']
         snap_uid = url.split('/')[-1]
 
-        data = r.request_seq('GET', '/api/snapshots/' + snap_uid)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('files',data)
-        self.assertEqual(data['files'], [])
-
-    def test_80_snapshot_files(self):
-        self.start_server()
-        token = self.get_token()
-        r = RestClient(self.address, token, timeout=1, retries=1)
-
-        metadata = {
-            'collection_name': 'blah',
-            'owner': 'foo',
-        }
-        data = r.request_seq('POST', '/api/collections', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('collection', data)
-        url = data['collection']
-        uid = url.split('/')[-1]
-
-        data = r.request_seq('GET', '/api/collections/' + uid)
-
-        data = r.request_seq('POST', '/api/collections/{}/snapshots'.format(uid))
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('snapshot', data)
-        url = data['snapshot']
-        snap_uid = url.split('/')[-1]
-
         data = r.request_seq('GET', '/api/snapshots/{}/files'.format(snap_uid))
         self.assertEqual(data['files'], [])
 

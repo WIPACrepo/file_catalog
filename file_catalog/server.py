@@ -151,9 +151,10 @@ class MainHandler(tornado.web.RequestHandler):
         self.base_url = base_url
         self.debug = debug
         self.config = config
-        if 'TOKEN_AUTH_SECRET' in self.config:
-            self.auth = Auth(secret=self.config['TOKEN_AUTH_SECRET'],
-                             issuer=self.config['TOKEN_SERVICE_URL'])
+        if 'TOKEN_KEY' in self.config:
+            self.auth = Auth(algorithm=self.config['TOKEN_ALGORITHM'],
+                                secret=self.config['TOKEN_KEY'],
+                                issuer=self.config['TOKEN_URL'])
             self.auth_key = None
         else:
             self.auth = None
@@ -217,7 +218,7 @@ class LoginHandler(MainHandler):
     @catch_error
     def get(self):
         if not self.get_argument('access', False):
-            url = url_concat(self.config['TOKEN_SERVICE_URL']+'/token', {
+            url = url_concat(self.config['TOKEN_URL']+'/token', {
                 'redirect': self.address + self.request.uri,
                 'state': self.get_argument('next', '/'),
                 'scope': 'file-catalog',
@@ -238,7 +239,7 @@ class AccountHandler(MainHandler):
     @catch_error
     def get(self):
         if not self.get_argument('access', False):
-            url = url_concat(self.config['TOKEN_SERVICE_URL']+'/token', {
+            url = url_concat(self.config['TOKEN_URL']+'/token', {
                 'redirect': self.address + self.request.uri,
                 'scope': 'file-catalog',
             })
@@ -278,9 +279,10 @@ class APIHandler(tornado.web.RequestHandler):
         self.base_url = base_url
         self.debug = debug
         self.config = config
-        if 'TOKEN_AUTH_SECRET' in self.config:
-            self.auth = Auth(secret=self.config['TOKEN_AUTH_SECRET'],
-                             issuer=self.config['TOKEN_SERVICE_URL'])
+        if 'TOKEN_KEY' in self.config:
+            self.auth = Auth(algorithm=self.config['TOKEN_ALGORITHM'],
+                                secret=self.config['TOKEN_KEY'],
+                                issuer=self.config['TOKEN_URL'])
             self.auth_key = None
         else:
             self.auth = None

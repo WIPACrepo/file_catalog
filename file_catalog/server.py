@@ -352,6 +352,7 @@ class FilesHandler(APIHandler):
         self.files_url = os.path.join(self.base_url,'files')
         self.validation = Validation(self.config)
 
+    @validate_auth
     @catch_error
     @coroutine
     def get(self):
@@ -486,6 +487,7 @@ class SingleFileHandler(APIHandler):
         self.files_url = os.path.join(self.base_url,'files')
         self.validation = Validation(self.config)
 
+    @validate_auth
     @catch_error
     @coroutine
     def get(self, uuid):
@@ -651,6 +653,7 @@ class CollectionBaseHandler(APIHandler):
         self.snapshots_url = os.path.join(self.base_url,'snapshots')
 
 class CollectionsHandler(CollectionBaseHandler):
+    @validate_auth
     @catch_error
     @coroutine
     def get(self):
@@ -756,6 +759,7 @@ class CollectionsHandler(CollectionBaseHandler):
         })
 
 class SingleCollectionHandler(CollectionBaseHandler):
+    @validate_auth
     @catch_error
     @coroutine
     def get(self, uid):
@@ -774,6 +778,7 @@ class SingleCollectionHandler(CollectionBaseHandler):
             self.send_error(404, message='collection not found')
 
 class SingleCollectionFilesHandler(CollectionBaseHandler):
+    @validate_auth
     @catch_error
     @coroutine
     def get(self, uid):
@@ -821,6 +826,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
             self.send_error(404, message='collection not found')
 
 class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
+    @validate_auth
     @catch_error
     @coroutine
     def get(self, uid):
@@ -921,6 +927,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             })
 
 class SingleSnapshotHandler(CollectionBaseHandler):
+    @validate_auth
     @catch_error
     @coroutine
     def get(self, uid):
@@ -937,6 +944,7 @@ class SingleSnapshotHandler(CollectionBaseHandler):
             self.send_error(404, message='snapshot not found')
 
 class SingleSnapshotFilesHandler(CollectionBaseHandler):
+    @validate_auth
     @catch_error
     @coroutine
     def get(self, uid):

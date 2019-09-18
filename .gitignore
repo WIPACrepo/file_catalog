@@ -97,6 +97,10 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
+# Swap files used by vi
+*.swp
+*.swo
+
 # mkdocs documentation
 /site
 

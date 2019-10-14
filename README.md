@@ -173,6 +173,37 @@ Operations:
 
 ## Development
 
+### Establishing a development environment
+Follow these steps to get a development environment for the File Catalog:
+
+    cd ~/projects
+    git clone git@github.com:WIPACrepo/file_catalog.git
+    cd file_catalog
+    python3.7 -m venv ./env
+    source env/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+
+### Vagrant
+To use Vagrant to set up a VM to run a File Catalog:
+
+    vagrant up
+    vagrant ssh
+    cd file_catalog
+    scl enable rh-python36 bash    
+    python -m venv ./env
+    source env/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+
+To use the VM in future sessions:
+
+    vagrant up
+    vagrant ssh
+    cd file_catalog
+    source env/bin/activate
+    python -m file_catalog
+
 ### Unit testing
 In case it comes in handy, the following command can be used to run
 a single unit test. Replace the name of the test as necessary.

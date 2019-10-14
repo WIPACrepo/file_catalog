@@ -260,6 +260,7 @@ def validate_auth(method):
             auth_key = self.request.headers['Authorization'].split(' ',1)
             if not auth_key[0].lower() == 'bearer':
                 raise Exception('not a bearer token')
+            # logger.info('validate_auth token: %r', auth_key[1])
             self.auth.validate(auth_key[1], audience=['ANY'])
             self.auth_key = auth_key[1]
         except Exception as e:

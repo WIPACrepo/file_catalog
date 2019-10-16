@@ -647,10 +647,10 @@ class SingleFileHandler(APIHandler):
 
 
 class SingleFileLocationsHandler(APIHandler):
-    """Initialize a handler for add new locations to an existing record."""
+    """Initialize a handler for adding new locations to an existing record."""
 
     def initialize(self, **kwargs):
-        """Initialize a handler for add new locations to an existing record."""
+        """Initialize a handler for adding new locations to an existing record."""
         super(SingleFileHandler, self).initialize(**kwargs)
         self.files_url = os.path.join(self.base_url, 'files')
         self.validation = Validation(self.config)
@@ -659,7 +659,7 @@ class SingleFileLocationsHandler(APIHandler):
     @catch_error
     @coroutine
     def post(self, uuid):
-        """Add a location to the record identified by the provided UUID."""
+        """Add location(s) to the record identified by the provided UUID."""
         # try to load the record from the file catalog by UUID
         try:
             ret = yield self.db.get_file({'uuid': uuid})
@@ -683,7 +683,7 @@ class SingleFileLocationsHandler(APIHandler):
 
         # if locations isn't a list
         if not isinstance(locations, list):
-            self.send_error(400, message="field 'locations' must be a list")
+            self.send_error(400, message="field 'locations' must be an array")
             return
 
         # for each location provided
@@ -708,25 +708,18 @@ class SingleFileLocationsHandler(APIHandler):
                 # so add it to our list of new locations
                 new_locations.append(loc)
 
-        # add the new locations to the record
-        ret["locations"].extend(new_locations)
-        if not self.validation.validate_metadata_modification(self, ret):
-            return
+        # if there are new locations to append
+        if new_locations:
+            # update the file in the database
+            yield self.db.update_file(uuid, {'locations': new_locations})
 
-        # update the record in the database
-        update_metadata = {
-            "locations": ret["locations"]
-        }
-        set_last_modification_date(update_metadata)
-        yield self.db.update_file(uuid, update_metadata)
-
-        # provide the updated record as a response body
+        # send the updated record back to the caller
+        ret = yield self.db.get_file({'uuid': uuid})
         ret['_links'] = {
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},
         }
         self.write(ret)
-
 
 ### Collections ###
 

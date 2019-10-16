@@ -208,6 +208,7 @@ class Mongo(object):
         # update the file document
         update_query["$set"] = {"meta_modify_date": str(datetime.datetime.utcnow())}
         result = self.client.files.update_one({'uuid': uuid}, update_query)
+
         # log and/or throw if the update results are surprising
         if result.modified_count is None:
             logger.warn('Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)

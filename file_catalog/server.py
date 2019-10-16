@@ -651,9 +651,8 @@ class SingleFileLocationsHandler(APIHandler):
 
     def initialize(self, **kwargs):
         """Initialize a handler for adding new locations to an existing record."""
-        super(SingleFileHandler, self).initialize(**kwargs)
+        super(SingleFileLocationsHandler, self).initialize(**kwargs)
         self.files_url = os.path.join(self.base_url, 'files')
-        self.validation = Validation(self.config)
 
     @validate_auth
     @catch_error

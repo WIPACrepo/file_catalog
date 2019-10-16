@@ -711,10 +711,11 @@ class SingleFileLocationsHandler(APIHandler):
         # if there are new locations to append
         if new_locations:
             # update the file in the database
-            yield self.db.update_file(uuid, {'locations': new_locations})
+            yield self.db.append_distinct_elements_to_file(uuid, {'locations': new_locations})
+            # re-read the updated file from the database
+            ret = yield self.db.get_file({'uuid': uuid})
 
-        # send the updated record back to the caller
-        ret = yield self.db.get_file({'uuid': uuid})
+        # send the record back to the caller
         ret['_links'] = {
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},

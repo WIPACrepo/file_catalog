@@ -199,7 +199,7 @@ class Mongo(object):
         """Append distinct elements to arrays within a file document."""
         # build the query to update the file document
         update_query = {"$addToSet": {}}
-        for key in metadata.keys():
+        for key in metadata:
             if isinstance(metadata[key], list):
                 update_query["$addToSet"][key] = {"$each": metadata[key]}
             else:

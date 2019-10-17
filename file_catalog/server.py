@@ -125,6 +125,7 @@ class Server(object):
                 (r"/api", HATEOASHandler, api_args),
                 (r"/api/files", FilesHandler, api_args),
                 (r"/api/files/([^\/]+)", SingleFileHandler, api_args),
+                (r"/api/files/([^\/]+)/locations", SingleFileLocationsHandler, api_args),
                 (r"/api/collections", CollectionsHandler, api_args),
                 (r"/api/collections/([^\/]+)", SingleCollectionHandler, api_args),
                 (r"/api/collections/([^\/]+)/files", SingleCollectionFilesHandler, api_args),
@@ -644,6 +645,81 @@ class SingleFileHandler(APIHandler):
         else:
             self.send_error(404, message='not found')
 
+
+class SingleFileLocationsHandler(APIHandler):
+    """Initialize a handler for adding new locations to an existing record."""
+
+    def initialize(self, **kwargs):
+        """Initialize a handler for adding new locations to an existing record."""
+        super(SingleFileLocationsHandler, self).initialize(**kwargs)
+        self.files_url = os.path.join(self.base_url, 'files')
+
+    @validate_auth
+    @catch_error
+    @coroutine
+    def post(self, uuid):
+        """Add location(s) to the record identified by the provided UUID."""
+        # try to load the record from the file catalog by UUID
+        try:
+            ret = yield self.db.get_file({'uuid': uuid})
+        except pymongo.errors.InvalidId:
+            self.send_error(400, message='invalid uuid in POST url')
+            return
+
+        # if we didn't get a record
+        if not ret:
+            self.send_error(404, message='record not found in file catalog')
+            return
+
+        # decode the JSON provided in the POST body
+        metadata = json_decode(self.request.body)
+        locations = metadata.get("locations")
+
+        # if the user didn't provide locations
+        if locations is None:
+            self.send_error(400, message="POST body requires 'locations' field")
+            return
+
+        # if locations isn't a list
+        if not isinstance(locations, list):
+            self.send_error(400, message="field 'locations' must be an array")
+            return
+
+        # for each location provided
+        new_locations = []
+        for loc in locations:
+            # try to load a file by that location
+            check = yield self.db.get_file({'locations': {'$elemMatch': loc}})
+            # if we got a file by that location
+            if check:
+                # if the file we got isn't the one we're trying to update
+                if check['uuid'] != uuid:
+                    # then that location belongs to another file (already exists)
+                    self.send_error(409, message='conflict with existing file (location already exists)',
+                                    file=os.path.join(self.files_url, check['uuid']),
+                                    location=loc)
+                    return
+                # note that if we get the record that we are trying to update
+                # the location will NOT be added to the list of new_locations
+                # which leaves new_locations as a vetted list of addable locations
+            # this is a new location
+            else:
+                # so add it to our list of new locations
+                new_locations.append(loc)
+
+        # if there are new locations to append
+        if new_locations:
+            # update the file in the database
+            yield self.db.append_distinct_elements_to_file(uuid, {'locations': new_locations})
+            # re-read the updated file from the database
+            ret = yield self.db.get_file({'uuid': uuid})
+
+        # send the record back to the caller
+        ret['_links'] = {
+            'self': {'href': os.path.join(self.files_url, uuid)},
+            'parent': {'href': self.files_url},
+        }
+        self.write(ret)
 
 ### Collections ###
 

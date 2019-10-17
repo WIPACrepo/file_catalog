@@ -1143,6 +1143,241 @@ class TestFilesAPI(TestServerAPI):
         with self.assertRaises(Exception):
             r.request_seq('PATCH', '/api/files/' + uid, patch1)
 
+    def test_70_abuse_post_files_locations(self):
+        """Abuse the POST /api/files/UUID/locations route to test error handling."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define some locations to be tested
+        loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1b = {'site': 'DESY', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
+        locations = [loc1a, loc1b, loc1c, loc1d]
+
+        # try to POST to an invalid UUID
+        valid_post_body = {"locations": locations}
+        with self.assertRaises(Exception):
+            r.request_seq('POST', '/api/files/bobsyeruncle/locations', valid_post_body)
+
+        # try to POST to an non-existant UUID
+        with self.assertRaises(Exception):
+            r.request_seq('POST', '/api/files/6e4ec06d-8e22-4a2b-a392-f4492fb25eb1/locations', valid_post_body)
+
+        # define a file to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [loc1a]
+        }
+
+        # create the file; should be OK
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
+        uid = url.split('/')[-1]
+
+        # try to POST to the file without a post body
+        with self.assertRaises(Exception):
+            r.request_seq('POST', '/api/files/' + uid + '/locations', {})
+
+        # try to POST to the file with a non-array locations
+        with self.assertRaises(Exception):
+            r.request_seq('POST', '/api/files/' + uid + '/locations', {"locations": "bobsyeruncle"})
+
+    def test_71_post_files_locations_duplicate(self):
+        """Test that POST /api/files/UUID/locations is a no-op for non-distinct locations."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define some locations to be tested
+        loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1b = {'site': 'DESY', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
+        locations = [loc1a, loc1b, loc1c, loc1d]
+
+        # define a file to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': locations
+        }
+
+        # create the file; should be OK
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
+        uid = url.split('/')[-1]
+
+        # read the full record of the file; should be OK
+        rec = r.request_seq('GET', '/api/files/' + uid)
+        self.assertEqual(4, len(rec["locations"]))
+        self.assertIn('meta_modify_date', rec)
+        mmd = rec['meta_modify_date']
+
+        # try to POST existant locations to the file; should be OK
+        not_so_new_locations = {"locations": [loc1b, loc1d]}
+        rec2 = r.request_seq('POST', '/api/files/' + uid + '/locations', not_so_new_locations)
+
+        # ensure the record is the same (not updated)
+        self.assertEqual(4, len(rec2["locations"]))
+        self.assertListEqual(rec["locations"], rec2["locations"])
+        self.assertEqual(mmd, rec2["meta_modify_date"])
+
+    def test_72_post_files_locations_conflict(self):
+        """Test that POST /api/files/UUID/locations returns an error on conflicting duplicate locations."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define some locations to be tested
+        loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1b = {'site': 'DESY', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
+        locations = [loc1a, loc1b]
+
+        # define a file to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': locations
+        }
+
+        # create the file; should be OK
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
+        uid = url.split('/')[-1]
+
+        # define a second file to be created
+        locations2 = [loc1c, loc1d]
+        metadata2 = {
+            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': locations2
+        }
+
+        # create the file; should be OK
+        data = r.request_seq('POST', '/api/files', metadata2)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
+        uid2 = url.split('/')[-1]
+
+        # try to POST a second file location to the first file
+        with self.assertRaises(Exception):
+            conflicting_locations = {"locations": [loc1d]}
+            rec2 = r.request_seq('POST', '/api/files/' + uid + '/locations', conflicting_locations)
+
+    def test_73_post_files_locations(self):
+        """Test that POST /api/files/UUID/locations can add distinct non-conflicting locations."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define some locations to be tested
+        loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1b = {'site': 'DESY', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
+        locations = [loc1a, loc1b]
+
+        # define a file to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': locations
+        }
+
+        # create the file; should be OK
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
+        uid = url.split('/')[-1]
+
+        # read the full record of the file; should be OK
+        rec = r.request_seq('GET', '/api/files/' + uid)
+        self.assertEqual(2, len(rec["locations"]))
+        self.assertIn('meta_modify_date', rec)
+        mmd = rec['meta_modify_date']
+
+        # try to POST existant locations to the file; should be OK
+        new_locations = {"locations": [loc1c, loc1d]}
+        rec2 = r.request_seq('POST', '/api/files/' + uid + '/locations', new_locations)
+
+        # ensure the record has changed (is updated)
+        self.assertEqual(4, len(rec2["locations"]))
+        self.assertNotEqual(mmd, rec2["meta_modify_date"])
+        self.assertIn(loc1a, rec2["locations"])
+        self.assertIn(loc1b, rec2["locations"])
+        self.assertIn(loc1c, rec2["locations"])
+        self.assertIn(loc1d, rec2["locations"])
+
+    def test_74_post_files_locations_just_one(self):
+        """Test that POST /api/files/UUID/locations can add distinct non-conflicting locations."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define some locations to be tested
+        loc1a = {'site': 'WIPAC', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1b = {'site': 'DESY', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
+        loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
+        locations = [loc1a]
+
+        # define a file to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': locations
+        }
+
+        # create the file; should be OK
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
+        uid = url.split('/')[-1]
+
+        # read the full record of the file; should be OK
+        rec = r.request_seq('GET', '/api/files/' + uid)
+        self.assertEqual(1, len(rec["locations"]))
+        self.assertIn('meta_modify_date', rec)
+        mmd = rec['meta_modify_date']
+
+        # try to POST existant locations to the file; should be OK
+        new_locations = {"locations": [loc1c]}
+        rec2 = r.request_seq('POST', '/api/files/' + uid + '/locations', new_locations)
+
+        # ensure the record has changed (is updated)
+        self.assertEqual(2, len(rec2["locations"]))
+        self.assertNotEqual(mmd, rec2["meta_modify_date"])
+        self.assertIn(loc1a, rec2["locations"])
+        self.assertNotIn(loc1b, rec2["locations"])
+        self.assertIn(loc1c, rec2["locations"])
+        self.assertNotIn(loc1d, rec2["locations"])
+
 
 if __name__ == '__main__':
     suite = unittest.TestLoader().loadTestsFromTestCase(TestStringMethods)

@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import datetime
 import logging
 try:
     from collections.abc import Iterable
@@ -192,3 +193,26 @@ class Mongo(object):
     @run_on_executor
     def get_snapshot(self, filters):
         return self.client.snapshots.find_one(filters, {'_id':False})
+
+    @run_on_executor
+    def append_distinct_elements_to_file(self, uuid, metadata):
+        """Append distinct elements to arrays within a file document."""
+        # build the query to update the file document
+        update_query = {"$addToSet": {}}
+        for key in metadata:
+            if isinstance(metadata[key], list):
+                update_query["$addToSet"][key] = {"$each": metadata[key]}
+            else:
+                update_query["$addToSet"][key] = metadata[key]
+
+        # update the file document
+        update_query["$set"] = {"meta_modify_date": str(datetime.datetime.utcnow())}
+        result = self.client.files.update_one({'uuid': uuid}, update_query)
+
+        # log and/or throw if the update results are surprising
+        if result.modified_count is None:
+            logger.warn('Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
+        elif result.modified_count != 1:
+            logger.warn('updated %s files with id %r',
+                        result.modified_count, metadata_id)
+            raise Exception('did not update')

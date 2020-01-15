@@ -99,8 +99,8 @@ def _get_season_name(year):
         }
         return seasons[str(year)]
     if year < 2021:
-        return 'I86-{}'.format(year - 2010)
-    raise Exception("No season name found for year, {}".format(year))
+        return f'I86-{year - 2010}'
+    raise Exception(f"No season name found for year, {year}")
 
 
 def _parse_xml(path, run_meta_xml):

@@ -286,6 +286,7 @@ def process_dir(path, site):
 
 def gather_file_info(dirs, site):
     """Return an iterator for metadata of files recursively found under dirs."""
+    dirs = [os.path.abspath(p) for p in dirs]
     futures = []
     with ProcessPoolExecutor() as pool:
         while futures or dirs:
@@ -314,7 +315,7 @@ async def main():
             epilog='Notes: (1) symbolic links are never followed.',
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('path', metavar='PATH', nargs='+',
-                        help='path(s) to scan for files. Use full path(s) to record full filepaths.')
+                        help='path(s) to scan for files.')
     parser.add_argument('-u', '--url', default='https://file-catalog.icecube.wisc.edu/',  # 'http://localhost:8888'
                         help='File Catalog URL')
     parser.add_argument('-s', '--site', required=True,

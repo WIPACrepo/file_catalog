@@ -43,25 +43,24 @@ def _get_run_number(file):
     return run
 
 
-def _get_subrun_number(file):
-    """Return subrun number from filename"""
-    # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
-    pre_subrun = file.name.split('Subrun')[1]
-    subrun = int(pre_subrun.split('_')[0])
-    return subrun
-
-
 def _disect_filename(file):
     """Return year/run/subrun/part number from filename"""
     # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
+    # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
     pre_year = file.name.split('.')[1]
     year = int(pre_year.split('_')[0])
 
     run = _get_run_number(file)
-    subrun = _get_subrun_number(file)
 
-    pre_part = file.name.split('_')[-1]
-    part = int(pre_part.split('.')[0])
+    pre_subrun = file.name.split('Subrun')[1]
+    subrun = int(pre_subrun.split('_')[0])
+
+    try:
+        pre_part = file.name.split('_')[-1]
+        part = int(pre_part.split('.')[0])
+    except ValueError:  # Ex: Subrun00000316 is actually the PART number
+        part = subrun
+        subrun = 0
 
     return year, run, subrun, part
 
@@ -247,12 +246,12 @@ def sha512sum(path):
 
 
 def _look_at_file(file):
-    """Return True if the file is in the .i3.zst file format"""
-    if "GCD.i3.zst" in file.name:
+    """Return True if the file is in the [...].i3[...] file format (w/ a few execptions)"""
+    if "GCD.i3" in file.name:
         return False
-    if "_IT.i3.zst" in file.name:
+    if "_IT.i3" in file.name:
         return False
-    return ".i3.zst" in file.name
+    return ".i3" in file.name
 
 
 def process_dir(path, site):

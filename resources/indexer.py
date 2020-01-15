@@ -166,7 +166,7 @@ def _parse_gaps_dict(gaps_dict):
     return gaps, livetime, first_event_dict, last_event_dict
 
 
-def _get_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_files=""):
+def _get_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_file=""):
     """Return metadata for one file"""
     path = file.path
     start_dt, end_dt, create_date, software = _parse_xml(path, run_meta_xml)
@@ -216,7 +216,7 @@ def _get_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_files=
             'season': year,
             'season_name': _get_season_name(year),
             'part': part,
-            'L2_gcd_file': gcd_files,
+            'L2_gcd_file': gcd_file,
             # 'L2_snapshot_id': None,
             # 'L2_production_version': None,
             # 'L3_source_dataset_id': None,
@@ -297,10 +297,16 @@ def process_dir(path, site):
                 continue
             try:
                 # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
-                filename_no_extension = dir_entry.name.split(".i3.zst")[0]
-                gaps = gaps_files[filename_no_extension]
-                run = _get_run_number(dir_entry)
-                gcd = gcd_files[str(run)]
+                try:
+                    filename_no_extension = dir_entry.name.split(".i3.zst")[0]
+                    gaps = gaps_files[filename_no_extension]
+                except KeyError:
+                    gaps = dict()
+                try:
+                    run = _get_run_number(dir_entry)
+                    gcd = gcd_files[str(run)]
+                except KeyError:
+                    gcd = ""
                 metadata = _get_file_metadata(dir_entry, site, run_meta_xml, gaps, gcd)
             # OSError is thrown for special files like sockets
             except (OSError, PermissionError, FileNotFoundError):

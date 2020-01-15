@@ -4,7 +4,6 @@
 import argparse
 import asyncio
 import hashlib
-import json
 import os
 import tarfile
 from concurrent.futures import ProcessPoolExecutor
@@ -297,15 +296,6 @@ def gather_file_info(dirs, site):
             future = futures.pop(0)
             dirs, file_meta = future.result()
             yield from file_meta
-
-
-def _check_status_code(req, okay):
-    if req.status_code != okay:
-        print('Unexpected return code:', req.status_code, req.reason)
-        try:
-            print(req.json())
-        except json.decoder.JSONDecodeError:
-            pass
 
 
 async def main():

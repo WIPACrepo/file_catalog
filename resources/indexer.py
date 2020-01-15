@@ -33,14 +33,35 @@ def _get_processing_level(file):
     return ""
 
 
+def _get_run_number(file):
+    """Return run number from filename."""
+    # Ex. Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
+    # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
+    # Ex: Run00125791_GapsTxt.tar
+    pre_run = file.name.split('Run')[1]
+    run = int(pre_run.split('_')[0])
+    return run
+
+
+def _get_subrun_number(file):
+    """Return subrun number from filename"""
+    # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
+    pre_subrun = file.name.split('Subrun')[1]
+    subrun = int(pre_subrun.split('_')[0])
+    return subrun
+
+
 def _disect_filename(file):
     """Return year/run/subrun/part number from filename"""
     # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
-    segments = file.name.split('_')
-    year = int(segments[1].split('.')[1])
-    run = int(segments[3][3:])
-    subrun = int(segments[4][6:])
-    part = int(segments[5].split('.')[0])
+    pre_year = file.name.split('.')[1]
+    year = int(pre_year.split('_')[0])
+
+    run = _get_run_number(file)
+    subrun = _get_subrun_number(file)
+
+    pre_part = file.name.split('_')[-1]
+    part = int(pre_part.split('.')[0])
 
     return year, run, subrun, part
 
@@ -146,7 +167,7 @@ def _parse_gaps_dict(gaps_dict):
     return gaps, livetime, first_event_dict, last_event_dict
 
 
-def _get_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_filepath=""):
+def _get_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_files=""):
     """Return metadata for one file"""
     path = file.path
     start_dt, end_dt, create_date, software = _parse_xml(path, run_meta_xml)
@@ -196,7 +217,7 @@ def _get_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_filepa
             'season': year,
             'season_name': _get_season_name(year),
             'part': part,
-            'L2_gcd_file': gcd_filepath,
+            'L2_gcd_file': gcd_files,
             # 'L2_snapshot_id': None,
             # 'L2_production_version': None,
             # 'L3_source_dataset_id': None,
@@ -244,22 +265,24 @@ def process_dir(path, site):
     file_meta = []
 
     # get directory's metadata
-    run_meta_xml, gaps_dicts, gcd_filepath = None, None, None
+    run_meta_xml = None
+    gaps_files = dict()  # gaps_files[<filename w/o extension>]
+    gcd_files = dict()  # gcd_files[<run id w/o leading zeros>]
     for dir_entry in scan:
         if "meta.xml" in dir_entry.name:  # Ex. level2_meta.xml
             with open(dir_entry.path, 'r') as f:
                 run_meta_xml = xmltodict.parse(f.read())
         if "_GapsTxt.tar" in dir_entry.name:  # Ex. Run00130484_GapsTxt.tar
             with tarfile.open(dir_entry.path) as tar:
-                gaps_dicts = dict()
                 for tar_obj in tar:
                     file = tar.extractfile(tar_obj)
                     file_dict = yaml.load(file)
                     # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188_gaps.txt
                     name = tar_obj.name.split("_gaps.txt")[0]
-                    gaps_dicts[name] = file_dict
+                    gaps_files[name] = file_dict
         if "GCD" in dir_entry.name:  # Ex. Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
-            gcd_filepath = dir_entry.path
+            run = _get_run_number(dir_entry)
+            gcd_files[str(run)] = dir_entry.path
 
     # get files' metadata
     for dir_entry in scan:
@@ -272,9 +295,11 @@ def process_dir(path, site):
                 continue
             try:
                 # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
-                keyname = dir_entry.name.split(".i3.zst")[0]
-                gaps = gaps_dicts[keyname]
-                metadata = _get_file_metadata(dir_entry, site, run_meta_xml, gaps, gcd_filepath)
+                filename_no_extension = dir_entry.name.split(".i3.zst")[0]
+                gaps = gaps_files[filename_no_extension]
+                run = _get_run_number(dir_entry)
+                gcd = gcd_files[str(run)]
+                metadata = _get_file_metadata(dir_entry, site, run_meta_xml, gaps, gcd)
             # OSError is thrown for special files like sockets
             except (OSError, PermissionError, FileNotFoundError):
                 continue
@@ -318,6 +343,8 @@ async def main():
 
     # POST each file's metadata to file catalog
     for metadata in gather_file_info(args.path, args.site):
+        print(metadata)
+        """
         try:
             _ = await fc_rc.request('POST', '/api/files', metadata)
         except requests.exceptions.HTTPError as e:
@@ -327,6 +354,7 @@ async def main():
                 _ = await fc_rc.request('PATCH', file_path, metadata)
             else:
                 raise
+        """
 
 
 if __name__ == '__main__':

@@ -247,11 +247,14 @@ def sha512sum(path):
 
 def _look_at_file(file):
     """Return True if the file is in the [...].i3[...] file format (w/ a few execptions)"""
-    if "GCD.i3" in file.name:
-        return False
-    if "_IT.i3" in file.name:
-        return False
-    return ".i3" in file.name
+    # Ex: Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
+    if ".i3" in file.name:
+        try:  # check if last char of filename (w/o extension) is an int
+            int(file.name.split('.i3')[0][-1])
+            return True
+        except ValueError:
+            return False
+    return False
 
 
 def process_dir(path, site):

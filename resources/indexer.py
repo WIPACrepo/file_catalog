@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import hashlib
 import os
+import re
 import tarfile
 from concurrent.futures import ProcessPoolExecutor
 from datetime import date
@@ -16,9 +17,48 @@ import yaml
 from icecube import dataclasses, dataio
 from rest_tools.client import RestClient
 
+SEASONS = {
+    '2005': 'ICstring9',
+    '2006': 'IC9',
+    '2007': 'IC22',
+    '2008': 'IC40',
+    '2009': 'IC59',
+    '2010': 'IC79',
+    '2011': 'IC86-1',
+    '2012': 'IC86-2',
+    '2013': 'IC86-3',
+    '2014': 'IC86-4',
+    '2015': 'IC86-5',
+    '2016': 'IC86-6',
+    '2017': 'IC86-7',
+    '2018': 'IC86-8',
+    '2019': 'IC86-9',
+    '2020': 'IC86-10'
+}
+
+
+def _get_year_from_season(season):
+    if season:
+        for year, s in SEASONS.items():
+            if s == season:
+                return int(year)
+        raise Exception(f"No year found for season, {season}.")
+    else:
+        return None
+
+
+def _get_season_from_year(year):
+    if year:
+        try:
+            return SEASONS[str(year)]
+        except KeyError:
+            raise Exception(f"No season name found for year, {year}.")
+    else:
+        return None
+
 
 def _get_processing_level(file):
-    """Return the processing level parsed from the filename"""
+    """Return the processing level parsed from the file's dir path, case insensitive."""
     levels = {
         "PFRaw": "PFRaw",
         "PFilt": "PFilt",
@@ -27,8 +67,9 @@ def _get_processing_level(file):
         "Level3": "L3",
         "Level4": "L4"
     }
+    dir_path_upper = os.path.dirname(file).upper()
     for level, level_for_metadata in levels.items():
-        if level in file.name:
+        if level.upper() in dir_path_upper:
             return level_for_metadata
     return ""
 
@@ -38,29 +79,60 @@ def _get_run_number(file):
     # Ex. Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
     # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
     # Ex: Run00125791_GapsTxt.tar
-    pre_run = file.name.split('Run')[1]
-    run = int(pre_run.split('_')[0])
+    r = file.name.split('Run')[1]
+    run = int(r.split('_')[0])
     return run
 
 
 def _disect_filename(file):
     """Return year/run/subrun/part number from filename"""
-    # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
-    # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
-    pre_year = file.name.split('.')[1]
-    year = int(pre_year.split('_')[0])
+
+    def _get_year_from_year(file):
+        # Ex: Level2_IC86.2017_[...]
+        y = file.name.split('.')[1]
+        year = int(y.split('_')[0])
+        return year
 
     run = _get_run_number(file)
+    subrun = 0
 
-    pre_subrun = file.name.split('Subrun')[1]
-    subrun = int(pre_subrun.split('_')[0])
+    # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
+    if re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', file.name):
+        year = _get_year_from_year(file)
+        s = file.name.split('Subrun')[1]
+        subrun = int(s.split('_')[0])
+        p = file.name.split('_')[-1]
+        part = int(p.split('.')[0])
 
-    try:
-        pre_part = file.name.split('_')[-1]
-        part = int(pre_part.split('.')[0])
-    except ValueError:  # Ex: Subrun00000316 is actually the PART number
-        part = subrun
-        subrun = 0
+    # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
+    elif re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Subrun[0-9]+(.*)', file.name):
+        year = _get_year_from_year(file)
+        p = file.name.split('Subrun')[1]
+        part = int(p.split('.')[0])
+
+    # Ex: Level2_IC86.2011_data_Run00119221_Part00000126.i3.bz2
+    elif re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Part[0-9]+(.*)', file.name):
+        year = _get_year_from_year(file)
+        p = file.name.split('Part')[1]
+        part = int(p.split('.')[0])
+
+    # Ex: Level2a_IC59_data_Run00115968_Part00000290.i3.gz
+    elif re.match(r'(.*)(_IC.*)_data_Run[0-9]+_Part[0-9]+(.*)', file.name):
+        s = file.name.split('IC')[1]
+        s = s.split('_')[0]
+        year = _get_year_from_season(f"IC{s}")
+        p = file.name.split('Part')[1]
+        part = int(p.split('.')[0])
+
+    # Ex: PFFilt_PhysicsTrig_PhysicsFiltering_Run00107875_Level2_Part00000002.i3.gz
+    # Ex: Level2_All_Run00111562_Part00000046.i3.gz
+    elif re.match(r'(.*)_Run[0-9]+(.*)_Part[0-9]+(.*)', file.name):
+        year = None
+        p = file.name.split('Part')[1]
+        part = int(p.split('.')[0])
+
+    else:
+        raise Exception(f"Filename not in a known format, {file.name}.")
 
     return year, run, subrun, part
 
@@ -104,22 +176,6 @@ def _get_data_type(file):
     if "/sim/" in file.path:
         return "simulaton"
     return None
-
-
-def _get_season_name(year):
-    if 2004 < year < 2011:
-        seasons = {
-            '2005': 'ICstring9',
-            '2006': 'IC9',
-            '2007': 'IC22',
-            '2008': 'IC40',
-            '2009': 'IC59',
-            '2010': 'IC79'
-        }
-        return seasons[str(year)]
-    if year < 2021:
-        return f'I86-{year - 2010}'
-    raise Exception(f"No season name found for year, {year}")
 
 
 def _parse_xml(path, run_meta_xml):
@@ -166,7 +222,31 @@ def _parse_gaps_dict(gaps_dict):
     return gaps, livetime, first_event_dict, last_event_dict
 
 
-def _get_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_file=""):
+def sha512sum(path):
+    """Return the SHA512 checksum of the file given by path."""
+    bufsize = 4194304
+    h = hashlib.new('sha512')
+    with open(path, 'rb', buffering=0) as f:
+        line = f.read(bufsize)
+        while line:
+            h.update(line)
+            line = f.read(bufsize)
+    return h.hexdigest()
+
+
+def _get_basic_metadata(file, site):
+    """Just return the basic metadata."""
+    metadata = {
+        'logical_name': file.path,
+        'checksum': {'sha512': sha512sum(file.path)},
+        'file_size': file.stat().st_size,
+        'locations': [{'site': site, 'path': file.path}],
+        'create_date': date.fromtimestamp(os.path.getctime(file.path)).isoformat()
+    }
+    return metadata
+
+
+def _get_i3_part_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_file=""):
     """Return metadata for one file"""
     path = file.path
     start_dt, end_dt, create_date, software = _parse_xml(path, run_meta_xml)
@@ -175,11 +255,13 @@ def _get_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_file="
     processing_level = _get_processing_level(file)
     year, run, subrun, part = _disect_filename(file)
 
+    basic_metadata = _get_basic_metadata(file, site)
+
     metadata = {
         'logical_name': path,
-        'checksum': {'sha512': sha512sum(path)},
-        'file_size': file.stat().st_size,
-        'locations': [{'site': site, 'path': path}],
+        'checksum': basic_metadata['checksum'],
+        'file_size': basic_metadata['file_size'],
+        'locations': basic_metadata['locations'],
         'create_date': create_date,
         'data_type': data_type,
         'processing_level': processing_level,
@@ -214,7 +296,7 @@ def _get_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_file="
         metadata['offline_processing_metadata'] = {
             # 'dataset_id': None,
             'season': year,
-            'season_name': _get_season_name(year),
+            'season_name': _get_season_from_year(year),
             'part': part,
             'L2_gcd_file': gcd_file,
             # 'L2_snapshot_id': None,
@@ -233,19 +315,7 @@ def _get_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_file="
     return metadata
 
 
-def sha512sum(path):
-    """Return the SHA512 checksum of the file given by path."""
-    bufsize = 4194304
-    h = hashlib.new('sha512')
-    with open(path, 'rb', buffering=0) as f:
-        line = f.read(bufsize)
-        while line:
-            h.update(line)
-            line = f.read(bufsize)
-    return h.hexdigest()
-
-
-def _look_at_file(file):
+def _is_i3_part_file(file):
     """Return True if the file is in the [...].i3[...] file format (w/ a few execptions)"""
     # Ex: Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
     if ".i3" in file.name:
@@ -293,21 +363,22 @@ def process_dir(path, site):
         elif dir_entry.is_dir():
             dirs.append(dir_entry.path)
         elif dir_entry.is_file():
-            if not _look_at_file(dir_entry):
-                continue
             try:
-                # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
-                try:
-                    filename_no_extension = dir_entry.name.split(".i3.zst")[0]
-                    gaps = gaps_files[filename_no_extension]
-                except KeyError:
-                    gaps = dict()
-                try:
-                    run = _get_run_number(dir_entry)
-                    gcd = gcd_files[str(run)]
-                except KeyError:
-                    gcd = ""
-                metadata = _get_file_metadata(dir_entry, site, run_meta_xml, gaps, gcd)
+                if _is_i3_part_file(dir_entry):
+                    # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3*
+                    try:
+                        filename_no_extension = dir_entry.name.split(".i3")[0]
+                        gaps = gaps_files[filename_no_extension]
+                    except KeyError:
+                        gaps = dict()
+                    try:
+                        run = _get_run_number(dir_entry)
+                        gcd = gcd_files[str(run)]
+                    except KeyError:
+                        gcd = ""
+                    metadata = _get_i3_part_file_metadata(dir_entry, site, run_meta_xml, gaps, gcd)
+                else:
+                    metadata = _get_basic_metadata(dir_entry, site)
             # OSError is thrown for special files like sockets
             except (OSError, PermissionError, FileNotFoundError):
                 continue
@@ -351,8 +422,6 @@ async def main():
 
     # POST each file's metadata to file catalog
     for metadata in gather_file_info(args.path, args.site):
-        print(metadata)
-        """
         try:
             _ = await fc_rc.request('POST', '/api/files', metadata)
         except requests.exceptions.HTTPError as e:
@@ -362,7 +431,6 @@ async def main():
                 _ = await fc_rc.request('PATCH', file_path, metadata)
             else:
                 raise
-        """
 
 
 if __name__ == '__main__':

@@ -40,7 +40,7 @@ def main():
     condorpath = os.path.join(scratch, 'condor')
 
     with open(condorpath, 'w') as f:
-        f.write(f"""executable = {args.env}
+        f.write(f"""executable = {os.path.abspath(args.env)}
 arguments = indexer.py -s WIPAC $(PATH) -t {args.token}
 output = {scratch}/$(JOBNUM).out
 error = {scratch}/$(JOBNUM).err

@@ -45,6 +45,7 @@ arguments = indexer.py -s WIPAC $(PATH) -t {args.token}
 output = {scratch}/$(JOBNUM).out
 error = {scratch}/$(JOBNUM).err
 log = {scratch}/$(JOBNUM).log
+should_transfer_files = YES
 notification = Error
 queue
 """)

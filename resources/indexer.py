@@ -4,6 +4,7 @@
 import argparse
 import asyncio
 import hashlib
+import logging
 import os
 import re
 import tarfile
@@ -420,15 +421,20 @@ async def main():
 
     fc_rc = RestClient(args.url, token=args.token, timeout=15, retries=3)
 
+    logging.info(f'Collecting metadata from {args.path}...')
+
     # POST each file's metadata to file catalog
     for metadata in gather_file_info(args.path, args.site):
+        logging.info(metadata)
         try:
             _ = await fc_rc.request('POST', '/api/files', metadata)
+            logging.info('POSTed')
         except requests.exceptions.HTTPError as e:
             # PATCH if file is already in the file catalog
             if e.response.status_code == 409:
                 file_path = e.response.json()['file']  # /api/files/{uuid}
                 _ = await fc_rc.request('PATCH', file_path, metadata)
+                logging.info('PATCHed')
             else:
                 raise
 

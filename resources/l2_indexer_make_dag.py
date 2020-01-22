@@ -41,15 +41,15 @@ def main():
 
     with open(condorpath, 'w') as f:
         f.write(f"""executable = {os.path.abspath(args.env)}
-arguments = indexer.py -s WIPAC $(PATH) -t {args.token}
+arguments = python indexer.py -s WIPAC $(PATH) -t {args.token}
 output = {scratch}/$(JOBNUM).out
 error = {scratch}/$(JOBNUM).err
 log = {scratch}/$(JOBNUM).log
++FileSystemDomain = "blah"
 should_transfer_files = YES
 notification = Error
 queue
 """)
-        # +FileSystemDomain = "blah"
         # request_memory = 2500
 
     with open(dagpath, 'w') as f:

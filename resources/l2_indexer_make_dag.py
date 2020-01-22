@@ -47,6 +47,7 @@ error = {scratch}/$(JOBNUM).err
 log = {scratch}/$(JOBNUM).log
 +FileSystemDomain = "blah"
 should_transfer_files = YES
+transfer_input_files = YES
 notification = Error
 queue
 """)

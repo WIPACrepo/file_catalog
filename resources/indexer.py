@@ -18,6 +18,8 @@ import yaml
 from icecube import dataclasses, dataio
 from rest_tools.client import RestClient
 
+logging.basicConfig(level=logging.INFO)
+
 SEASONS = {
     '2005': 'ICstring9',
     '2006': 'IC9',

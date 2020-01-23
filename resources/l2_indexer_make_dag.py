@@ -32,27 +32,27 @@ def main():
     args = parser.parse_args()
 
     scratch = "/scratch/eevans/l2indexer"
-
     if not os.path.exists(scratch):
         os.makedirs(scratch)
 
-    dagpath = os.path.join(scratch, 'dag')
-    condorpath = os.path.join(scratch, 'condor')
+    indexer_script = 'indexer.py'
 
+    condorpath = os.path.join(scratch, 'condor')
     with open(condorpath, 'w') as f:
         f.write(f"""executable = {os.path.abspath(args.env)}
-arguments = python indexer.py -s WIPAC $(PATH) -t {args.token}
+arguments = python {indexer_script} -s WIPAC $(PATH) -t {args.token}
 output = {scratch}/$(JOBNUM).out
 error = {scratch}/$(JOBNUM).err
 log = {scratch}/$(JOBNUM).log
 +FileSystemDomain = "blah"
 should_transfer_files = YES
-transfer_input_files = YES
+transfer_input_files = {os.path.abspath(indexer_script)}
 notification = Error
 queue
 """)
         # request_memory = 2500
 
+    dagpath = os.path.join(scratch, 'dag')
     with open(dagpath, 'w') as f:
         for i, path in enumerate(_get_dirpaths()):
             f.write(f'JOB job{i} condor\n')

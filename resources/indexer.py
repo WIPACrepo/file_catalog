@@ -419,9 +419,11 @@ async def main():
                         help='site value of the "locations" object')
     parser.add_argument('-t', '--token', required=True,
                         help='LDAP token')
+    parser.add_argument('--timeout', type=int, default=15, help='REST client timeout duration')
+    parser.add_argument('--retries', type=int, default=3, help='REST client number of retries')
     args = parser.parse_args()
 
-    fc_rc = RestClient(args.url, token=args.token, timeout=15, retries=3)
+    fc_rc = RestClient(args.url, token=args.token, timeout=args.timeout, retries=args.retries)
 
     logging.info(f'Collecting metadata from {args.path}...')
 

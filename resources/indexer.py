@@ -18,7 +18,7 @@ import yaml
 from icecube import dataclasses, dataio
 from rest_tools.client import RestClient
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 SEASONS = {
     '2005': 'ICstring9',
@@ -202,27 +202,31 @@ def _parse_gaps_dict(gaps_dict):
     if not gaps_dict:
         return None, None, None, None
 
-    first = gaps_dict['First Event of File'].split()  # Ex: '53162019 2018 206130762188498'
-    last = gaps_dict['Last Event of File'].split()  # Ex: '53164679 2018 206139955965204'
     livetime = float(gaps_dict['File Livetime'])  # Ex: 0.92
 
-    first_id = int(first[0])
-    first_dt = dataclasses.I3Time(int(first[1]), int(first[2])).date_time
-    last_id = int(last[0])
-    last_dt = dataclasses.I3Time(int(last[1]), int(last[2])).date_time
+    try:
+        first = gaps_dict['First Event of File'].split()  # Ex: '53162019 2018 206130762188498'
+        last = gaps_dict['Last Event of File'].split()  # Ex: '53164679 2018 206139955965204'
 
-    gaps = [{
-        'start_event_id': first_id,
-        'stop_event_id': last_id,
-        'delta_time': (last_dt - first_dt).total_seconds(),
-        'start_date': first_dt.isoformat(),
-        'stop_date': last_dt.isoformat()
-    }]
+        first_id = int(first[0])
+        first_dt = dataclasses.I3Time(int(first[1]), int(first[2])).date_time
+        last_id = int(last[0])
+        last_dt = dataclasses.I3Time(int(last[1]), int(last[2])).date_time
 
-    first_event_dict = {'event_id': first_id, 'datetime': first_dt.isoformat()}
-    last_event_dict = {'event_id': last_id, 'datetime': last_dt.isoformat()}
+        gaps = [{
+            'start_event_id': first_id,
+            'stop_event_id': last_id,
+            'delta_time': (last_dt - first_dt).total_seconds(),
+            'start_date': first_dt.isoformat(),
+            'stop_date': last_dt.isoformat()
+        }]
 
-    return gaps, livetime, first_event_dict, last_event_dict
+        first_event_dict = {'event_id': first_id, 'datetime': first_dt.isoformat()}
+        last_event_dict = {'event_id': last_id, 'datetime': last_dt.isoformat()}
+
+        return gaps, livetime, first_event_dict, last_event_dict
+    except KeyError:
+        return None, livetime, None, None
 
 
 def sha512sum(path):
@@ -351,7 +355,7 @@ def process_dir(path, site):
             with tarfile.open(dir_entry.path) as tar:
                 for tar_obj in tar:
                     file = tar.extractfile(tar_obj)
-                    file_dict = yaml.load(file)
+                    file_dict = yaml.safe_load(file)
                     # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188_gaps.txt
                     name = tar_obj.name.split("_gaps.txt")[0]
                     gaps_files[name] = file_dict
@@ -364,8 +368,10 @@ def process_dir(path, site):
         if dir_entry.is_symlink():
             continue
         elif dir_entry.is_dir():
+            logging.debug(f'Directory appended, {dir_entry.path}')
             dirs.append(dir_entry.path)
         elif dir_entry.is_file():
+            logging.debug(f'Gathering metadata for {dir_entry.name}...')
             try:
                 if _is_i3_part_file(dir_entry):
                     # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3*
@@ -383,9 +389,11 @@ def process_dir(path, site):
                 else:
                     metadata = _get_basic_metadata(dir_entry, site)
             # OSError is thrown for special files like sockets
-            except (OSError, PermissionError, FileNotFoundError):
+            except (OSError, PermissionError, FileNotFoundError) as e:
+                logging.debug(f'{dir_entry.name} not gathered, {e.__class__.__name__}.')
                 continue
             file_meta.append(metadata)
+            logging.debug(f'{dir_entry.name} gathered.')
 
     return dirs, file_meta
 
@@ -405,6 +413,41 @@ def gather_file_info(dirs, site):
             yield from file_meta
 
 
+async def _request_autoreconnect(fc_rc, method, path, metadata, url):
+    """Request and automatically reconnect if needed."""
+    while True:
+        try:
+            logging.debug(f'{method}ing...')
+            _ = await fc_rc.request(method, path, metadata)
+            logging.debug(f'{method}ed.')
+            return fc_rc
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 504:
+                logging.warning('Server Error, Gateway Time-out')
+            else:
+                raise
+        except requests.exceptions.ConnectionError:
+            logging.warning('Connection Error')
+
+        fc_rc.close()
+        sleep(10)
+        logging.warning('Reconnecting and trying again...')
+        fc_rc = RestClient(url, token=fc_rc.token, timeout=fc_rc.timeout, retries=fc_rc.retries)
+
+
+async def request_post_patch(fc_rc, metadata, url):
+    """POST metadata, and PATCH if file is already in the file catalog."""
+    try:
+        fc_rc = await _request_autoreconnect(fc_rc, "POST", '/api/files', metadata, url)
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 409:
+            patch_path = e.response.json()['file']  # /api/files/{uuid}
+            fc_rc = await _request_autoreconnect(fc_rc, "PATCH", patch_path, metadata, url)
+        else:
+            raise
+    return fc_rc
+
+
 async def main():
     parser = argparse.ArgumentParser(
             description='Find files under PATH(s), compute their metadata and '
@@ -419,26 +462,23 @@ async def main():
                         help='site value of the "locations" object')
     parser.add_argument('-t', '--token', required=True,
                         help='LDAP token')
+    parser.add_argument('--timeout', type=int, default=15, help='REST client timeout duration')
+    parser.add_argument('--retries', type=int, default=3, help='REST client number of retries')
     args = parser.parse_args()
 
-    fc_rc = RestClient(args.url, token=args.token, timeout=15, retries=3)
+    for arg, val in vars(args).items():
+        logging.info(f'{arg}: {val}')
+
+    fc_rc = RestClient(args.url, token=args.token, timeout=args.timeout, retries=args.retries)
 
     logging.info(f'Collecting metadata from {args.path}...')
 
     # POST each file's metadata to file catalog
     for metadata in gather_file_info(args.path, args.site):
         logging.info(metadata)
-        try:
-            _ = await fc_rc.request('POST', '/api/files', metadata)
-            logging.info('POSTed')
-        except requests.exceptions.HTTPError as e:
-            # PATCH if file is already in the file catalog
-            if e.response.status_code == 409:
-                file_path = e.response.json()['file']  # /api/files/{uuid}
-                _ = await fc_rc.request('PATCH', file_path, metadata)
-                logging.info('PATCHed')
-            else:
-                raise
+        fc_rc = await request_post_patch(fc_rc, metadata, args.url)
+
+    fc_rc.close()
 
 
 if __name__ == '__main__':

@@ -29,6 +29,8 @@ def main():
     parser.add_argument('--env', help='script to load env', required=True)
     parser.add_argument('-t', '--token', help='Auth Token', required=True)
     parser.add_argument('-j', '--maxjobs', default=500, help='max concurrent jobs')
+    parser.add_argument('--timeout', type=int, default=300, help='REST client timeout duration')
+    parser.add_argument('--retries', type=int, default=10, help='REST client number of retries')
     args = parser.parse_args()
 
     scratch = "/scratch/eevans/l2indexer"
@@ -40,7 +42,7 @@ def main():
     condorpath = os.path.join(scratch, 'condor')
     with open(condorpath, 'w') as f:
         f.write(f"""executable = {os.path.abspath(args.env)}
-arguments = python {indexer_script} -s WIPAC $(PATH) -t {args.token}
+arguments = python {indexer_script} -s WIPAC $(PATH) -t {args.token} --timeout {args.timeout} --retries {args.retries}
 output = {scratch}/$(JOBNUM).out
 error = {scratch}/$(JOBNUM).err
 log = {scratch}/$(JOBNUM).log

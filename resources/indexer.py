@@ -3,6 +3,7 @@
 
 import argparse
 import asyncio
+import collections
 import hashlib
 import logging
 import os
@@ -40,22 +41,24 @@ SEASONS = {
 }
 
 
-def _get_year_from_season(season):
-    if season:
-        for year, s in SEASONS.items():
-            if s == season:
-                return int(year)
-        raise Exception(f"No year found for season, {season}.")
+def _get_season_year(name):
+    """Return the year of the season start for the season's name."""
+    if name:
+        for season_year, n in SEASONS.items():
+            if n == name:
+                return int(season_year)
+        raise Exception(f"No season found for {name}.")
     else:
         return None
 
 
-def _get_season_from_year(year):
-    if year:
+def _get_season_name(season_year):
+    """Return the season's name for the year of the season start."""
+    if season_year:
         try:
-            return SEASONS[str(year)]
+            return SEASONS[str(season_year)]
         except KeyError:
-            raise Exception(f"No season name found for year, {year}.")
+            raise Exception(f"No season found for {season_year}.")
     else:
         return None
 
@@ -64,7 +67,7 @@ def _get_processing_level(file):
     """Return the processing level parsed from the file's dir path, case insensitive."""
     levels = {
         "PFRaw": "PFRaw",
-        "PFilt": "PFilt",
+        "PFFilt": "PFFilt",
         "PFDsT": "PFDsT",
         "Level2": "L2",
         "Level3": "L3",
@@ -74,7 +77,7 @@ def _get_processing_level(file):
     for level, level_for_metadata in levels.items():
         if level.upper() in dir_path_upper:
             return level_for_metadata
-    return ""
+    raise Exception(f"Cannot detect file's processing level, {file.path}.")
 
 
 def _get_run_number(file):
@@ -87,8 +90,10 @@ def _get_run_number(file):
     return run
 
 
-def _disect_filename(file):
-    """Return year/run/subrun/part number from filename"""
+def _disect_filepath(file):
+    """Return data_type, processing_level, year, run, subrun, & part number from file's path."""
+    # Ex: /data/exp/IceCube/2013/filtered/level2/1229/Run00123579_0/Level2_IC86.2013_data_Run00123579_Subrun00000004.i3.bz2
+    processing_level = _get_processing_level(file)
 
     def _get_year_from_year(file):
         # Ex: Level2_IC86.2017_[...]
@@ -99,58 +104,93 @@ def _disect_filename(file):
     run = _get_run_number(file)
     subrun = 0
 
-    # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
-    if re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', file.name):
-        year = _get_year_from_year(file)
-        s = file.name.split('Subrun')[1]
-        subrun = int(s.split('_')[0])
-        p = file.name.split('_')[-1]
-        part = int(p.split('.')[0])
+    # L2
+    if processing_level == "L2":
+        # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
+        # Ex: Level2pass2_IC79.2010_data_Run00115975_Subrun00000000_00000055.i3.zst
+        if re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', file.name):
+            year = _get_year_from_year(file)
+            s = file.name.split('Subrun')[1]
+            subrun = int(s.split('_')[0])
+            p = file.name.split('_')[-1]
+            part = int(p.split('.')[0])
 
-    # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
-    elif re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Subrun[0-9]+(.*)', file.name):
-        year = _get_year_from_year(file)
-        p = file.name.split('Subrun')[1]
-        part = int(p.split('.')[0])
+        # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
+        elif re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Subrun[0-9]+(.*)', file.name):
+            year = _get_year_from_year(file)
+            p = file.name.split('Subrun')[1]
+            part = int(p.split('.')[0])
 
-    # Ex: Level2_IC86.2011_data_Run00119221_Part00000126.i3.bz2
-    elif re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Part[0-9]+(.*)', file.name):
-        year = _get_year_from_year(file)
-        p = file.name.split('Part')[1]
-        part = int(p.split('.')[0])
+        # Ex: Level2_IC86.2011_data_Run00119221_Part00000126.i3.bz2
+        elif re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Part[0-9]+(.*)', file.name):
+            year = _get_year_from_year(file)
+            p = file.name.split('Part')[1]
+            part = int(p.split('.')[0])
 
-    # Ex: Level2a_IC59_data_Run00115968_Part00000290.i3.gz
-    elif re.match(r'(.*)(_IC.*)_data_Run[0-9]+_Part[0-9]+(.*)', file.name):
-        s = file.name.split('IC')[1]
-        s = s.split('_')[0]
-        year = _get_year_from_season(f"IC{s}")
-        p = file.name.split('Part')[1]
-        part = int(p.split('.')[0])
+        # Ex: Level2a_IC59_data_Run00115968_Part00000290.i3.gz
+        elif re.match(r'(.*)(_IC.*)_data_Run[0-9]+_Part[0-9]+(.*)', file.name):
+            n = file.name.split('IC')[1]
+            strings = n.split('_')[0]
+            year = _get_season_year(f"IC{strings}")
+            p = file.name.split('Part')[1]
+            part = int(p.split('.')[0])
 
-    # Ex: PFFilt_PhysicsTrig_PhysicsFiltering_Run00107875_Level2_Part00000002.i3.gz
-    # Ex: Level2_All_Run00111562_Part00000046.i3.gz
-    elif re.match(r'(.*)_Run[0-9]+(.*)_Part[0-9]+(.*)', file.name):
-        year = None
-        p = file.name.split('Part')[1]
-        part = int(p.split('.')[0])
+        # Ex: Level2_All_Run00111562_Part00000046.i3.gz
+        elif re.match(r'(.*)_Run[0-9]+(.*)_Part[0-9]+(.*)', file.name):
+            year = None
+            p = file.name.split('Part')[1]
+            part = int(p.split('.')[0])
 
+        else:
+            raise Exception(f"Filename not in a known L2 file format, {file.name}.")
+
+    # PFFilt
+    elif processing_level == "PFFilt":
+        # Ex: PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
+        # Ex: PFFilt_PhysicsTrig_PhysicsFiltering_Run00121503_Subrun00000000_00000314.tar.bz2
+        if re.match(r'PFFilt_(.*)_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', file.name):
+            year = None
+            s = file.name.split('Subrun')[1]
+            subrun = int(s.split('_')[0])
+            p = file.name.split('_')[-1]
+            part = int(p.split('.')[0])
+
+        else:
+            raise Exception(f"Filename not in a known PFFilt file format, {file.name}.")
+
+    # Other/Unknown
     else:
-        raise Exception(f"Filename not in a known format, {file.name}.")
+        raise Exception(f"There are no known file formats for {processing_level} file, {file.name}.")
 
-    return year, run, subrun, part
+    return processing_level, year, run, subrun, part
 
 
-def _get_software(run_meta_xml):
+def _get_software(meta_xml):
     """Return software metadata"""
-    softwares = []
-    for software in run_meta_xml['DIF_Plus']['Plus']['Project']:
-        soft_meta = {
-            'name': str(software['Name']),
-            'version': str(software['Version']),
-            'date': str(software['DateTime'])
-        }
-        softwares.append(soft_meta)
-    return softwares
+
+    def _parse_project(project):
+        software = {}
+        if 'Name' in project:
+            software['name'] = str(project['Name'])
+        if 'Version' in project:
+            software['version'] = str(project['Version'])
+        if 'DateTime' in project:
+            software['date'] = str(project['DateTime'])
+        return software
+
+    software_list = []
+    entry = meta_xml['DIF_Plus']['Plus']['Project']
+    entry_type = type(entry)
+
+    if entry_type is list:
+        for project in entry:
+            software_list.append(_parse_project(project))
+    elif entry_type is collections.OrderedDict:
+        software_list = [_parse_project(entry)]
+    else:
+        raise Exception(f"meta xml file has unanticipated 'Project' type {entry_type}.")
+
+    return software_list
 
 
 def _get_events_data(file):
@@ -177,21 +217,21 @@ def _get_data_type(file):
     if "/exp/" in file.path:
         return "real"
     if "/sim/" in file.path:
-        return "simulaton"
+        return "simulation"
     return None
 
 
-def _parse_xml(path, run_meta_xml):
+def _parse_xml(file, meta_xml):
     """Return data points from xml dict"""
-    if run_meta_xml:
-        start_dt = str(run_meta_xml['DIF_Plus']['Plus']['Start_DateTime'])
-        end_dt = str(run_meta_xml['DIF_Plus']['Plus']['End_DateTime'])
-        create_date = str(run_meta_xml['DIF_Plus']['DIF']['DIF_Creation_Date'])
-        software = _get_software(run_meta_xml)
+    if meta_xml:
+        start_dt = str(meta_xml['DIF_Plus']['Plus']['Start_DateTime'])
+        end_dt = str(meta_xml['DIF_Plus']['Plus']['End_DateTime'])
+        create_date = str(meta_xml['DIF_Plus']['DIF']['DIF_Creation_Date'])
+        software = _get_software(meta_xml)
     else:
         start_dt = None
         end_dt = None
-        create_date = date.fromtimestamp(os.path.getctime(path)).isoformat()
+        create_date = date.fromtimestamp(os.path.getctime(file.path)).isoformat()
         software = None
 
     return start_dt, end_dt, create_date, software
@@ -253,19 +293,16 @@ def _get_basic_metadata(file, site):
     return metadata
 
 
-def _get_i3_part_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gcd_file=""):
+def _get_i3_part_file_metadata(file, site, meta_xml=None, gaps_dict=None, gcd_filepath=""):
     """Return metadata for one file"""
-    path = file.path
-    start_dt, end_dt, create_date, software = _parse_xml(path, run_meta_xml)
-    first_event, last_event, count, status = _get_events_data(file)
+    start_dt, end_dt, create_date, software = _parse_xml(file, meta_xml)
+    processing_level, season_year, run, subrun, part = _disect_filepath(file)
     data_type = _get_data_type(file)
-    processing_level = _get_processing_level(file)
-    year, run, subrun, part = _disect_filename(file)
-
+    first_event, last_event, event_count, status = _get_events_data(file)
     basic_metadata = _get_basic_metadata(file, site)
 
     metadata = {
-        'logical_name': path,
+        'logical_name': file.path,
         'checksum': basic_metadata['checksum'],
         'file_size': basic_metadata['file_size'],
         'locations': basic_metadata['locations'],
@@ -274,14 +311,18 @@ def _get_i3_part_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gc
         'processing_level': processing_level,
         'content_status': status,
         'software': software,
-        'start_datetime': start_dt,
-        'end_datetime': end_dt,
-        'run_number': run,
-        'subrun_number': subrun,
-        'first_event': first_event,
-        'last_event': last_event,
-        'events': count
     }
+    if data_type == "real":
+        metadata['run'] = {
+            'run_number': run,
+            'subrun_number': subrun,
+            'part_number': part,
+            'start_datetime': start_dt,
+            'end_datetime': end_dt,
+            'first_event': first_event,
+            'last_event': last_event,
+            'event_count': event_count
+        }
     # if True:
     #     metadata['iceprod'] = {
     #         'dataset': None,
@@ -292,20 +333,17 @@ def _get_i3_part_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gc
     #         'task_id': None,
     #         'config': None
     #     }
-    # if data_type == "simulaton":
-    #     metadata['simulaton'] = {
-    #         'generator': None,
-    #         'energy_min': None,
-    #         'energy_max': None
+    # if data_type == "simulation":
+    #     metadata['simulation'] = {
+    #         ...
     #     }
     if processing_level in ("L2", "L3"):
         gaps, livetime, first_event_dict, last_event_dict = _parse_gaps_dict(gaps_dict)
         metadata['offline_processing_metadata'] = {
             # 'dataset_id': None,
-            'season': year,
-            'season_name': _get_season_from_year(year),
-            'part': part,
-            'L2_gcd_file': gcd_file,
+            'season': season_year,
+            'season_name': _get_season_name(season_year),
+            'L2_gcd_file': gcd_filepath,
             # 'L2_snapshot_id': None,
             # 'L2_production_version': None,
             # 'L3_source_dataset_id': None,
@@ -323,15 +361,41 @@ def _get_i3_part_file_metadata(file, site, run_meta_xml=None, gaps_dict=None, gc
 
 
 def _is_i3_part_file(file):
-    """Return True if the file is in the [...].i3[...] file format (w/ a few execptions)"""
+    """Return True if the file is in the [...#].i3[...] file format."""
     # Ex: Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
-    if ".i3" in file.name:
-        try:  # check if last char of filename (w/o extension) is an int
-            int(file.name.split('.i3')[0][-1])
-            return True
-        except ValueError:
-            return False
-    return False
+    # check if last char of filename (w/o extension) is an int
+    return (".i3" in file.name) and (file.name.split('.i3')[0][-1]).isdigit()
+
+
+def _is_i3_part_tar_bz2(file):
+    """Return True if the file is in the [...#].tar.bz2 file format."""
+    # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
+    # check if last char of filename (w/o extension) is an int
+    return (".tar.bz2" in file.name) and (file.name.split('.tar.bz2')[0][-1]).isdigit()
+
+
+def _get_directory_metadata(scan, path):
+    """Get metadata-related files for later processing with individual i3 files."""
+    dir_meta_xml = None
+    gaps_files = dict()  # gaps_files[<filename w/o extension>]
+    gcd_files = dict()  # gcd_files[<run id w/o leading zeros>]
+
+    for dir_entry in scan:
+        if "meta.xml" in dir_entry.name:  # Ex. level2_meta.xml, level2pass2_meta.xml
+            if dir_meta_xml is not None:
+                raise Exception(f"Multiple *meta.xml files found in {path}.")
+            with open(dir_entry.path, 'r') as f:
+                dir_meta_xml = xmltodict.parse(f.read())
+        if "_GapsTxt.tar" in dir_entry.name:  # Ex. Run00130484_GapsTxt.tar
+            with tarfile.open(dir_entry.path) as tar:
+                for tar_obj in tar:
+                    file_dict = yaml.safe_load(tar.extractfile(tar_obj))
+                    # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188_gaps.txt
+                    gaps_files[tar_obj.name.split("_gaps.txt")[0]] = file_dict
+        if "GCD" in dir_entry.name:  # Ex. Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
+            gcd_files[str(_get_run_number(dir_entry))] = dir_entry.path
+
+    return dir_meta_xml, gaps_files, gcd_files
 
 
 def process_dir(path, site):
@@ -344,24 +408,7 @@ def process_dir(path, site):
     file_meta = []
 
     # get directory's metadata
-    run_meta_xml = None
-    gaps_files = dict()  # gaps_files[<filename w/o extension>]
-    gcd_files = dict()  # gcd_files[<run id w/o leading zeros>]
-    for dir_entry in scan:
-        if "meta.xml" in dir_entry.name:  # Ex. level2_meta.xml
-            with open(dir_entry.path, 'r') as f:
-                run_meta_xml = xmltodict.parse(f.read())
-        if "_GapsTxt.tar" in dir_entry.name:  # Ex. Run00130484_GapsTxt.tar
-            with tarfile.open(dir_entry.path) as tar:
-                for tar_obj in tar:
-                    file = tar.extractfile(tar_obj)
-                    file_dict = yaml.safe_load(file)
-                    # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188_gaps.txt
-                    name = tar_obj.name.split("_gaps.txt")[0]
-                    gaps_files[name] = file_dict
-        if "GCD" in dir_entry.name:  # Ex. Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
-            run = _get_run_number(dir_entry)
-            gcd_files[str(run)] = dir_entry.path
+    dir_meta_xml, gaps_files, gcd_files = _get_directory_metadata(scan, path)
 
     # get files' metadata
     for dir_entry in scan:
@@ -376,21 +423,32 @@ def process_dir(path, site):
                 if _is_i3_part_file(dir_entry):
                     # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3*
                     try:
-                        filename_no_extension = dir_entry.name.split(".i3")[0]
-                        gaps = gaps_files[filename_no_extension]
+                        gaps = gaps_files[dir_entry.name.split(".i3")[0]]
                     except KeyError:
                         gaps = dict()
                     try:
-                        run = _get_run_number(dir_entry)
-                        gcd = gcd_files[str(run)]
+                        gcd = gcd_files[str(_get_run_number(dir_entry))]
                     except KeyError:
                         gcd = ""
-                    metadata = _get_i3_part_file_metadata(dir_entry, site, run_meta_xml, gaps, gcd)
+                    metadata = _get_i3_part_file_metadata(dir_entry, site,
+                                                          meta_xml=dir_meta_xml,
+                                                          gaps_dict=gaps,
+                                                          gcd_filepath=gcd)
+                elif _is_i3_part_tar_bz2(dir_entry):
+                    # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
+                    # read in the meta.xml file from the tar
+                    with tarfile.open(dir_entry.path) as tar:
+                        for tar_obj in tar:
+                            if ".meta.xml" in tar_obj.name:
+                                file_meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
+                                break
+                    metadata = _get_i3_part_file_metadata(dir_entry, site,
+                                                          meta_xml=file_meta_xml)
                 else:
                     metadata = _get_basic_metadata(dir_entry, site)
             # OSError is thrown for special files like sockets
             except (OSError, PermissionError, FileNotFoundError) as e:
-                logging.debug(f'{dir_entry.name} not gathered, {e.__class__.__name__}.')
+                logging.exception(f'{dir_entry.name} not gathered, {e.__class__.__name__}.')
                 continue
             file_meta.append(metadata)
             logging.debug(f'{dir_entry.name} gathered.')
@@ -449,6 +507,7 @@ async def request_post_patch(fc_rc, metadata, url):
 
 
 async def main():
+    """Main"""
     parser = argparse.ArgumentParser(
             description='Find files under PATH(s), compute their metadata and '
                         'upload it to File Catalog.',

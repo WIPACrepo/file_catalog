@@ -211,3 +211,21 @@ a single unit test. Replace the name of the test as necessary.
     circleci local execute --job test -e PYTEST_ADDOPTS='-s tests/test_files.py -k test_10_files'
 
 Note that for a file to be picked up, it must be added to git first (with git add).
+
+### Building a Docker container
+The following commands will create a Docker container for the file-catalog:
+
+    docker build -t file-catalog:{version} -f Dockerfile .
+    docker image tag file-catalog:{version} file-catalog:latest
+
+Where {version} is found in file_catalog/__init__py; e.g.:
+
+    __version__ = '1.2.0'       # For {version} use: 1.2.0
+
+### Pushing Docker containers to local registry in Kubernetes
+Here are some commands to get the Docker container pushed to our Docker
+register in our Kubernetes cluster:
+
+    kubectl -n kube-system port-forward $(kubectl get pods --namespace kube-system -l "app=docker-registry,release=docker-registry" -o jsonpath="{.items[0].metadata.name}") 5000:5000 &
+    docker tag file-catalog:{version} localhost:5000/file-catalog:{version}
+    docker push localhost:5000/file-catalog:{version}

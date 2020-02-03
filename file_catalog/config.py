@@ -21,6 +21,8 @@ class Config(dict):
                 'Maximal number of files that are returned in the file list by the server'),
         'MONGODB_AUTH_PASS': cps(None, str,
                 'MongoDB authentication password'),
+        'MONGODB_AUTH_SOURCE_DB': cps('admin', str,
+                'The database to authenticate on. Defaults to "admin"'),
         'MONGODB_AUTH_USER': cps(None, str,
                 'MongoDB authentication username'),
         'MONGODB_HOST': cps('localhost', str,
@@ -59,4 +61,3 @@ class Config(dict):
             raise ConfigValidationError('%s is not a valid configuration parameter')
         else:
             super().__setitem__(key, val)
-

@@ -109,7 +109,7 @@ class BasicFileMetadata:
         metadata['logical_name'] = self.file.path
         metadata['checksum'] = {'sha512': self.sha512sum()}
         metadata['file_size'] = self.file.stat().st_size
-        metadata['locations'] = [{'site': self.site, 'path': self.file.path}]
+        metadata['locations'] = self._get_locations()
         metadata['create_date'] = date.fromtimestamp(os.path.getctime(self.file.path)).isoformat()
         return metadata
 
@@ -123,6 +123,12 @@ class BasicFileMetadata:
                 sha.update(line)
                 line = file.read(bufsize)
         return sha.hexdigest()
+
+    def _get_locations(self):
+        """Return the locations object."""
+        if '.tar' in self.file.name:
+            return [{'site': self.site, 'path': self.file.path, 'archive': True}]
+        return [{'site': self.site, 'path': self.file.path}]
 
 
 class I3FileMetadata(BasicFileMetadata):
@@ -361,6 +367,13 @@ class L2FileMetadata(I3FileMetadata):
         else:
             raise Exception(f"Filename not in a known L2 file format, {self.file.name}.")
 
+    @staticmethod
+    def is_file(file):
+        """True if the file is in the [...#].i3[...] file format."""
+        # Ex: Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
+        # check if last char of filename (w/o extension) is an int
+        return (".i3" in file.name) and (file.name.split('.i3')[0][-1]).isdigit()
+
 
 class PFFiltFileMetadata(I3FileMetadata):
     """Metadata for PFFilt i3 files"""
@@ -390,18 +403,25 @@ class PFFiltFileMetadata(I3FileMetadata):
         else:
             raise Exception(f"Filename not in a known PFFilt file format, {self.file.name}.")
 
+    @staticmethod
+    def is_file(file):
+        """ True if the file is in the [...#].tar.bz2 file format. """
+        # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
+        # check if last char of filename (w/o extension) is an int
+        return (".tar.bz2" in file.name) and (file.name.split('.tar.bz2')[0][-1]).isdigit()
+
 
 class MetadataManager:
     """Commander class for handling metadata for different file types"""
     site = ""
-    processing_level = None
+    dir_processing_level = None
     l2_dir_metadata = dict()
 
     def __init__(self, path, site):
         self.site = site
-        self.processing_level = ProcessingLevel.from_path(path)
+        self.dir_processing_level = ProcessingLevel.from_path(path)
 
-        if self.processing_level == ProcessingLevel.L2:
+        if self.dir_processing_level == ProcessingLevel.L2:
             # get directory's metadata
             self._prep_l2_dir_metadata(path)
 
@@ -435,24 +455,20 @@ class MetadataManager:
     def new_file(self, file):
         """Factory method for returning different metadata-file types"""
         # L2
-        if self.processing_level == ProcessingLevel.L2:
-            # True if the file is in the [...#].i3[...] file format.
-            # Ex: Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
-            # check if last char of filename (w/o extension) is an int
-            if (".i3" in file.name) and (file.name.split('.i3')[0][-1]).isdigit():
-                try:
-                    no_extension = file.name.split(".i3")[0]
-                    gaps = self.l2_dir_metadata['gaps_files'][no_extension]
-                except KeyError:
-                    gaps = dict()
-                try:
-                    run = I3FileMetadata.parse_run_number(file)
-                    gcd = self.l2_dir_metadata['gcd_files'][str(run)]
-                except KeyError:
-                    gcd = ""
-                return L2FileMetadata(file, self.site, self.l2_dir_metadata['dir_meta_xml'], gaps, gcd)
+        if self.dir_processing_level == ProcessingLevel.L2 and L2FileMetadata.is_file(file):
+            try:
+                no_extension = file.name.split(".i3")[0]
+                gaps = self.l2_dir_metadata['gaps_files'][no_extension]
+            except KeyError:
+                gaps = dict()
+            try:
+                run = I3FileMetadata.parse_run_number(file)
+                gcd = self.l2_dir_metadata['gcd_files'][str(run)]
+            except KeyError:
+                gcd = ""
+            return L2FileMetadata(file, self.site, self.l2_dir_metadata['dir_meta_xml'], gaps, gcd)
         # PFRaw
-        elif self.processing_level == ProcessingLevel.PFRaw:
+        if self.dir_processing_level == ProcessingLevel.PFRaw:
             # TODO
             # ukey_b98a353f-72e8-4d2e-afd7-c41fa5c8d326_PFRaw_PhysicsFiltering_Run00131322_Subrun00000000_00000018.tar.gz
             # key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
@@ -460,12 +476,8 @@ class MetadataManager:
             # PFRaw_PhysicsTrig_PhysicsFiltering_Run00114085_Subrun00000000_00000208.tar.gz
             return None
         # PFFilt
-        elif self.processing_level == ProcessingLevel.PFFilt:
-            # True if the file is in the [...#].tar.bz2 file format.
-            # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
-            # check if last char of filename (w/o extension) is an int
-            if (".tar.bz2" in file.name) and (file.name.split('.tar.bz2')[0][-1]).isdigit():
-                return PFFiltFileMetadata(file, self.site)
+        if self.dir_processing_level == ProcessingLevel.PFFilt and PFFiltFileMetadata.is_file(file):
+            return PFFiltFileMetadata(file, self.site)
         # Other/ Basic
         return BasicFileMetadata(file, self.site)
 
@@ -518,36 +530,18 @@ def gather_file_info(dirs, site):
             yield from file_meta
 
 
-async def _request_autoreconnect(fc_rc, method, path, metadata, url):
-    """Request and automatically reconnect if needed."""
-    while True:
-        try:
-            logging.debug(f'{method}ing...')
-            _ = await fc_rc.request(method, path, metadata)
-            logging.debug(f'{method}ed.')
-            return fc_rc
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 504:
-                logging.warning('Server Error, Gateway Time-out')
-            else:
-                raise
-        except requests.exceptions.ConnectionError:
-            logging.warning('Connection Error')
-
-        fc_rc.close()
-        sleep(10)
-        logging.warning('Reconnecting and trying again...')
-        fc_rc = RestClient(url, token=fc_rc.token, timeout=fc_rc.timeout, retries=fc_rc.retries)
-
-
-async def request_post_patch(fc_rc, metadata, url):
+async def request_post_patch(fc_rc, metadata):
     """POST metadata, and PATCH if file is already in the file catalog."""
     try:
-        fc_rc = await _request_autoreconnect(fc_rc, "POST", '/api/files', metadata, url)
+        logging.debug('POSTing...')
+        _ = await fc_rc.request("POST", '/api/files', metadata)
+        logging.debug('POSTed.')
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 409:
             patch_path = e.response.json()['file']  # /api/files/{uuid}
-            fc_rc = await _request_autoreconnect(fc_rc, "PATCH", patch_path, metadata, url)
+            logging.debug('PATCHing...')
+            _ = await fc_rc.request("PATCH", patch_path, metadata)
+            logging.debug('PATCHed.')
         else:
             raise
     return fc_rc
@@ -581,7 +575,7 @@ async def main():
     # POST each file's metadata to file catalog
     for metadata in gather_file_info(args.path, args.site):
         logging.info(metadata)
-        fc_rc = await request_post_patch(fc_rc, metadata, args.url)
+        fc_rc = await request_post_patch(fc_rc, metadata)
 
     fc_rc.close()
 

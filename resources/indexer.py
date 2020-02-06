@@ -109,7 +109,7 @@ class BasicFileMetadata:
         metadata['logical_name'] = self.file.path
         metadata['checksum'] = {'sha512': self.sha512sum()}
         metadata['file_size'] = self.file.stat().st_size
-        metadata['locations'] = self._get_locations()
+        metadata['locations'] = [{'site': self.site, 'path': self.file.path}]
         metadata['create_date'] = date.fromtimestamp(os.path.getctime(self.file.path)).isoformat()
         return metadata
 
@@ -123,12 +123,6 @@ class BasicFileMetadata:
                 sha.update(line)
                 line = file.read(bufsize)
         return sha.hexdigest()
-
-    def _get_locations(self):
-        """Return the locations object."""
-        if '.tar' in self.file.name:
-            return [{'site': self.site, 'path': self.file.path, 'archive': True}]
-        return [{'site': self.site, 'path': self.file.path}]
 
 
 class I3FileMetadata(BasicFileMetadata):

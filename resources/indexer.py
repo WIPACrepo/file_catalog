@@ -173,6 +173,7 @@ class I3FileMetadata(BasicFileMetadata):
         return metadata
 
     def _parse_filepath(self):
+        """Set the year, run, subrun, and part from the file name."""
         pass
 
     @staticmethod
@@ -320,6 +321,7 @@ class L2FileMetadata(I3FileMetadata):
         return metadata
 
     def _parse_filepath(self):
+        """Set the year, run, subrun, and part from the file name."""
         self.run = I3FileMetadata.parse_run_number(self.file)
 
         # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
@@ -386,10 +388,12 @@ class PFFiltFileMetadata(I3FileMetadata):
                     self.meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
 
     def generate(self):
+        """Gather the file's metadata."""
         metadata = super().generate()
         return metadata
 
     def _parse_filepath(self):
+        """Set the year, run, subrun, and part from the file name."""
         self.run = I3FileMetadata.parse_run_number(self.file)
 
         # Ex: PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
@@ -409,6 +413,48 @@ class PFFiltFileMetadata(I3FileMetadata):
         # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
         # check if last char of filename (w/o extension) is an int
         return (".tar.bz2" in file.name) and (file.name.split('.tar.bz2')[0][-1]).isdigit()
+
+
+class PFRawFileMetadata(I3FileMetadata):
+    """Metadata for PFFilt i3 files"""
+
+    def __init__(self, file, site):
+        super().__init__(file, site, ProcessingLevel.PFRaw)
+        with tarfile.open(file.path) as tar:
+            for tar_obj in tar:
+                if ".meta.xml" in tar_obj.name:
+                    self.meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
+
+    def generate(self):
+        """Gather the file's metadata."""
+        metadata = super().generate()
+        return metadata
+
+    def _parse_filepath(self):
+        """Set the year, run, subrun, and part from the file name."""
+        self.run = I3FileMetadata.parse_run_number(self.file)
+
+        # Ex: key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
+        # Ex: ukey_b98a353f-72e8-4d2e-afd7-c41fa5c8d326_PFRaw_PhysicsFiltering_Run00131322_Subrun00000000_00000018.tar.gz
+        # Ex: ukey_05815dd9-2411-468c-9bd5-e99b8f759efd_PFRaw_RandomFiltering_Run00130470_Subrun00000060_00000000.tar.gz
+        # Ex: PFRaw_PhysicsTrig_PhysicsFiltering_Run00114085_Subrun00000000_00000208.tar.gz
+        # Ex: PFRaw_TestData_PhysicsFiltering_Run00114672_Subrun00000000_00000011.tar.gz
+        # Ex: PFRaw_TestData_RandomFiltering_Run00113816_Subrun00000033_00000000.tar.gz
+        if re.match(r'(.*)_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', self.file.name):
+            self.season_year = None
+            s = self.file.name.split('Subrun')[1]
+            self.subrun = int(s.split('_')[0])
+            p = self.file.name.split('_')[-1]
+            self.part = int(p.split('.')[0])
+        else:
+            raise Exception(f"Filename not in a known PFRaw file format, {self.file.name}.")
+
+    @staticmethod
+    def is_file(file):
+        """ True if the file is in the [...#].tar.gz file format. """
+        # Ex. key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
+        # check if last char of filename (w/o extension) is an int
+        return (".tar.gz" in file.name) and (file.name.split('.tar.gz')[0][-1]).isdigit()
 
 
 class MetadataManager:
@@ -468,13 +514,8 @@ class MetadataManager:
                 gcd = ""
             return L2FileMetadata(file, self.site, self.l2_dir_metadata['dir_meta_xml'], gaps, gcd)
         # PFRaw
-        if self.dir_processing_level == ProcessingLevel.PFRaw:
-            # TODO
-            # ukey_b98a353f-72e8-4d2e-afd7-c41fa5c8d326_PFRaw_PhysicsFiltering_Run00131322_Subrun00000000_00000018.tar.gz
-            # key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
-            # ukey_05815dd9-2411-468c-9bd5-e99b8f759efd_PFRaw_RandomFiltering_Run00130470_Subrun00000060_00000000.tar.gz
-            # PFRaw_PhysicsTrig_PhysicsFiltering_Run00114085_Subrun00000000_00000208.tar.gz
-            return None
+        if self.dir_processing_level == ProcessingLevel.PFRaw and PFRawFileMetadata.is_file(file):
+            return PFRawFileMetadata(file, self.site)
         # PFFilt
         if self.dir_processing_level == ProcessingLevel.PFFilt and PFFiltFileMetadata.is_file(file):
             return PFFiltFileMetadata(file, self.site)

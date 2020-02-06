@@ -40,7 +40,8 @@ class TestServerAPI(unittest.TestCase):
         db = MongoClient(host=host, port=port).file_catalog
         colls = db.list_collection_names()
         for c in colls:
-            db.drop_collection(c)
+            if 'system' not in c:
+                db.drop_collection(c)
 
     def start_server(self, config_override={}):
         env = dict(os.environ)

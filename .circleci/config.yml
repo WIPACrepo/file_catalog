@@ -23,7 +23,9 @@ jobs:
             - run: ./setupenv.sh
             - run: |
                 . env/bin/activate &&
-                pytest --tb=short
+                resources/enable_profiling.py &&
+                pytest --tb=short &&
+                resources/profile_queries.py
 workflows:
     version: 2
     build_and_test:

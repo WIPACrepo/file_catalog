@@ -60,10 +60,10 @@ log = {scratch}/$(JOBNUM).log
 +FileSystemDomain = "blah"
 should_transfer_files = YES
 transfer_input_files = {os.path.abspath(indexer_script)}
+request_memory = 2000
 notification = Error
 queue
 """)
-        # request_memory = 2500
 
     dagpath = os.path.join(scratch, 'dag')
     with open(dagpath, 'w') as f:

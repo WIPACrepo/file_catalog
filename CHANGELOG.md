@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [1.2.0] - 2020-02-03
+### Added
+- Use MONGODB_AUTH_SOURCE_DB to specify the DB with authentication details
+### Changed
+- Additional changes not specified; use the git log, Luke
+
 ## [1.1.1] - 2019-08-13
 ### Added
 - All configuration is now loaded from environment variables
@@ -60,7 +66,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 - Issue #26: 'location.archive' overwriting search query
 
-[Unreleased]: https://github.com/WIPACrepo/file_catalog/compare/1.1.0...HEAD
+[Unreleased]: https://github.com/WIPACrepo/file_catalog/compare/1.2.0...HEAD
+[1.2.0]: https://github.com/WIPACrepo/file_catalog/compare/1.1.1...1.2.0
 [1.1.1]: https://github.com/WIPACrepo/file_catalog/compare/1.1.0...1.1.1
 [1.1.0]: https://github.com/WIPACrepo/file_catalog/compare/1.0.0...1.1.0
 [1.0.0]: https://github.com/WIPACrepo/file_catalog/compare/0.1.0...1.0.0

@@ -19,15 +19,17 @@ logger = logging.getLogger('mongo')
 
 class Mongo(object):
     """A ThreadPoolExecutor-based MongoDB client"""
-    def __init__(self, host=None, port=None, username=None, password=None):
+    def __init__(self, host=None, port=None, authSource=None, username=None, password=None):
         logger.info('MongoClient args: host=%s, port=%s, username=%s', host, port, username)
 
         self.client = MongoClient(host=host, port=port,
-                            username=username, password=password).file_catalog
+                                  authSource=authSource,
+                                  username=username, password=password).file_catalog
 
         self.client.files.create_index('uuid', unique=True)
         self.client.files.create_index('logical_name', unique=True)
         self.client.files.create_index('locations', unique=True)
+        self.client.files.create_index([('locations.site',pymongo.DESCENDING),('locations.path',pymongo.DESCENDING)])
         self.client.files.create_index('locations.archive')
         self.client.files.create_index('create_date')
         self.client.files.create_index('content_status')

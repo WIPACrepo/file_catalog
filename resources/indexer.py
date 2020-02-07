@@ -19,7 +19,7 @@ import yaml
 from icecube import dataclasses, dataio
 from rest_tools.client import RestClient
 
-logging.basicConfig(level=logging.DEBUG)
+TAR_EXTENSIONS = ('.tar.gz', '.tar.bz2', '.tar.zst')
 
 
 class IceCubeSeason:
@@ -46,24 +46,22 @@ class IceCubeSeason:
     @staticmethod
     def name_to_year(name):
         """Return the year of the season start for the season's name."""
-        if name:
-            for season_year, season_name in IceCubeSeason.SEASONS.items():
-                if season_name == name:
-                    return int(season_year)
-            raise Exception(f"No season found for {name}.")
-        else:
+        if not name:
             return None
+        for season_year, season_name in IceCubeSeason.SEASONS.items():
+            if season_name == name:
+                return int(season_year)
+        raise Exception(f"No season found for {name}.")
 
     @staticmethod
     def year_to_name(season_year):
         """Return the season's name for the year of the season start."""
-        if season_year:
-            try:
-                return IceCubeSeason.SEASONS[str(season_year)]
-            except KeyError:
-                raise Exception(f"No season found for {season_year}.")
-        else:
+        if not season_year:
             return None
+        try:
+            return IceCubeSeason.SEASONS[str(season_year)]
+        except KeyError:
+            raise Exception(f"No season found for {season_year}.")
 
 
 class ProcessingLevel:
@@ -102,7 +100,7 @@ class BasicFileMetadata:
 
     def generate(self):
         """Gather the file's metadata."""
-        metadata = dict()
+        metadata = {}
         metadata['logical_name'] = self.file.path
         metadata['checksum'] = {'sha512': self.sha512sum()}
         metadata['file_size'] = self.file.stat().st_size
@@ -131,7 +129,7 @@ class I3FileMetadata(BasicFileMetadata):
         self.run = 0
         self.subrun = 0
         self.part = 0
-        self.meta_xml = dict()
+        self.meta_xml = {}
         self._parse_filepath()
 
     def generate(self):
@@ -163,7 +161,7 @@ class I3FileMetadata(BasicFileMetadata):
 
     def _parse_filepath(self):
         """Set the year, run, subrun, and part from the file name."""
-        pass
+        raise NotImplementedError()
 
     @staticmethod
     def parse_run_number(file):
@@ -394,10 +392,13 @@ class PFFiltFileMetadata(I3FileMetadata):
 
     @staticmethod
     def is_file(file):
-        """ True if the file is in the [...#].tar.bz2 file format. """
+        """ True if the file is in the [...#].tar.[...] file format. """
         # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
         # check if last char of filename (w/o extension) is an int
-        return (".tar.bz2" in file.name) and (file.name.split('.tar.bz2')[0][-1]).isdigit()
+        for ext in TAR_EXTENSIONS:
+            if (ext in file.name) and (file.name.split(ext)[0][-1]).isdigit():
+                return True
+        return False
 
 
 class PFRawFileMetadata(I3FileMetadata):
@@ -430,10 +431,13 @@ class PFRawFileMetadata(I3FileMetadata):
 
     @staticmethod
     def is_file(file):
-        """ True if the file is in the [...#].tar.gz file format. """
+        """ True if the file is in the [...#].tar.[...] file format. """
         # Ex. key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
         # check if last char of filename (w/o extension) is an int
-        return (".tar.gz" in file.name) and (file.name.split('.tar.gz')[0][-1]).isdigit()
+        for ext in TAR_EXTENSIONS:
+            if (ext in file.name) and (file.name.split(ext)[0][-1]).isdigit():
+                return True
+        return False
 
 
 class MetadataManager:
@@ -441,7 +445,7 @@ class MetadataManager:
     def __init__(self, path, site):
         self.site = site
         self.dir_processing_level = ProcessingLevel.from_path(path)
-        self.l2_dir_metadata = dict()
+        self.l2_dir_metadata = {}
 
         if self.dir_processing_level == ProcessingLevel.L2:
             # get directory's metadata
@@ -450,8 +454,8 @@ class MetadataManager:
     def _prep_l2_dir_metadata(self, path):
         """Get metadata-related files for later processing with individual i3 files."""
         dir_meta_xml = None
-        gaps_files = dict()  # gaps_files[<filename w/o extension>]
-        gcd_files = dict()  # gcd_files[<run id w/o leading zeros>]
+        gaps_files = {}  # gaps_files[<filename w/o extension>]
+        gcd_files = {}  # gcd_files[<run id w/o leading zeros>]
         for dir_entry in os.scandir(path):
             if not dir_entry.is_file():
                 continue
@@ -482,7 +486,7 @@ class MetadataManager:
                 no_extension = file.name.split(".i3")[0]
                 gaps = self.l2_dir_metadata['gaps_files'][no_extension]
             except KeyError:
-                gaps = dict()
+                gaps = {}
             try:
                 run = I3FileMetadata.parse_run_number(file)
                 gcd = self.l2_dir_metadata['gcd_files'][str(run)]
@@ -596,4 +600,5 @@ async def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
     asyncio.get_event_loop().run_until_complete(main())

@@ -96,9 +96,6 @@ class ProcessingLevel:
 
 class BasicFileMetadata:
     """Metadata for basic files"""
-    file = None
-    site = ""
-
     def __init__(self, file, site):
         self.file = file
         self.site = site
@@ -127,16 +124,14 @@ class BasicFileMetadata:
 
 class I3FileMetadata(BasicFileMetadata):
     """Metadata for i3 files"""
-    processing_level = None
-    season_year = None
-    run = 0
-    subrun = 0
-    part = 0
-    meta_xml = dict()
-
     def __init__(self, file, site, processing_level):
         super().__init__(file, site)
         self.processing_level = processing_level
+        self.season_year = None
+        self.run = 0
+        self.subrun = 0
+        self.part = 0
+        self.meta_xml = dict()
         self._parse_filepath()
 
     def generate(self):
@@ -251,9 +246,6 @@ class I3FileMetadata(BasicFileMetadata):
 
 class L2FileMetadata(I3FileMetadata):
     """Metadata for L2 i3 files"""
-    gaps_dict = dict()
-    gcd_filepath = ""
-
     def __init__(self, file, site, dir_meta_xml, gaps_dict, gcd_filepath):
         super().__init__(file, site, ProcessingLevel.L2)
         self.meta_xml = dir_meta_xml
@@ -373,7 +365,6 @@ class L2FileMetadata(I3FileMetadata):
 
 class PFFiltFileMetadata(I3FileMetadata):
     """Metadata for PFFilt i3 files"""
-
     def __init__(self, file, site):
         super().__init__(file, site, ProcessingLevel.PFFilt)
         with tarfile.open(file.path) as tar:
@@ -411,18 +402,12 @@ class PFFiltFileMetadata(I3FileMetadata):
 
 class PFRawFileMetadata(I3FileMetadata):
     """Metadata for PFFilt i3 files"""
-
     def __init__(self, file, site):
         super().__init__(file, site, ProcessingLevel.PFRaw)
         with tarfile.open(file.path) as tar:
             for tar_obj in tar:
                 if ".meta.xml" in tar_obj.name:
                     self.meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
-
-    def generate(self):
-        """Gather the file's metadata."""
-        metadata = super().generate()
-        return metadata
 
     def _parse_filepath(self):
         """Set the year, run, subrun, and part from the file name."""
@@ -453,13 +438,10 @@ class PFRawFileMetadata(I3FileMetadata):
 
 class MetadataManager:
     """Commander class for handling metadata for different file types"""
-    site = ""
-    dir_processing_level = None
-    l2_dir_metadata = dict()
-
     def __init__(self, path, site):
         self.site = site
         self.dir_processing_level = ProcessingLevel.from_path(path)
+        self.l2_dir_metadata = dict()
 
         if self.dir_processing_level == ProcessingLevel.L2:
             # get directory's metadata
@@ -568,13 +550,11 @@ def gather_file_info(dirs, site):
 async def request_post_patch(fc_rc, metadata):
     """POST metadata, and PATCH if file is already in the file catalog."""
     try:
-        logging.debug('POSTing...')
         _ = await fc_rc.request("POST", '/api/files', metadata)
         logging.debug('POSTed.')
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 409:
             patch_path = e.response.json()['file']  # /api/files/{uuid}
-            logging.debug('PATCHing...')
             _ = await fc_rc.request("PATCH", patch_path, metadata)
             logging.debug('PATCHed.')
         else:

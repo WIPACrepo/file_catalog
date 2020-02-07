@@ -6,15 +6,24 @@ import os
 import re
 import subprocess
 
+LEVELS = {
+    "L2": "filtered/level2",
+    "L2P2": "filtered/level2pass2",
+    "PFFilt": "filtered/PFFilt",
+    "PFDST": "unbiased/PFDST",
+    "PFRaw": "unbiased/PFRaw",
+}
 
-def _get_dirpaths():
-    years = [str(y) for y in range(2007, 2021)]
-    dirs = [d for d in os.scandir(os.path.abspath('/mnt/lfs6/exp/IceCube')) if d.name in years]
+
+def _get_dirpaths(begin_year, end_year, level, root_dir):
+    years = [str(y) for y in range(begin_year, end_year)]
+    dirs = [d for d in os.scandir(os.path.abspath(root_dir)) if d.name in years]  # Ex: [/mnt/lfs6/exp/IceCube/2018, ...]
 
     days = []
     for _dir in dirs:
-        path = os.path.join(_dir.path, "filtered/level2")
+        path = os.path.join(_dir.path, LEVELS[level])  # Ex: /mnt/lfs6/exp/IceCube/2018/filtered/PFFilt
         try:
+            # Ex: /mnt/lfs6/exp/IceCube/2018/filtered/PFFilt/0806
             day_dirs = [d.path for d in os.scandir(path) if re.match(r"\d{4}", d.name)]
             days.extend(day_dirs)
         except:
@@ -31,9 +40,13 @@ def main():
     parser.add_argument('-j', '--maxjobs', default=500, help='max concurrent jobs')
     parser.add_argument('--timeout', type=int, default=300, help='REST client timeout duration')
     parser.add_argument('--retries', type=int, default=10, help='REST client number of retries')
+    parser.add_argument('--begin', type=int, help='beginning year in /data/exp/IceCube/', required=True)
+    parser.add_argument('--end', type=int, help='end year in /data/exp/IceCube/', required=True)
+    parser.add_argument('--level', help='processing level', choices=LEVELS.keys(), required=True)
+    parser.add_argument('--rootdir', help='root directory path', default='/mnt/lfs6/exp/IceCube')
     args = parser.parse_args()
 
-    scratch = "/scratch/eevans/l2indexer"
+    scratch = f"/scratch/eevans/{args.level}indexer"
     if not os.path.exists(scratch):
         os.makedirs(scratch)
 
@@ -49,14 +62,14 @@ log = {scratch}/$(JOBNUM).log
 +FileSystemDomain = "blah"
 should_transfer_files = YES
 transfer_input_files = {os.path.abspath(indexer_script)}
+request_memory = 2000
 notification = Error
 queue
 """)
-        # request_memory = 2500
 
     dagpath = os.path.join(scratch, 'dag')
     with open(dagpath, 'w') as f:
-        for i, path in enumerate(_get_dirpaths()):
+        for i, path in enumerate(_get_dirpaths(args.begin, args.end, args.level, args.rootdir)):
             f.write(f'JOB job{i} condor\n')
             f.write(f'VARS job{i} PATH="{path}"\n')
             f.write(f'VARS job{i} JOBNUM="{i}"\n')

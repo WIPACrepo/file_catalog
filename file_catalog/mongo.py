@@ -28,6 +28,7 @@ class Mongo(object):
 
         self.client.files.create_index('uuid', unique=True)
         self.client.files.create_index('logical_name', unique=True)
+        self.client.files.create_index([('logical_name',pymongo.HASHED)])
         self.client.files.create_index('locations', unique=True)
         self.client.files.create_index([('locations.site',pymongo.DESCENDING),('locations.path',pymongo.DESCENDING)])
         self.client.files.create_index('locations.archive')

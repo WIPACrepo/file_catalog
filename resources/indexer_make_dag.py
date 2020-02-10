@@ -62,6 +62,7 @@ log = {scratch}/$(JOBNUM).log
 +FileSystemDomain = "blah"
 should_transfer_files = YES
 transfer_input_files = {os.path.abspath(indexer_script)}
+request_cpus = 2
 request_memory = 2000
 notification = Error
 queue

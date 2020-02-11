@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 - in case of vulnerabilities
 
+## [1.2.1] - 2020-02-11
+### Added
+- Instructions on building File Catalog as a docker container
+- Instructions on deploying a File Catalog container to WIPAC Kubernetes
+- Test for MongoDB unindexed queries
+- MongoDB hashed index for logical_name field
+### Changed
+- Many improvements to the Metadata Import script
+
 ## [1.2.0] - 2020-02-03
 ### Added
 - Use MONGODB_AUTH_SOURCE_DB to specify the DB with authentication details

@@ -68,28 +68,28 @@ class ProcessingLevel:
     """Wrapper static class encapsulating processing-level parsing logic and levels constants."""
     PFRaw = "PFRaw"
     PFFilt = "PFFilt"
-    PFDsT = "PFDsT"
+    PFDST = "PFDST"
     L2 = "L2"
     L3 = "L3"
     L4 = "L4"
 
     @staticmethod
-    def from_path(dir_path):
-        """Return the processing level parsed from the dir path, case insensitive."""
+    def from_path(path):
+        """Return the processing level parsed from the path, case insensitive."""
         # Ex: /data/exp/IceCube/2013/filtered/level2/1229/Run00123579_0/
         search_strings = {
             "PFRaw": ProcessingLevel.PFRaw,
             "PFFilt": ProcessingLevel.PFFilt,
-            "PFDsT": ProcessingLevel.PFDsT,
+            "PFDST": ProcessingLevel.PFDST,
             "Level2": ProcessingLevel.L2,
             "Level3": ProcessingLevel.L3,
             "Level4": ProcessingLevel.L4
         }
-        dir_path_upper = dir_path.upper()
+        path_upper = path.upper()
         for string, level in search_strings.items():
-            if string.upper() in dir_path_upper:
+            if string.upper() in path_upper:
                 return level
-        raise Exception(f"Cannot detect processing level, {dir_path}.")
+        raise Exception(f"Cannot detect processing level, {path}.")
 
 
 class BasicFileMetadata:
@@ -241,6 +241,23 @@ class I3FileMetadata(BasicFileMetadata):
             status = "bad"
         return first, last, count, status
 
+    def _grab_meta_xml_from_tar(self):
+        """Open tar file and set *meta.xml as self.meta_xml."""
+        with tarfile.open(self.file.path) as tar:
+            for tar_obj in tar:
+                if ".meta.xml" in tar_obj.name:
+                    self.meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
+
+    @staticmethod
+    def _is_run_tar_file(file):
+        """ True if the file is in the [...#].tar.[...] file format. """
+        # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
+        # check if last char of filename (w/o extension) is an int
+        for ext in TAR_EXTENSIONS:
+            if (ext in file.name) and (file.name.split(ext)[0][-1]).isdigit():
+                return True
+        return False
+
 
 class L2FileMetadata(I3FileMetadata):
     """Metadata for L2 i3 files"""
@@ -354,26 +371,18 @@ class L2FileMetadata(I3FileMetadata):
             raise Exception(f"Filename not in a known L2 file format, {self.file.name}.")
 
     @staticmethod
-    def is_file(file):
+    def is_file(file, processing_level):
         """True if the file is in the [...#].i3[...] file format."""
         # Ex: Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
         # check if last char of filename (w/o extension) is an int
-        return (".i3" in file.name) and (file.name.split('.i3')[0][-1]).isdigit()
+        return (processing_level == ProcessingLevel.L2) and (".i3" in file.name) and (file.name.split('.i3')[0][-1]).isdigit()
 
 
 class PFFiltFileMetadata(I3FileMetadata):
     """Metadata for PFFilt i3 files"""
     def __init__(self, file, site):
         super().__init__(file, site, ProcessingLevel.PFFilt)
-        with tarfile.open(file.path) as tar:
-            for tar_obj in tar:
-                if ".meta.xml" in tar_obj.name:
-                    self.meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
-
-    def generate(self):
-        """Gather the file's metadata."""
-        metadata = super().generate()
-        return metadata
+        self._grab_meta_xml_from_tar()
 
     def _parse_filepath(self):
         """Set the year, run, subrun, and part from the file name."""
@@ -391,24 +400,52 @@ class PFFiltFileMetadata(I3FileMetadata):
             raise Exception(f"Filename not in a known PFFilt file format, {self.file.name}.")
 
     @staticmethod
-    def is_file(file):
-        """ True if the file is in the [...#].tar.[...] file format. """
+    def is_file(file, processing_level):
+        """ True if PFFilt and the file is in the [...#].tar.[...] file format. """
         # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
-        # check if last char of filename (w/o extension) is an int
-        for ext in TAR_EXTENSIONS:
-            if (ext in file.name) and (file.name.split(ext)[0][-1]).isdigit():
-                return True
-        return False
+        return processing_level == ProcessingLevel.PFFilt and I3FileMetadata._is_run_tar_file(file)
+
+
+class PFDSTFileMetadata(I3FileMetadata):
+    """Metadata for PFDST i3 files"""
+    def __init__(self, file, site):
+        super().__init__(file, site, ProcessingLevel.PFDST)
+        self._grab_meta_xml_from_tar()
+
+    def _parse_filepath(self):
+        """Set the year, run, subrun, and part from the file name."""
+        self.run = I3FileMetadata.parse_run_number(self.file)
+
+        # Ex. ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
+        # Ex: ukey_42c89a63-e3f7-4c3e-94ae-840eff8bd4fd_PFDST_RandomFiltering_Run00131155_Subrun00000051_00000000.tar.gz
+        # Ex: PFDST_PhysicsFiltering_Run00125790_Subrun00000000_00000064.tar.gz
+        # Ex: PFDST_UW_PhysicsFiltering_Run00125832_Subrun00000000_00000000.tar.gz
+        # Ex: PFDST_RandomFiltering_Run00123917_Subrun00000000_00000000.tar.gz
+        # Ex: PFDST_PhysicsTrig_PhysicsFiltering_Run00121663_Subrun00000000_00000091.tar.gz
+        # Ex: PFDST_TestData_PhysicsFiltering_Run00122158_Subrun00000000_00000014.tar.gz
+        # Ex: PFDST_TestData_RandomFiltering_Run00119375_Subrun00000136_00000000.tar.gz
+        # Ex: PFDST_TestData_Unfiltered_Run00119982_Subrun00000000_000009.tar.gz
+        if re.match(r'(.*)_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', self.file.name):
+            self.season_year = None
+            s = self.file.name.split('Subrun')[1]
+            self.subrun = int(s.split('_')[0])
+            p = self.file.name.split('_')[-1]
+            self.part = int(p.split('.')[0])
+        else:
+            raise Exception(f"Filename not in a known PFDST file format, {self.file.name}.")
+
+    @staticmethod
+    def is_file(file, processing_level):
+        """ True if PFDST and the file is in the [...#].tar.[...] file format. """
+        # Ex. ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
+        return processing_level == ProcessingLevel.PFDST and I3FileMetadata._is_run_tar_file(file)
 
 
 class PFRawFileMetadata(I3FileMetadata):
-    """Metadata for PFFilt i3 files"""
+    """Metadata for PFRaw i3 files"""
     def __init__(self, file, site):
         super().__init__(file, site, ProcessingLevel.PFRaw)
-        with tarfile.open(file.path) as tar:
-            for tar_obj in tar:
-                if ".meta.xml" in tar_obj.name:
-                    self.meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
+        self._grab_meta_xml_from_tar()
 
     def _parse_filepath(self):
         """Set the year, run, subrun, and part from the file name."""
@@ -430,38 +467,32 @@ class PFRawFileMetadata(I3FileMetadata):
             raise Exception(f"Filename not in a known PFRaw file format, {self.file.name}.")
 
     @staticmethod
-    def is_file(file):
-        """ True if the file is in the [...#].tar.[...] file format. """
+    def is_file(file, processing_level):
+        """ True if PFRaw and the file is in the [...#].tar.[...] file format. """
         # Ex. key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
-        # check if last char of filename (w/o extension) is an int
-        for ext in TAR_EXTENSIONS:
-            if (ext in file.name) and (file.name.split(ext)[0][-1]).isdigit():
-                return True
-        return False
+        return processing_level == ProcessingLevel.PFRaw and I3FileMetadata._is_run_tar_file(file)
 
 
 class MetadataManager:
     """Commander class for handling metadata for different file types"""
-    def __init__(self, path, site):
+    def __init__(self, dir_path, site, basic_only=False):
+        self.dir_path = dir_path
         self.site = site
-        self.dir_processing_level = ProcessingLevel.from_path(path)
+        self.basic_only = basic_only
         self.l2_dir_metadata = {}
 
-        if self.dir_processing_level == ProcessingLevel.L2:
-            # get directory's metadata
-            self._prep_l2_dir_metadata(path)
-
-    def _prep_l2_dir_metadata(self, path):
+    def _prep_l2_dir_metadata(self):
         """Get metadata-related files for later processing with individual i3 files."""
+        self.l2_dir_metadata = {}
         dir_meta_xml = None
         gaps_files = {}  # gaps_files[<filename w/o extension>]
         gcd_files = {}  # gcd_files[<run id w/o leading zeros>]
-        for dir_entry in os.scandir(path):
+        for dir_entry in os.scandir(self.dir_path):
             if not dir_entry.is_file():
                 continue
             if "meta.xml" in dir_entry.name:  # Ex. level2_meta.xml, level2pass2_meta.xml
                 if dir_meta_xml is not None:
-                    raise Exception(f"Multiple *meta.xml files found in {path}.")
+                    raise Exception(f"Multiple *meta.xml files found in {self.dir_path}.")
                 with open(dir_entry.path, 'r') as xml:
                     dir_meta_xml = xmltodict.parse(xml.read())
             elif "_GapsTxt.tar" in dir_entry.name:  # Ex. Run00130484_GapsTxt.tar
@@ -480,30 +511,40 @@ class MetadataManager:
 
     def new_file(self, file):
         """Factory method for returning different metadata-file types"""
-        # L2
-        if self.dir_processing_level == ProcessingLevel.L2 and L2FileMetadata.is_file(file):
-            try:
-                no_extension = file.name.split(".i3")[0]
-                gaps = self.l2_dir_metadata['gaps_files'][no_extension]
-            except KeyError:
-                gaps = {}
-            try:
-                run = I3FileMetadata.parse_run_number(file)
-                gcd = self.l2_dir_metadata['gcd_files'][str(run)]
-            except KeyError:
-                gcd = ""
-            return L2FileMetadata(file, self.site, self.l2_dir_metadata['dir_meta_xml'], gaps, gcd)
-        # PFRaw
-        if self.dir_processing_level == ProcessingLevel.PFRaw and PFRawFileMetadata.is_file(file):
-            return PFRawFileMetadata(file, self.site)
-        # PFFilt
-        if self.dir_processing_level == ProcessingLevel.PFFilt and PFFiltFileMetadata.is_file(file):
-            return PFFiltFileMetadata(file, self.site)
+        if not self.basic_only:
+            processing_level = ProcessingLevel.from_path(file.path)
+            # L2
+            if L2FileMetadata.is_file(file, processing_level):
+                # get directory's metadata
+                file_dir_path = os.path.dirname(os.path.abspath(file.path))
+                if (not self.l2_dir_metadata) or (file_dir_path != self.dir_path):
+                    self.dir_path = file_dir_path
+                    self._prep_l2_dir_metadata()
+                try:
+                    no_extension = file.name.split(".i3")[0]
+                    gaps = self.l2_dir_metadata['gaps_files'][no_extension]
+                except KeyError:
+                    gaps = {}
+                try:
+                    run = I3FileMetadata.parse_run_number(file)
+                    gcd = self.l2_dir_metadata['gcd_files'][str(run)]
+                except KeyError:
+                    gcd = ""
+                return L2FileMetadata(file, self.site, self.l2_dir_metadata['dir_meta_xml'], gaps, gcd)
+            # PFFilt
+            if PFFiltFileMetadata.is_file(file, processing_level):
+                return PFFiltFileMetadata(file, self.site)
+            # PFDST
+            if PFDSTFileMetadata.is_file(file, processing_level):
+                return PFDSTFileMetadata(file, self.site)
+            # PFRaw
+            if PFRawFileMetadata.is_file(file, processing_level):
+                return PFRawFileMetadata(file, self.site)
         # Other/ Basic
         return BasicFileMetadata(file, self.site)
 
 
-def process_dir(path, site):
+def process_dir(path, site, basic_only=False):
     """Return list of sub-directories and metadata of files in directory given by path."""
     try:
         scan = list(os.scandir(path))
@@ -512,7 +553,7 @@ def process_dir(path, site):
     dirs = []
     file_meta = []
 
-    manager = MetadataManager(path, site)
+    manager = MetadataManager(path, site, basic_only)
 
     # get files' metadata
     for dir_entry in scan:
@@ -536,14 +577,14 @@ def process_dir(path, site):
     return dirs, file_meta
 
 
-def gather_file_info(dirs, site):
+def gather_file_info(dirs, site, basic_only=False):
     """Return an iterator for metadata of files recursively found under dirs."""
     dirs = [os.path.abspath(p) for p in dirs]
     futures = []
     with ProcessPoolExecutor() as pool:
         while futures or dirs:
             for d in dirs:
-                futures.append(pool.submit(process_dir, d, site))
+                futures.append(pool.submit(process_dir, d, site, basic_only))
             while not futures[0].done():  # concurrent.futures.wait(FIRST_COMPLETED) is slower
                 sleep(0.1)
             future = futures.pop(0)
@@ -580,8 +621,12 @@ async def main():
                         help='site value of the "locations" object')
     parser.add_argument('-t', '--token', required=True,
                         help='LDAP token')
-    parser.add_argument('--timeout', type=int, default=15, help='REST client timeout duration')
-    parser.add_argument('--retries', type=int, default=3, help='REST client number of retries')
+    parser.add_argument('--timeout', type=int, default=15,
+                        help='REST client timeout duration')
+    parser.add_argument('--retries', type=int, default=3,
+                        help='REST client number of retries')
+    parser.add_argument('--basic-only', dest='basic_only', default=False, action='store_true',
+                        help='will only collect basic metadata')
     args = parser.parse_args()
 
     for arg, val in vars(args).items():
@@ -592,7 +637,7 @@ async def main():
     logging.info(f'Collecting metadata from {args.path}...')
 
     # POST each file's metadata to file catalog
-    for metadata in gather_file_info(args.path, args.site):
+    for metadata in gather_file_info(args.path, args.site, args.basic_only):
         logging.info(metadata)
         fc_rc = await request_post_patch(fc_rc, metadata)
 

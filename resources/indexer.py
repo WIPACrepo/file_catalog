@@ -74,9 +74,9 @@ class ProcessingLevel:
     L4 = "L4"
 
     @staticmethod
-    def from_path(path):
-        """Return the processing level parsed from the path, case insensitive."""
-        # Ex: /data/exp/IceCube/2013/filtered/level2/1229/Run00123579_0/
+    def from_filename(path):
+        """Return the processing level parsed from the file name, case insensitive."""
+        # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
         search_strings = {
             "PFRaw": ProcessingLevel.PFRaw,
             "PFFilt": ProcessingLevel.PFFilt,
@@ -89,7 +89,7 @@ class ProcessingLevel:
         for string, level in search_strings.items():
             if string.upper() in path_upper:
                 return level
-        raise Exception(f"Cannot detect processing level, {path}.")
+        return None
 
 
 class BasicFileMetadata:
@@ -475,8 +475,8 @@ class PFRawFileMetadata(I3FileMetadata):
 
 class MetadataManager:
     """Commander class for handling metadata for different file types"""
-    def __init__(self, dir_path, site, basic_only=False):
-        self.dir_path = dir_path
+    def __init__(self, site, basic_only=False):
+        self.dir_path = ""
         self.site = site
         self.basic_only = basic_only
         self.l2_dir_metadata = {}
@@ -512,7 +512,7 @@ class MetadataManager:
     def new_file(self, file):
         """Factory method for returning different metadata-file types"""
         if not self.basic_only:
-            processing_level = ProcessingLevel.from_path(file.path)
+            processing_level = ProcessingLevel.from_filename(file.name)
             # L2
             if L2FileMetadata.is_file(file, processing_level):
                 # get directory's metadata
@@ -530,17 +530,22 @@ class MetadataManager:
                     gcd = self.l2_dir_metadata['gcd_files'][str(run)]
                 except KeyError:
                     gcd = ""
+                logging.debug(f'Gathering L2 metadata for {file.name}...')
                 return L2FileMetadata(file, self.site, self.l2_dir_metadata['dir_meta_xml'], gaps, gcd)
             # PFFilt
             if PFFiltFileMetadata.is_file(file, processing_level):
+                logging.debug(f'Gathering PFFilt metadata for {file.name}...')
                 return PFFiltFileMetadata(file, self.site)
             # PFDST
             if PFDSTFileMetadata.is_file(file, processing_level):
+                logging.debug(f'Gathering PFDST metadata for {file.name}...')
                 return PFDSTFileMetadata(file, self.site)
             # PFRaw
             if PFRawFileMetadata.is_file(file, processing_level):
+                logging.debug(f'Gathering PFRaw metadata for {file.name}...')
                 return PFRawFileMetadata(file, self.site)
         # Other/ Basic
+        logging.debug(f'Gathering basic metadata for {file.name}...')
         return BasicFileMetadata(file, self.site)
 
 
@@ -553,7 +558,7 @@ def process_dir(path, site, basic_only=False):
     dirs = []
     file_meta = []
 
-    manager = MetadataManager(path, site, basic_only)
+    manager = MetadataManager(site, basic_only)
 
     # get files' metadata
     for dir_entry in scan:
@@ -563,7 +568,6 @@ def process_dir(path, site, basic_only=False):
             logging.debug(f'Directory appended, {dir_entry.path}')
             dirs.append(dir_entry.path)
         elif dir_entry.is_file():
-            logging.debug(f'Gathering metadata for {dir_entry.name}...')
             try:
                 metadata_file = manager.new_file(dir_entry)
                 metadata = metadata_file.generate()

@@ -78,16 +78,16 @@ class ProcessingLevel:
         """Return the processing level parsed from the file name, case insensitive."""
         # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
         search_strings = {
-            "PFRaw": ProcessingLevel.PFRaw,
-            "PFFilt": ProcessingLevel.PFFilt,
+            "PFRAW": ProcessingLevel.PFRaw,
+            "PFFILT": ProcessingLevel.PFFilt,
             "PFDST": ProcessingLevel.PFDST,
-            "Level2": ProcessingLevel.L2,
-            "Level3": ProcessingLevel.L3,
-            "Level4": ProcessingLevel.L4
+            "LEVEL2": ProcessingLevel.L2,
+            "LEVEL3": ProcessingLevel.L3,
+            "LEVEL4": ProcessingLevel.L4
         }
         path_upper = path.upper()
         for string, level in search_strings.items():
-            if string.upper() in path_upper:
+            if string in path_upper:
                 return level
         return None
 
@@ -336,7 +336,8 @@ class L2FileMetadata(I3FileMetadata):
             self.part = int(p.split('.')[0])
 
         # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
-        elif re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Subrun[0-9]+(.*)', self.file.name):
+        # Ex: Level2_IC86.2012_Test_data_Run00120028_Subrun00000081.i3.bz2
+        elif re.match(r'(.*)(\.20\d{2})(.*)_data_Run[0-9]+_Subrun[0-9]+(.*)', self.file.name):
             y = self.file.name.split('.')[1]
             self.season_year = int(y.split('_')[0])
             self.subrun = 0
@@ -403,7 +404,7 @@ class PFFiltFileMetadata(I3FileMetadata):
     def is_file(file, processing_level):
         """ True if PFFilt and the file is in the [...#].tar.[...] file format. """
         # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
-        return processing_level == ProcessingLevel.PFFilt and I3FileMetadata._is_run_tar_file(file)
+        return (processing_level == ProcessingLevel.PFFilt) and I3FileMetadata._is_run_tar_file(file)
 
 
 class PFDSTFileMetadata(I3FileMetadata):
@@ -438,7 +439,7 @@ class PFDSTFileMetadata(I3FileMetadata):
     def is_file(file, processing_level):
         """ True if PFDST and the file is in the [...#].tar.[...] file format. """
         # Ex. ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
-        return processing_level == ProcessingLevel.PFDST and I3FileMetadata._is_run_tar_file(file)
+        return (processing_level == ProcessingLevel.PFDST) and I3FileMetadata._is_run_tar_file(file)
 
 
 class PFRawFileMetadata(I3FileMetadata):
@@ -470,7 +471,7 @@ class PFRawFileMetadata(I3FileMetadata):
     def is_file(file, processing_level):
         """ True if PFRaw and the file is in the [...#].tar.[...] file format. """
         # Ex. key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
-        return processing_level == ProcessingLevel.PFRaw and I3FileMetadata._is_run_tar_file(file)
+        return (processing_level == ProcessingLevel.PFRaw) and I3FileMetadata._is_run_tar_file(file)
 
 
 class MetadataManager:
@@ -544,6 +545,7 @@ class MetadataManager:
             if PFRawFileMetadata.is_file(file, processing_level):
                 logging.debug(f'Gathering PFRaw metadata for {file.name}...')
                 return PFRawFileMetadata(file, self.site)
+            # if no match, fall-through to BasicFileMetadata...
         # Other/ Basic
         logging.debug(f'Gathering basic metadata for {file.name}...')
         return BasicFileMetadata(file, self.site)
@@ -575,6 +577,9 @@ def process_dir(path, site, basic_only=False):
             except (OSError, PermissionError, FileNotFoundError) as e:
                 logging.exception(f'{dir_entry.name} not gathered, {e.__class__.__name__}.')
                 continue
+            except:
+                logging.exception(f'Unexpected exception raised for {dir_entry.name}.')
+                raise
             file_meta.append(metadata)
             logging.debug(f'{dir_entry.name} gathered.')
 
@@ -596,16 +601,19 @@ def gather_file_info(dirs, site, basic_only=False):
             yield from file_meta
 
 
-async def request_post_patch(fc_rc, metadata):
+async def request_post_patch(fc_rc, metadata, dont_patch=False):
     """POST metadata, and PATCH if file is already in the file catalog."""
     try:
         _ = await fc_rc.request("POST", '/api/files', metadata)
         logging.debug('POSTed.')
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 409:
-            patch_path = e.response.json()['file']  # /api/files/{uuid}
-            _ = await fc_rc.request("PATCH", patch_path, metadata)
-            logging.debug('PATCHed.')
+            if dont_patch:
+                logging.debug('File already exists, not replacing.')
+            else:
+                patch_path = e.response.json()['file']  # /api/files/{uuid}
+                _ = await fc_rc.request("PATCH", patch_path, metadata)
+                logging.debug('PATCHed.')
         else:
             raise
     return fc_rc
@@ -630,7 +638,9 @@ async def main():
     parser.add_argument('--retries', type=int, default=3,
                         help='REST client number of retries')
     parser.add_argument('--basic-only', dest='basic_only', default=False, action='store_true',
-                        help='will only collect basic metadata')
+                        help='only collect basic metadata')
+    parser.add_argument('--no-patch', dest='no_patch', default=False, action='store_true',
+                        help='do not PATCH if the file already exists in the file catalog')
     args = parser.parse_args()
 
     for arg, val in vars(args).items():
@@ -643,7 +653,7 @@ async def main():
     # POST each file's metadata to file catalog
     for metadata in gather_file_info(args.path, args.site, args.basic_only):
         logging.info(metadata)
-        fc_rc = await request_post_patch(fc_rc, metadata)
+        fc_rc = await request_post_patch(fc_rc, metadata, args.no_patch)
 
     fc_rc.close()
 

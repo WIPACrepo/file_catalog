@@ -14,6 +14,7 @@ from datetime import date
 from time import sleep
 
 import requests
+
 import xmltodict
 import yaml
 from icecube import dataclasses, dataio
@@ -169,7 +170,12 @@ class I3FileMetadata(BasicFileMetadata):
         # Ex. Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
         # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
         # Ex: Run00125791_GapsTxt.tar
-        r = file.name.split('Run')[1]
+        # Ex: Level2_IC86.2015_24HrTestRuns_data_Run00126291_Subrun00000203.i3.bz2
+        filename = file.name
+        if '24HrTestRuns' in filename:  # hard-coded fix
+            filename = filename.split('24HrTestRuns')[1]
+
+        r = filename.split('Run')[1]
         run = int(r.split('_')[0])
         return run
 
@@ -337,6 +343,7 @@ class L2FileMetadata(I3FileMetadata):
 
         # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
         # Ex: Level2_IC86.2012_Test_data_Run00120028_Subrun00000081.i3.bz2
+        # Ex: Level2_IC86.2015_24HrTestRuns_data_Run00126291_Subrun00000203.i3.bz2
         elif re.match(r'(.*)(\.20\d{2})(.*)_data_Run[0-9]+_Subrun[0-9]+(.*)', self.file.name):
             y = self.file.name.split('.')[1]
             self.season_year = int(y.split('_')[0])

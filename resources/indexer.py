@@ -279,6 +279,8 @@ class L2FileMetadata(I3FileMetadata):
             return None, None, None, None
 
         livetime = float(self.gaps_dict['File Livetime'])  # Ex: 0.92
+        if livetime < 0:  # corrupted value, don't read any more values
+            return None, None, None, None
 
         try:
             first = self.gaps_dict['First Event of File'].split()  # Ex: '53162019 2018 206130762188498'

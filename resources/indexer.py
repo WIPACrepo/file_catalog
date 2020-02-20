@@ -14,7 +14,6 @@ from datetime import date
 from time import sleep
 
 import requests
-
 import xmltodict
 import yaml
 from icecube import dataclasses, dataio
@@ -506,12 +505,15 @@ class MetadataManager:
                 with open(dir_entry.path, 'r') as xml:
                     dir_meta_xml = xmltodict.parse(xml.read())
             elif "_GapsTxt.tar" in dir_entry.name:  # Ex. Run00130484_GapsTxt.tar
-                with tarfile.open(dir_entry.path) as tar:
-                    for tar_obj in tar:
-                        file_dict = yaml.safe_load(tar.extractfile(tar_obj))
-                        # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188_gaps.txt
-                        no_extension = tar_obj.name.split("_gaps.txt")[0]
-                        gaps_files[no_extension] = file_dict
+                try:
+                    with tarfile.open(dir_entry.path) as tar:
+                        for tar_obj in tar:
+                            file_dict = yaml.safe_load(tar.extractfile(tar_obj))
+                            # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188_gaps.txt
+                            no_extension = tar_obj.name.split("_gaps.txt")[0]
+                            gaps_files[no_extension] = file_dict
+                except tarfile.ReadError:
+                    pass
             elif "GCD" in dir_entry.name:  # Ex. Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
                 run = I3FileMetadata.parse_run_number(dir_entry)
                 gcd_files[str(run)] = dir_entry.path

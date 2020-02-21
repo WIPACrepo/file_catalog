@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import tarfile
+import xml
 from concurrent.futures import ProcessPoolExecutor
 from datetime import date
 from time import sleep
@@ -248,10 +249,13 @@ class I3FileMetadata(BasicFileMetadata):
 
     def _grab_meta_xml_from_tar(self):
         """Open tar file and set *meta.xml as self.meta_xml."""
-        with tarfile.open(self.file.path) as tar:
-            for tar_obj in tar:
-                if ".meta.xml" in tar_obj.name:
-                    self.meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
+        try:
+            with tarfile.open(self.file.path) as tar:
+                for tar_obj in tar:
+                    if ".meta.xml" in tar_obj.name:
+                        self.meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
+        except (xml.parsers.expat.ExpatError, tarfile.ReadError):
+            pass
 
     @staticmethod
     def _is_run_tar_file(file):
@@ -499,11 +503,16 @@ class MetadataManager:
         for dir_entry in os.scandir(self.dir_path):
             if not dir_entry.is_file():
                 continue
+            # Meta XML (one per directory)
             if "meta.xml" in dir_entry.name:  # Ex. level2_meta.xml, level2pass2_meta.xml
                 if dir_meta_xml is not None:
                     raise Exception(f"Multiple *meta.xml files found in {self.dir_path}.")
-                with open(dir_entry.path, 'r') as xml:
-                    dir_meta_xml = xmltodict.parse(xml.read())
+                try:
+                    with open(dir_entry.path, 'r') as xml_file:
+                        dir_meta_xml = xmltodict.parse(xml_file.read())
+                except xml.parsers.expat.ExpatError:
+                    pass
+            # Gaps Files (one per i3 file)
             elif "_GapsTxt.tar" in dir_entry.name:  # Ex. Run00130484_GapsTxt.tar
                 try:
                     with tarfile.open(dir_entry.path) as tar:
@@ -514,6 +523,7 @@ class MetadataManager:
                             gaps_files[no_extension] = file_dict
                 except tarfile.ReadError:
                     pass
+            # GCD Files (one per run)
             elif "GCD" in dir_entry.name:  # Ex. Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
                 run = I3FileMetadata.parse_run_number(dir_entry)
                 gcd_files[str(run)] = dir_entry.path

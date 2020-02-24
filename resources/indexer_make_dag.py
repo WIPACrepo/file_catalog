@@ -44,6 +44,8 @@ def main():
     parser.add_argument('--end', type=int, help='end year in /data/exp/IceCube/', required=True)
     parser.add_argument('--level', help='processing level', choices=LEVELS.keys(), required=True)
     parser.add_argument('--rootdir', help='root directory path', default='/mnt/lfs6/exp/IceCube')
+    parser.add_argument('--cpus', type=int, help='number of CPUs', default=2)
+    parser.add_argument('--memory', type=int, help='amount of memory (MB)', default=2000)
     args = parser.parse_args()
 
     scratch = f"/scratch/eevans/{args.level}indexer"
@@ -62,8 +64,8 @@ log = {scratch}/$(JOBNUM).log
 +FileSystemDomain = "blah"
 should_transfer_files = YES
 transfer_input_files = {os.path.abspath(indexer_script)}
-request_cpus = 2
-request_memory = 2000
+request_cpus = {args.cpus}
+request_memory = {args.memory}
 notification = Error
 queue
 """)

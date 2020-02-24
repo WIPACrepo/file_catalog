@@ -254,7 +254,7 @@ class I3FileMetadata(BasicFileMetadata):
                 for tar_obj in tar:
                     if ".meta.xml" in tar_obj.name:
                         self.meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
-        except (xml.parsers.expat.ExpatError, tarfile.ReadError):
+        except (xml.parsers.expat.ExpatError, tarfile.ReadError, EOFError):
             pass
 
     @staticmethod
@@ -403,10 +403,18 @@ class PFFiltFileMetadata(I3FileMetadata):
 
         # Ex: PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
         # Ex: PFFilt_PhysicsTrig_PhysicsFiltering_Run00121503_Subrun00000000_00000314.tar.bz2
-        if re.match(r'PFFilt_(.*)_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', self.file.name):
+        # Ex: orig.PFFilt_PhysicsFiltering_Run00127080_Subrun00000000_00000244.tar.bz2.orig
+        if re.match(r'(.*)PFFilt_(.*)_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', self.file.name):
             self.season_year = None
             s = self.file.name.split('Subrun')[1]
             self.subrun = int(s.split('_')[0])
+            p = self.file.name.split('_')[-1]
+            self.part = int(p.split('.')[0])
+        # Ex: PFFilt_PhysicsTrig_PhysicsFilt_Run00089959_00180.tar.gz
+        # Ex: PFFilt_PhysicsTrig_RandomFilt_Run86885_006.tar.gz
+        if re.match(r'PFFilt_(.*)_Run[0-9]+_[0-9]+(.*)', self.file.name):
+            self.season_year = None
+            self.subrun = 0
             p = self.file.name.split('_')[-1]
             self.part = int(p.split('.')[0])
         else:

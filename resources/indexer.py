@@ -189,16 +189,31 @@ class I3FileMetadata(BasicFileMetadata):
 
     def _parse_xml(self):
         """Return data points from xml dict"""
+        start_dt = None
+        end_dt = None
+        create_date = None
+        software = None
+
         if self.meta_xml:
-            start_dt = str(self.meta_xml['DIF_Plus']['Plus']['Start_DateTime'])
-            end_dt = str(self.meta_xml['DIF_Plus']['Plus']['End_DateTime'])
-            create_date = str(self.meta_xml['DIF_Plus']['DIF']['DIF_Creation_Date'])
-            software = self._get_software()
-        else:
-            start_dt = None
-            end_dt = None
+            try:
+                start_dt = str(self.meta_xml['DIF_Plus']['Plus']['Start_DateTime'])
+            except KeyError:
+                pass
+            try:
+                end_dt = str(self.meta_xml['DIF_Plus']['Plus']['End_DateTime'])
+            except KeyError:
+                pass
+            try:
+                create_date = str(self.meta_xml['DIF_Plus']['DIF']['DIF_Creation_Date'])
+            except KeyError:
+                pass
+            try:
+                software = self._get_software()
+            except KeyError:
+                pass
+
+        if not create_date:
             create_date = date.fromtimestamp(os.path.getctime(self.file.path)).isoformat()
-            software = None
 
         return start_dt, end_dt, create_date, software
 
@@ -412,7 +427,7 @@ class PFFiltFileMetadata(I3FileMetadata):
             self.part = int(p.split('.')[0])
         # Ex: PFFilt_PhysicsTrig_PhysicsFilt_Run00089959_00180.tar.gz
         # Ex: PFFilt_PhysicsTrig_RandomFilt_Run86885_006.tar.gz
-        if re.match(r'PFFilt_(.*)_Run[0-9]+_[0-9]+(.*)', self.file.name):
+        elif re.match(r'PFFilt_(.*)_Run[0-9]+_[0-9]+(.*)', self.file.name):
             self.season_year = None
             self.subrun = 0
             p = self.file.name.split('_')[-1]

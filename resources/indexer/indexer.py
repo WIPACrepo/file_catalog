@@ -21,6 +21,7 @@ import yaml
 from icecube import dataclasses, dataio
 from rest_tools.client import RestClient
 
+ACCEPTED_ROOTS = ('/data/')
 TAR_EXTENSIONS = ('.tar.gz', '.tar.bz2', '.tar.zst')
 
 
@@ -673,6 +674,17 @@ def process_work(path, args, blacklist):
     return dirs
 
 
+def check_paths(paths):
+    """Check if all paths are rooted at a white-listed root path."""
+    for p in paths:
+        for root in ACCEPTED_ROOTS:
+            if p.startswith(root):
+                return
+        message = f"{p} is not rooted at: {', '.join(ACCEPTED_ROOTS)}"
+        logging.critical(message)
+        raise Exception(f'Invalid path ({message}).')
+
+
 def gather_file_info(args):
     """Gather and post metadata from files under args.path. Do this multi-processed."""
     # Load blacklist from pickle
@@ -684,8 +696,11 @@ def gather_file_info(args):
         except FileNotFoundError:
             pass
 
-    # Traverse directories and process files
+    # Get full paths
     dirs = [os.path.abspath(p) for p in args.path]
+    check_paths(dirs)
+
+    # Traverse directories and process files
     futures = []
     with ProcessPoolExecutor() as pool:
         while futures or dirs:
@@ -728,7 +743,7 @@ def main():
 
     logging.info(f'Collecting metadata from {args.path}...')
 
-    gather_file_info()
+    gather_file_info(args)
 
 
 if __name__ == '__main__':

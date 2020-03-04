@@ -21,7 +21,7 @@ import yaml
 from icecube import dataclasses, dataio
 from rest_tools.client import RestClient
 
-ACCEPTED_ROOTS = ('/data/')
+ACCEPTED_ROOTS = ['/data/']
 TAR_EXTENSIONS = ('.tar.gz', '.tar.bz2', '.tar.zst')
 
 
@@ -674,15 +674,15 @@ def process_work(path, args, blacklist):
     return dirs
 
 
-def check_paths(paths):
-    """Check if all paths are rooted at a white-listed root path."""
-    for p in paths:
-        for root in ACCEPTED_ROOTS:
-            if p.startswith(root):
-                return
-        message = f"{p} is not rooted at: {', '.join(ACCEPTED_ROOTS)}"
-        logging.critical(message)
-        raise Exception(f'Invalid path ({message}).')
+def check_path(path):
+    """Check if path is rooted at a white-listed root path."""
+    for root in ACCEPTED_ROOTS:
+        print(f"PATH! {root}")
+        if path.startswith(root):
+            return
+    message = f"{path} is not rooted at: {', '.join(ACCEPTED_ROOTS)}"
+    logging.critical(message)
+    raise Exception(f'Invalid path ({message}).')
 
 
 def gather_file_info(args):
@@ -698,7 +698,8 @@ def gather_file_info(args):
 
     # Get full paths
     dirs = [os.path.abspath(p) for p in args.path]
-    check_paths(dirs)
+    for path in dirs:
+        check_path(path)
 
     # Traverse directories and process files
     futures = []

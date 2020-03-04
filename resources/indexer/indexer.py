@@ -7,6 +7,7 @@ import collections
 import hashlib
 import logging
 import os
+import pickle
 import re
 import tarfile
 import xml
@@ -95,6 +96,7 @@ class ProcessingLevel:
 
 class BasicFileMetadata:
     """Metadata for basic files"""
+
     def __init__(self, file, site):
         self.file = file
         self.site = site
@@ -123,6 +125,7 @@ class BasicFileMetadata:
 
 class I3FileMetadata(BasicFileMetadata):
     """Metadata for i3 files"""
+
     def __init__(self, file, site, processing_level):
         super().__init__(file, site)
         self.processing_level = processing_level
@@ -285,6 +288,7 @@ class I3FileMetadata(BasicFileMetadata):
 
 class L2FileMetadata(I3FileMetadata):
     """Metadata for L2 i3 files"""
+
     def __init__(self, file, site, dir_meta_xml, gaps_dict, gcd_filepath):
         super().__init__(file, site, ProcessingLevel.L2)
         self.meta_xml = dir_meta_xml
@@ -301,8 +305,10 @@ class L2FileMetadata(I3FileMetadata):
             return None, None, None, None
 
         try:
-            first = self.gaps_dict['First Event of File'].split()  # Ex: '53162019 2018 206130762188498'
-            last = self.gaps_dict['Last Event of File'].split()  # Ex: '53164679 2018 206139955965204'
+            # Ex: '53162019 2018 206130762188498'
+            first = self.gaps_dict['First Event of File'].split()
+            # Ex: '53164679 2018 206139955965204'
+            last = self.gaps_dict['Last Event of File'].split()
 
             first_id = int(first[0])
             first_dt = dataclasses.I3Time(int(first[1]), int(first[2])).date_time
@@ -408,6 +414,7 @@ class L2FileMetadata(I3FileMetadata):
 
 class PFFiltFileMetadata(I3FileMetadata):
     """Metadata for PFFilt i3 files"""
+
     def __init__(self, file, site):
         super().__init__(file, site, ProcessingLevel.PFFilt)
         self._grab_meta_xml_from_tar()
@@ -444,6 +451,7 @@ class PFFiltFileMetadata(I3FileMetadata):
 
 class PFDSTFileMetadata(I3FileMetadata):
     """Metadata for PFDST i3 files"""
+
     def __init__(self, file, site):
         super().__init__(file, site, ProcessingLevel.PFDST)
         self._grab_meta_xml_from_tar()
@@ -473,12 +481,14 @@ class PFDSTFileMetadata(I3FileMetadata):
     @staticmethod
     def is_file(file, processing_level):
         """ True if PFDST and the file is in the [...#].tar.[...] file format. """
-        # Ex. ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
+        # Ex.
+        # ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
         return (processing_level == ProcessingLevel.PFDST) and I3FileMetadata._is_run_tar_file(file)
 
 
 class PFRawFileMetadata(I3FileMetadata):
     """Metadata for PFRaw i3 files"""
+
     def __init__(self, file, site):
         super().__init__(file, site, ProcessingLevel.PFRaw)
         self._grab_meta_xml_from_tar()
@@ -511,6 +521,7 @@ class PFRawFileMetadata(I3FileMetadata):
 
 class MetadataManager:
     """Commander class for handling metadata for different file types"""
+
     def __init__(self, site, basic_only=False):
         self.dir_path = ""
         self.site = site
@@ -595,8 +606,12 @@ class MetadataManager:
         return BasicFileMetadata(file, self.site)
 
 
-def process_dir(path, site, basic_only=False):
+def process_dir(path, site, basic_only, blacklist):
     """Return list of sub-directories and metadata of files in directory given by path."""
+    if path in blacklist:
+        logging.debug(f'Skipping directory, {path}')
+        return [], []
+
     try:
         scan = list(os.scandir(path))
     except (PermissionError, FileNotFoundError):
@@ -630,14 +645,23 @@ def process_dir(path, site, basic_only=False):
     return dirs, file_meta
 
 
-def gather_file_info(dirs, site, basic_only=False):
+def gather_file_info(dirs, site, basic_only=False, blacklistpkl=""):
     """Return an iterator for metadata of files recursively found under dirs."""
+    # Load blacklist from pickle
+    blacklist = []
+    if blacklistpkl:
+        try:
+            with open(blacklistpkl, 'rb') as file:
+                blacklist = pickle.load(file)
+        except FileNotFoundError:
+            pass
+
     dirs = [os.path.abspath(p) for p in dirs]
     futures = []
     with ProcessPoolExecutor() as pool:
         while futures or dirs:
             for d in dirs:
-                futures.append(pool.submit(process_dir, d, site, basic_only))
+                futures.append(pool.submit(process_dir, d, site, basic_only, blacklist))
             while not futures[0].done():  # concurrent.futures.wait(FIRST_COMPLETED) is slower
                 sleep(0.1)
             future = futures.pop(0)
@@ -685,6 +709,8 @@ async def main():
                         help='only collect basic metadata')
     parser.add_argument('--no-patch', dest='no_patch', default=False, action='store_true',
                         help='do not PATCH if the file already exists in the file catalog')
+    parser.add_argument('--blacklistpkl', dest='blacklistpkl',
+                        help='blacklist pickle file containing all directory paths to skip')
     args = parser.parse_args()
 
     for arg, val in vars(args).items():
@@ -695,7 +721,7 @@ async def main():
     logging.info(f'Collecting metadata from {args.path}...')
 
     # POST each file's metadata to file catalog
-    for metadata in gather_file_info(args.path, args.site, args.basic_only):
+    for metadata in gather_file_info(args.path, args.site, args.basic_only, args.blacklistpkl):
         logging.info(metadata)
         fc_rc = await request_post_patch(fc_rc, metadata, args.no_patch)
 

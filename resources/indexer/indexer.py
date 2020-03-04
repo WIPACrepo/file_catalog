@@ -606,18 +606,35 @@ class MetadataManager:
         return BasicFileMetadata(file, self.site)
 
 
-def process_dir(path, site, basic_only, blacklist):
+async def request_post_patch(fc_rc, metadata, dont_patch=False):
+    """POST metadata, and PATCH if file is already in the file catalog."""
+    try:
+        _ = await fc_rc.request("POST", '/api/files', metadata)
+        logging.debug('POSTed.')
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 409:
+            if dont_patch:
+                logging.debug('File already exists, not replacing.')
+            else:
+                patch_path = e.response.json()['file']  # /api/files/{uuid}
+                _ = await fc_rc.request("PATCH", patch_path, metadata)
+                logging.debug('PATCHed.')
+        else:
+            raise
+    return fc_rc
+
+
+async def process_dir(path, site, basic_only, blacklist, no_patch, fc_rc):
     """Return list of sub-directories and metadata of files in directory given by path."""
     if path in blacklist:
         logging.debug(f'Skipping directory, {path}')
-        return [], []
+        return []
 
     try:
         scan = list(os.scandir(path))
     except (PermissionError, FileNotFoundError):
         scan = []
     dirs = []
-    file_meta = []
 
     manager = MetadataManager(site, basic_only)
 
@@ -639,56 +656,49 @@ def process_dir(path, site, basic_only, blacklist):
             except:
                 logging.exception(f'Unexpected exception raised for {dir_entry.name}.')
                 raise
-            file_meta.append(metadata)
             logging.debug(f'{dir_entry.name} gathered.')
+            logging.info(metadata)
+            await request_post_patch(fc_rc, metadata, no_patch)
 
-    return dirs, file_meta
+    return dirs
 
 
-def gather_file_info(dirs, site, basic_only=False, blacklistpkl=""):
-    """Return an iterator for metadata of files recursively found under dirs."""
+def process_work(path, args, blacklist):
+    """Wrap async function, process_dir."""
+    fc_rc = RestClient(args.url, token=args.token, timeout=args.timeout, retries=args.retries)
+    dirs = asyncio.get_event_loop().run_until_complete(process_dir(
+        path, args.site, args.basic_only, blacklist, args.no_patch, fc_rc))
+    fc_rc.close()
+
+    return dirs
+
+
+def gather_file_info(args):
+    """Gather and post metadata from files under args.path. Do this multi-processed."""
     # Load blacklist from pickle
     blacklist = []
-    if blacklistpkl:
+    if args.blacklistpkl:
         try:
-            with open(blacklistpkl, 'rb') as file:
+            with open(args.blacklistpkl, 'rb') as file:
                 blacklist = pickle.load(file)
         except FileNotFoundError:
             pass
 
-    dirs = [os.path.abspath(p) for p in dirs]
+    # Traverse directories and process files
+    dirs = [os.path.abspath(p) for p in args.path]
     futures = []
     with ProcessPoolExecutor() as pool:
         while futures or dirs:
             for d in dirs:
-                futures.append(pool.submit(process_dir, d, site, basic_only, blacklist))
+                futures.append(pool.submit(process_work, d, args, blacklist))
             while not futures[0].done():  # concurrent.futures.wait(FIRST_COMPLETED) is slower
                 sleep(0.1)
             future = futures.pop(0)
-            dirs, file_meta = future.result()
-            yield from file_meta
+            dirs = future.result()
 
 
-async def request_post_patch(fc_rc, metadata, dont_patch=False):
-    """POST metadata, and PATCH if file is already in the file catalog."""
-    try:
-        _ = await fc_rc.request("POST", '/api/files', metadata)
-        logging.debug('POSTed.')
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 409:
-            if dont_patch:
-                logging.debug('File already exists, not replacing.')
-            else:
-                patch_path = e.response.json()['file']  # /api/files/{uuid}
-                _ = await fc_rc.request("PATCH", patch_path, metadata)
-                logging.debug('PATCHed.')
-        else:
-            raise
-    return fc_rc
-
-
-async def main():
-    """Main"""
+def main():
+    """Main."""
     parser = argparse.ArgumentParser(description='Find files under PATH(s), compute their metadata and '
                                      'upload it to File Catalog.',
                                      epilog='Notes: (1) symbolic links are never followed.',
@@ -716,18 +726,11 @@ async def main():
     for arg, val in vars(args).items():
         logging.info(f'{arg}: {val}')
 
-    fc_rc = RestClient(args.url, token=args.token, timeout=args.timeout, retries=args.retries)
-
     logging.info(f'Collecting metadata from {args.path}...')
 
-    # POST each file's metadata to file catalog
-    for metadata in gather_file_info(args.path, args.site, args.basic_only, args.blacklistpkl):
-        logging.info(metadata)
-        fc_rc = await request_post_patch(fc_rc, metadata, args.no_patch)
-
-    fc_rc.close()
+    gather_file_info()
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    asyncio.get_event_loop().run_until_complete(main())
+    main()

@@ -632,7 +632,14 @@ def process_dir(path, site, basic_only=False):
 
 def gather_file_info(dirs, site, basic_only=False):
     """Return an iterator for metadata of files recursively found under dirs."""
+    # Get full paths
     dirs = [os.path.abspath(p) for p in dirs]
+    for path in dirs:
+        if not path.startswith('/data/'):
+            logging.critical(f'{path} is not rooted at /data/')
+            raise Exception(f'Invalid path ({path} is not rooted at /data/).')
+
+    # Traverse directories and process files
     futures = []
     with ProcessPoolExecutor() as pool:
         while futures or dirs:

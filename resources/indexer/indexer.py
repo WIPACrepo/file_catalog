@@ -25,6 +25,15 @@ ACCEPTED_ROOTS = ['/data/']
 TAR_EXTENSIONS = ('.tar.gz', '.tar.bz2', '.tar.zst')
 
 
+class FileInfo:
+    """Wrapper around common file information. Similar to os.DirEntry."""
+
+    def __init__(self, filepath):
+        self.path = filepath
+        self.name = os.path.basename(self.path)
+        self.stat = lambda: os.stat(self.path)
+
+
 class IceCubeSeason:
     """Wrapper static class encapsulating season-name - season-year mapping logic."""
     SEASONS = {
@@ -566,8 +575,9 @@ class MetadataManager:
         self.l2_dir_metadata['gaps_files'] = gaps_files
         self.l2_dir_metadata['gcd_files'] = gcd_files
 
-    def new_file(self, file):
+    def new_file(self, filepath):
         """Factory method for returning different metadata-file types"""
+        file = FileInfo(filepath)
         if not self.basic_only:
             processing_level = ProcessingLevel.from_filename(file.name)
             # L2
@@ -625,57 +635,72 @@ async def request_post_patch(fc_rc, metadata, dont_patch=False):
     return fc_rc
 
 
-async def process_file(file, manager, no_patch, fc_rc):
+async def process_file(filepath, manager, fc_rc, no_patch):
     """Gather and POST metadata for a file."""
     try:
-        metadata_file = manager.new_file(file)
+        metadata_file = manager.new_file(filepath)
         metadata = metadata_file.generate()
     # OSError is thrown for special files like sockets
     except (OSError, PermissionError, FileNotFoundError) as e:
-        logging.exception(f'{file.name} not gathered, {e.__class__.__name__}.')
+        logging.exception(f'{filepath} not gathered, {e.__class__.__name__}.')
         return
     except:
-        logging.exception(f'Unexpected exception raised for {file.name}.')
+        logging.exception(f'Unexpected exception raised for {filepath}.')
         raise
-    logging.debug(f'{file.name} gathered.')
+
+    logging.debug(f'{filepath} gathered.')
     logging.info(metadata)
     await request_post_patch(fc_rc, metadata, no_patch)
 
 
-async def process_dir(path, site, basic_only, blacklist, no_patch, fc_rc):
-    """Return list of sub-directories, and POST metadata of files in directory given by path."""
-    if path in blacklist:
-        logging.debug(f'Skipping directory, {path}')
-        return []
-
-    try:
-        scan = list(os.scandir(path))
-    except (PermissionError, FileNotFoundError):
-        scan = []
+async def process_paths(paths, manager, fc_rc, no_patch):
+    """POST metadata of files given by paths, and return any directories."""
     dirs = []
 
-    manager = MetadataManager(site, basic_only)
+    paths = [p for p in paths if not os.path.islink(p)]  # remove symbolic links
 
-    # get files' metadata
-    for dir_entry in scan:
-        if dir_entry.is_symlink():
-            continue
-        elif dir_entry.is_dir():
-            logging.debug(f'Directory appended, {dir_entry.path}')
-            dirs.append(dir_entry.path)
-        elif dir_entry.is_file():
-            await process_file(dir_entry, manager, no_patch, fc_rc)
+    for p in paths:
+        if os.path.isfile(p):
+            await process_file(p, manager, fc_rc, no_patch)
+        elif os.path.isdir(p):
+            logging.debug(f'Directory appended, {p}')
+            dirs.append(p)
 
     return dirs
 
 
-def process_work(path, args, blacklist):
-    """Wrap async function, process_dir."""
-    fc_rc = RestClient(args.url, token=args.token, timeout=args.timeout, retries=args.retries)
-    dirs = asyncio.get_event_loop().run_until_complete(process_dir(
-        path, args.site, args.basic_only, blacklist, args.no_patch, fc_rc))
-    fc_rc.close()
+def path_in_blacklist(path, blacklist):
+    """Return True if path is in the blacklist."""
+    if path in blacklist:
+        logging.debug(f'Skipping file/directory, {path}')
+        return True
+    return False
 
+
+def process_work(paths, args, blacklist):
+    """Wrap async function, process_paths."""
+    if not paths:
+        return []
+
+    # If passed a single directory, process its contents instead
+    if len(paths) == 1 and os.path.isdir(paths[0]):
+        if path_in_blacklist(paths[0], blacklist):
+            return []
+        try:
+            paths = [dir_entry.path for dir_entry in os.scandir(paths[0])]
+        except (PermissionError, FileNotFoundError):
+            return []
+
+    # Check blacklist
+    paths = [p for p in paths if not path_in_blacklist(p, blacklist)]
+
+    # Process Paths
+    fc_rc = RestClient(args.url, token=args.token, timeout=args.timeout, retries=args.retries)
+    manager = MetadataManager(args.site, args.basic_only)
+    dirs = asyncio.get_event_loop().run_until_complete(
+        process_paths(paths, manager, fc_rc, args.no_patch))
+
+    fc_rc.close()
     return dirs
 
 
@@ -701,20 +726,24 @@ def gather_file_info(args):
             pass
 
     # Get full paths
-    dirs = [os.path.abspath(p) for p in args.path]
-    for path in dirs:
-        check_path(path)
+    starting_paths = [os.path.abspath(p) for p in args.paths]
+    for p in starting_paths:
+        check_path(p)
 
-    # Traverse directories and process files
+    # Traverse paths and process files
     futures = []
     with ProcessPoolExecutor() as pool:
-        while futures or dirs:
-            for d in dirs:
-                futures.append(pool.submit(process_work, d, args, blacklist))
+        sub_dirs = []
+        while futures or starting_paths or sub_dirs:
+            for d in sub_dirs:
+                futures.append(pool.submit(process_work, [d], args, blacklist))
+            if starting_paths:
+                futures.append(pool.submit(process_work, starting_paths, args, blacklist))
+                starting_paths = []
             while not futures[0].done():  # concurrent.futures.wait(FIRST_COMPLETED) is slower
                 sleep(0.1)
             future = futures.pop(0)
-            dirs = future.result()
+            sub_dirs = future.result()
 
 
 def main():
@@ -723,7 +752,7 @@ def main():
                                      'upload it to File Catalog.',
                                      epilog='Notes: (1) symbolic links are never followed.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('path', metavar='PATH', nargs='+',
+    parser.add_argument('paths', metavar='PATHS', nargs='+',
                         help='path(s) to scan for files.')
     parser.add_argument('-u', '--url', default='https://file-catalog.icecube.wisc.edu/',  # 'http://localhost:8888'
                         help='File Catalog URL')
@@ -746,7 +775,7 @@ def main():
     for arg, val in vars(args).items():
         logging.info(f'{arg}: {val}')
 
-    logging.info(f'Collecting metadata from {args.path}...')
+    logging.info(f'Collecting metadata from {args.paths}...')
 
     gather_file_info(args)
 

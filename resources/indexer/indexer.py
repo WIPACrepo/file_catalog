@@ -625,8 +625,25 @@ async def request_post_patch(fc_rc, metadata, dont_patch=False):
     return fc_rc
 
 
+async def process_file(file, manager, no_patch, fc_rc):
+    """Gather and POST metadata for a file."""
+    try:
+        metadata_file = manager.new_file(file)
+        metadata = metadata_file.generate()
+    # OSError is thrown for special files like sockets
+    except (OSError, PermissionError, FileNotFoundError) as e:
+        logging.exception(f'{file.name} not gathered, {e.__class__.__name__}.')
+        return
+    except:
+        logging.exception(f'Unexpected exception raised for {file.name}.')
+        raise
+    logging.debug(f'{file.name} gathered.')
+    logging.info(metadata)
+    await request_post_patch(fc_rc, metadata, no_patch)
+
+
 async def process_dir(path, site, basic_only, blacklist, no_patch, fc_rc):
-    """Return list of sub-directories and metadata of files in directory given by path."""
+    """Return list of sub-directories, and POST metadata of files in directory given by path."""
     if path in blacklist:
         logging.debug(f'Skipping directory, {path}')
         return []
@@ -647,19 +664,7 @@ async def process_dir(path, site, basic_only, blacklist, no_patch, fc_rc):
             logging.debug(f'Directory appended, {dir_entry.path}')
             dirs.append(dir_entry.path)
         elif dir_entry.is_file():
-            try:
-                metadata_file = manager.new_file(dir_entry)
-                metadata = metadata_file.generate()
-            # OSError is thrown for special files like sockets
-            except (OSError, PermissionError, FileNotFoundError) as e:
-                logging.exception(f'{dir_entry.name} not gathered, {e.__class__.__name__}.')
-                continue
-            except:
-                logging.exception(f'Unexpected exception raised for {dir_entry.name}.')
-                raise
-            logging.debug(f'{dir_entry.name} gathered.')
-            logging.info(metadata)
-            await request_post_patch(fc_rc, metadata, no_patch)
+            await process_file(dir_entry, manager, no_patch, fc_rc)
 
     return dirs
 
@@ -677,7 +682,6 @@ def process_work(path, args, blacklist):
 def check_path(path):
     """Check if path is rooted at a white-listed root path."""
     for root in ACCEPTED_ROOTS:
-        print(f"PATH! {root}")
         if path.startswith(root):
             return
     message = f"{path} is not rooted at: {', '.join(ACCEPTED_ROOTS)}"

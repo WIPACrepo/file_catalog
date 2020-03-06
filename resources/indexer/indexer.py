@@ -15,6 +15,7 @@ from concurrent.futures import ProcessPoolExecutor
 from datetime import date
 from time import sleep
 
+import numpy
 import requests
 import xmltodict
 import yaml
@@ -655,7 +656,7 @@ async def process_file(filepath, manager, fc_rc, no_patch):
 
 async def process_paths(paths, manager, fc_rc, no_patch):
     """POST metadata of files given by paths, and return any directories."""
-    dirs = []
+    sub_files = []
 
     paths = [p for p in paths if not os.path.islink(p)]  # remove symbolic links
 
@@ -663,10 +664,14 @@ async def process_paths(paths, manager, fc_rc, no_patch):
         if os.path.isfile(p):
             await process_file(p, manager, fc_rc, no_patch)
         elif os.path.isdir(p):
-            logging.debug(f'Directory appended, {p}')
-            dirs.append(p)
+            logging.debug(f'Directory found, {p}. Queuing its contents...')
+            try:
+                sub_files.extend([dir_entry.path for dir_entry in os.scandir(p)
+                                  if not dir_entry.is_symlink()])  # don't add symbolic links
+            except (PermissionError, FileNotFoundError):
+                continue
 
-    return dirs
+    return sub_files
 
 
 def path_in_blacklist(path, blacklist):
@@ -678,18 +683,11 @@ def path_in_blacklist(path, blacklist):
 
 
 def process_work(paths, args, blacklist):
-    """Wrap async function, process_paths."""
+    """Wrap async function, process_paths. Return files nested under any directories."""
+    if not isinstance(paths, list):
+        raise TypeError(f'`paths` object is not list {paths}')
     if not paths:
         return []
-
-    # If passed a single directory, process its contents instead
-    if len(paths) == 1 and os.path.isdir(paths[0]):
-        if path_in_blacklist(paths[0], blacklist):
-            return []
-        try:
-            paths = [dir_entry.path for dir_entry in os.scandir(paths[0])]
-        except (PermissionError, FileNotFoundError):
-            return []
 
     # Check blacklist
     paths = [p for p in paths if not path_in_blacklist(p, blacklist)]
@@ -697,11 +695,11 @@ def process_work(paths, args, blacklist):
     # Process Paths
     fc_rc = RestClient(args.url, token=args.token, timeout=args.timeout, retries=args.retries)
     manager = MetadataManager(args.site, args.basic_only)
-    dirs = asyncio.get_event_loop().run_until_complete(
+    sub_files = asyncio.get_event_loop().run_until_complete(
         process_paths(paths, manager, fc_rc, args.no_patch))
 
     fc_rc.close()
-    return dirs
+    return sub_files
 
 
 def check_path(path):
@@ -714,7 +712,12 @@ def check_path(path):
     raise Exception(f'Invalid path ({message}).')
 
 
-def gather_file_info(args):
+def chunk_list(_list, chunk_count):
+    """Chunk list into sub-lists."""
+    return [list(a) for a in numpy.array_split(_list, chunk_count)]
+
+
+def gather_file_info(starting_paths, args):
     """Gather and post metadata from files under args.path. Do this multi-processed."""
     # Load blacklist from pickle
     blacklist = []
@@ -726,24 +729,33 @@ def gather_file_info(args):
             pass
 
     # Get full paths
-    starting_paths = [os.path.abspath(p) for p in args.paths]
+    starting_paths = [os.path.abspath(p) for p in starting_paths]
     for p in starting_paths:
         check_path(p)
 
     # Traverse paths and process files
     futures = []
     with ProcessPoolExecutor() as pool:
-        sub_dirs = []
-        while futures or starting_paths or sub_dirs:
-            for d in sub_dirs:
-                futures.append(pool.submit(process_work, [d], args, blacklist))
-            if starting_paths:
-                futures.append(pool.submit(process_work, starting_paths, args, blacklist))
-                starting_paths = []
+        # sub_dirs = []
+        for paths in chunk_list(starting_paths, args.processes):
+            futures.append(pool.submit(process_work, paths, args, blacklist))
+        logging.debug(f'Workers: {futures}.')
+        queue = []  # list of nested paths
+        while futures or queue:
+            # Extend the queue
             while not futures[0].done():  # concurrent.futures.wait(FIRST_COMPLETED) is slower
                 sleep(0.1)
             future = futures.pop(0)
-            sub_dirs = future.result()
+            logging.debug(f'Worker finished: {future}.')
+            queue.extend(future.result())
+            # Relaunch worker(s)
+            if queue:
+                queue.sort()
+                while args.processes != len(futures):
+                    split = (len(queue) // args.processes) + 1
+                    paths, queue = queue[:split], queue[split:]
+                    futures.append(pool.submit(process_work, paths, args, blacklist))
+                    logging.debug(f'Worker {future} reassigned. Workers: {futures}.')
 
 
 def main():
@@ -752,8 +764,12 @@ def main():
                                      'upload it to File Catalog.',
                                      epilog='Notes: (1) symbolic links are never followed.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('paths', metavar='PATHS', nargs='+',
+    parser.add_argument('paths', metavar='PATHS', nargs='*',
                         help='path(s) to scan for files.')
+    parser.add_argument('--paths-file', dest='paths_file', default=None,
+                        help='file containing path(s) to scan for files. (use this option for a large number of paths)')
+    parser.add_argument('--processes', type=int, default=1,
+                        help='number of process for multi-processing')
     parser.add_argument('-u', '--url', default='https://file-catalog.icecube.wisc.edu/',  # 'http://localhost:8888'
                         help='File Catalog URL')
     parser.add_argument('-s', '--site', required=True,
@@ -769,15 +785,22 @@ def main():
     parser.add_argument('--no-patch', dest='no_patch', default=False, action='store_true',
                         help='do not PATCH if the file already exists in the file catalog')
     parser.add_argument('--blacklistpkl', dest='blacklistpkl',
-                        help='blacklist pickle file containing all directory paths to skip')
+                        help='blacklist pickle file containing all directory paths to skip')  # TODO - change this to plain file
     args = parser.parse_args()
 
     for arg, val in vars(args).items():
         logging.info(f'{arg}: {val}')
 
-    logging.info(f'Collecting metadata from {args.paths}...')
+    logging.info(f'Collecting metadata from {args.paths} and those in {args.paths_file}...')
 
-    gather_file_info(args)
+    # Aggregate and sort all paths
+    paths = args.paths
+    if args.paths_file:
+        with open(args.paths_file) as file:
+            paths.extend([line.rstrip() for line in file])
+    paths = sorted(set(paths))
+
+    gather_file_info(paths, args)
 
 
 if __name__ == '__main__':

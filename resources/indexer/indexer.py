@@ -676,9 +676,10 @@ async def process_paths(paths, manager, fc_rc, no_patch):
 
 def path_in_blacklist(path, blacklist):
     """Return True if path is in the blacklist."""
-    if path in blacklist:
-        logging.debug(f'Skipping file/directory, {path}')
-        return True
+    for b in blacklist:
+        if path.startswith(b):
+            logging.debug(f'Skipping {path}, file and/or directory is in blacklist.')
+            return True
     return False
 
 
@@ -712,17 +713,8 @@ def check_path(path):
     raise Exception(f'Invalid path ({message}).')
 
 
-def gather_file_info(starting_paths, args):
-    """Gather and post metadata from files under args.path. Do this multi-processed."""
-    # Load blacklist from pickle
-    blacklist = []
-    if args.blacklistpkl:
-        try:
-            with open(args.blacklistpkl, 'rb') as file:
-                blacklist = pickle.load(file)
-        except FileNotFoundError:
-            pass
-
+def gather_file_info(starting_paths, blacklist, args):
+    """Gather and post metadata from files rooted at starting_paths. Do this multi-processed."""
     # Get full paths
     starting_paths = [os.path.abspath(p) for p in starting_paths]
     for p in starting_paths:
@@ -780,8 +772,8 @@ def main():
                         help='only collect basic metadata')
     parser.add_argument('--no-patch', dest='no_patch', default=False, action='store_true',
                         help='do not PATCH if the file already exists in the file catalog')
-    parser.add_argument('--blacklistpkl', dest='blacklistpkl',
-                        help='blacklist pickle file containing all directory paths to skip')  # TODO - change this to plain file
+    parser.add_argument('--blacklist-file', dest='blacklist_file',
+                        help='blacklist file containing all directory paths to skip')
     args = parser.parse_args()
 
     for arg, val in vars(args).items():
@@ -796,7 +788,13 @@ def main():
             paths.extend([line.rstrip() for line in file])
     paths = sorted(set(paths))
 
-    gather_file_info(paths, args)
+    # Read blacklisted paths
+    blacklist = []
+    if args.blacklist_file:
+        with open(args.blacklist_file) as file:
+            blacklist.extend([line.rstrip() for line in file])
+
+    gather_file_info(paths, blacklist, args)
 
 
 if __name__ == '__main__':

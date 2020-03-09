@@ -745,6 +745,18 @@ def gather_file_info(starting_paths, blacklist, args):
             logging.debug(f'Worker finished: {future} (enqueued {len(result)}).')
 
 
+def sorted_unique(infile, others=None):
+    """Read in lines from file, aggregate with those in others list. Return all unique lines, sorted."""
+    lines = []
+    if others:
+        lines.extend(others)
+    if infile:
+        with open(infile) as file:
+            lines.extend([l.rstrip() for l in file])
+    lines = [l for l in sorted(set(lines)) if l]
+    return lines
+
+
 def main():
     """Main."""
     parser = argparse.ArgumentParser(description='Find files under PATH(s), compute their metadata and '
@@ -781,17 +793,10 @@ def main():
     logging.info(f'Collecting metadata from {args.paths} and those in file (at {args.paths_file})...')
 
     # Aggregate and sort all paths
-    paths = args.paths
-    if args.paths_file:
-        with open(args.paths_file) as file:
-            paths.extend([line.rstrip() for line in file])
-    paths = sorted(set(paths))
+    paths = sorted_unique(args.paths_file, others=args.paths)
 
     # Read blacklisted paths
-    blacklist = []
-    if args.blacklist_file:
-        with open(args.blacklist_file) as file:
-            blacklist.extend([line.rstrip() for line in file])
+    blacklist = sorted_unique(args.blacklist_file)
 
     gather_file_info(paths, blacklist, args)
 

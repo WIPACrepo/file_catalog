@@ -649,7 +649,7 @@ async def process_file(filepath, manager, fc_rc, no_patch):
         raise
 
     logging.debug(f'{filepath} gathered.')
-    logging.info(metadata)
+    logging.debug(metadata)
     await request_post_patch(fc_rc, metadata, no_patch)
 
 
@@ -785,8 +785,11 @@ def main():
                         help='do not PATCH if the file already exists in the file catalog')
     parser.add_argument('--blacklist-file', dest='blacklist_file',
                         help='blacklist file containing all paths to skip')
+    parser.add_argument('-l', '--log', default='DEBUG',
+                        help='the output logging level')
     args = parser.parse_args()
 
+    logging.basicConfig(level=getattr(logging, args.log.upper()))
     for arg, val in vars(args).items():
         logging.info(f'{arg}: {val}')
 
@@ -802,5 +805,4 @@ def main():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
     main()

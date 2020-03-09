@@ -1,5 +1,5 @@
 # l2_indexer_make_dag.py
-"""Make the Condor/DAGMan script for Level2 data."""
+"""Make the Condor/DAGMan script for indexing /data/exp/."""
 
 import argparse
 import os
@@ -12,18 +12,49 @@ LEVELS = {
     "PFFilt": "filtered/PFFilt",
     "PFDST": "unbiased/PFDST",
     "PFRaw": "unbiased/PFRaw",
+    "All": None,
 }
+BEGIN_YEAR = 2005
+END_YEAR = 2021
 
 
-def _get_dirpaths(begin_year, end_year, level, root_dir):
+def _get_paths_files(paths_per_file=10000):
+    data_user = '/data/user/eevans'
+    all_paths_orig = f'{data_user}/allpaths.orig'
+    all_paths_sort = f'{data_user}/allpaths.sort'
+    all_paths_dir = f'{data_user}/allpaths/'
+
+    def os_system_print(cmd):
+        print(f'{cmd}')
+        os.system(cmd)
+
+    def check_call_print(cmd, cwd='.'):
+        print(f'{cmd} @ {cwd}')
+        subprocess.check_call(cmd, cwd=cwd)
+
+    os_system_print(f'python directory_scanner.py /data/exp/ > {all_paths_orig}')
+    os_system_print(f'sort {all_paths_orig} > {all_paths_sort}')
+
+    result = subprocess.run(f'wc -l {all_paths_sort}'.split(), stdout=subprocess.PIPE)
+    num = int(result.stdout.decode('utf-8').split()[0]) // paths_per_file
+    check_call_print(f'mkdir {all_paths_dir}'.split())
+    check_call_print(f'split -n{num} {all_paths_sort} paths_file_'.split(), cwd=all_paths_dir)
+
+    return sorted([os.path.abspath(p.path) for p in os.scandir(all_paths_dir)])
+
+
+def _get_level_specific_dirpaths(begin_year, end_year, level):
     years = [str(y) for y in range(begin_year, end_year)]
-    dirs = [d for d in os.scandir(os.path.abspath(root_dir)) if d.name in years]  # Ex: [/mnt/lfs6/exp/IceCube/2018, ...]
+
+    # Ex: [/data/exp/IceCube/2018, ...]
+    dirs = [d for d in os.scandir(os.path.abspath('/data/exp/IceCube')) if d.name in years]
 
     days = []
     for _dir in dirs:
-        path = os.path.join(_dir.path, LEVELS[level])  # Ex: /mnt/lfs6/exp/IceCube/2018/filtered/PFFilt
+        # Ex: /data/exp/IceCube/2018/filtered/PFFilt
+        path = os.path.join(_dir.path, LEVELS[level])
         try:
-            # Ex: /mnt/lfs6/exp/IceCube/2018/filtered/PFFilt/0806
+            # Ex: /data/exp/IceCube/2018/filtered/PFFilt/0806
             day_dirs = [d.path for d in os.scandir(path) if re.match(r"\d{4}", d.name)]
             days.extend(day_dirs)
         except:
@@ -40,43 +71,68 @@ def main():
     parser.add_argument('-j', '--maxjobs', default=500, help='max concurrent jobs')
     parser.add_argument('--timeout', type=int, default=300, help='REST client timeout duration')
     parser.add_argument('--retries', type=int, default=10, help='REST client number of retries')
-    parser.add_argument('--begin', type=int, help='beginning year in /data/exp/IceCube/', required=True)
-    parser.add_argument('--end', type=int, help='end year in /data/exp/IceCube/', required=True)
     parser.add_argument('--level', help='processing level', choices=LEVELS.keys(), required=True)
-    parser.add_argument('--rootdir', help='root directory path', default='/mnt/lfs6/exp/IceCube')
+    parser.add_argument('--levelyears', nargs=2, type=int, default=[BEGIN_YEAR, END_YEAR],
+                        help='beginning and end year in /data/exp/IceCube/')
     parser.add_argument('--cpus', type=int, help='number of CPUs', default=2)
     parser.add_argument('--memory', type=int, help='amount of memory (MB)', default=2000)
+    parser.add_argument('--blacklist', help='blacklist file containing all paths to skip')
     args = parser.parse_args()
 
+    # make condor scratch directory
     scratch = f"/scratch/eevans/{args.level}indexer"
     if not os.path.exists(scratch):
         os.makedirs(scratch)
 
-    indexer_script = 'indexer.py'
+    # configure transfer_input_files
+    transfer_input_files = ['indexer.py']
+    if args.blacklist:
+        blacklist_arg = f'--blacklist {args.blacklist}'
+        transfer_input_files.append(args.blacklist)
 
+    # path or paths_file
+    path_arg = ''
+    if args.level == 'All':
+        path_arg = '--paths-file $(PATHS_FILE)'
+    else:
+        path_arg = '$(PATH)'
+
+    # make condor file
     condorpath = os.path.join(scratch, 'condor')
-    with open(condorpath, 'w') as f:
-        f.write(f"""executable = {os.path.abspath(args.env)}
-arguments = python {indexer_script} -s WIPAC $(PATH) -t {args.token} --timeout {args.timeout} --retries {args.retries}
+    with open(condorpath, 'w') as file:
+        file.write(f"""executable = {os.path.abspath(args.env)}
+arguments = python indexer.py -s WIPAC {path_arg} -t {args.token} --timeout {args.timeout} --retries {args.retries} {blacklist_arg}
 output = {scratch}/$(JOBNUM).out
 error = {scratch}/$(JOBNUM).err
 log = {scratch}/$(JOBNUM).log
 +FileSystemDomain = "blah"
 should_transfer_files = YES
-transfer_input_files = {os.path.abspath(indexer_script)}
+transfer_input_files = {",".join([os.path.abspath(f) for f in transfer_input_files])}
 request_cpus = {args.cpus}
 request_memory = {args.memory}
 notification = Error
 queue
 """)
 
+    # make dag file
     dagpath = os.path.join(scratch, 'dag')
-    with open(dagpath, 'w') as f:
-        for i, path in enumerate(_get_dirpaths(args.begin, args.end, args.level, args.rootdir)):
-            f.write(f'JOB job{i} condor\n')
-            f.write(f'VARS job{i} PATH="{path}"\n')
-            f.write(f'VARS job{i} JOBNUM="{i}"\n')
+    with open(dagpath, 'w') as file:
+        if args.level == 'All':
+            paths = _get_paths_files()
+        else:
+            begin_year = min(args.levelyears)
+            end_year = max(args.levelyears)
+            paths = _get_level_specific_dirpaths(begin_year, end_year, args.level)
 
+        for i, path in enumerate(paths):
+            file.write(f'JOB job{i} condor\n')
+            if args.level == 'All':
+                file.write(f'VARS job{i} PATHS_FILE="{path}"\n')
+            else:
+                file.write(f'VARS job{i} PATH="{path}"\n')
+            file.write(f'VARS job{i} JOBNUM="{i}"\n')
+
+    # Execute
     cmd = ['condor_submit_dag', '-maxjobs', str(args.maxjobs), dagpath]
     print(cmd)
     subprocess.check_call(cmd, cwd=scratch)

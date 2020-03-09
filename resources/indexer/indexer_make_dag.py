@@ -12,7 +12,7 @@ LEVELS = {
     "PFFilt": "filtered/PFFilt",
     "PFDST": "unbiased/PFDST",
     "PFRaw": "unbiased/PFRaw",
-    "All": None,
+    "Everything": None,
 }
 BEGIN_YEAR = 2005
 END_YEAR = 2021
@@ -71,7 +71,8 @@ def main():
     parser.add_argument('-j', '--maxjobs', default=500, help='max concurrent jobs')
     parser.add_argument('--timeout', type=int, default=300, help='REST client timeout duration')
     parser.add_argument('--retries', type=int, default=10, help='REST client number of retries')
-    parser.add_argument('--level', help='processing level', choices=LEVELS.keys(), required=True)
+    parser.add_argument('--level', help='processing level. `Everything` will index all of /data/exp/',
+                        choices=LEVELS.keys(), required=True)
     parser.add_argument('--levelyears', nargs=2, type=int, default=[BEGIN_YEAR, END_YEAR],
                         help='beginning and end year in /data/exp/IceCube/')
     parser.add_argument('--cpus', type=int, help='number of CPUs', default=2)
@@ -86,13 +87,14 @@ def main():
 
     # configure transfer_input_files
     transfer_input_files = ['indexer.py']
+    blacklist_arg = ''
     if args.blacklist:
         blacklist_arg = f'--blacklist {args.blacklist}'
         transfer_input_files.append(args.blacklist)
 
     # path or paths_file
     path_arg = ''
-    if args.level == 'All':
+    if args.level == 'Everything':
         path_arg = '--paths-file $(PATHS_FILE)'
     else:
         path_arg = '$(PATH)'
@@ -117,7 +119,7 @@ queue
     # make dag file
     dagpath = os.path.join(scratch, 'dag')
     with open(dagpath, 'w') as file:
-        if args.level == 'All':
+        if args.level == 'Everything':
             paths = _get_paths_files()
         else:
             begin_year = min(args.levelyears)
@@ -126,7 +128,7 @@ queue
 
         for i, path in enumerate(paths):
             file.write(f'JOB job{i} condor\n')
-            if args.level == 'All':
+            if args.level == 'Everything':
                 file.write(f'VARS job{i} PATHS_FILE="{path}"\n')
             else:
                 file.write(f'VARS job{i} PATH="{path}"\n')

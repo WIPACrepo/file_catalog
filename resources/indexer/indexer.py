@@ -6,6 +6,7 @@ import asyncio
 import collections
 import hashlib
 import logging
+import math
 import os
 import pickle
 import re
@@ -15,7 +16,6 @@ from concurrent.futures import ProcessPoolExecutor
 from datetime import date
 from time import sleep
 
-import numpy
 import requests
 import xmltodict
 import yaml
@@ -712,11 +712,6 @@ def check_path(path):
     raise Exception(f'Invalid path ({message}).')
 
 
-def chunk_list(_list, chunk_count):
-    """Chunk list into sub-lists."""
-    return [list(a) for a in numpy.array_split(_list, chunk_count)]
-
-
 def gather_file_info(starting_paths, args):
     """Gather and post metadata from files under args.path. Do this multi-processed."""
     # Load blacklist from pickle
@@ -736,26 +731,27 @@ def gather_file_info(starting_paths, args):
     # Traverse paths and process files
     futures = []
     with ProcessPoolExecutor() as pool:
-        # sub_dirs = []
-        for paths in chunk_list(starting_paths, args.processes):
-            futures.append(pool.submit(process_work, paths, args, blacklist))
-        logging.debug(f'Workers: {futures}.')
-        queue = []  # list of nested paths
+        queue = starting_paths
+        split = math.ceil(len(queue) / args.processes)
         while futures or queue:
+            logging.debug(f'Queue: {len(queue)}.')
+            # Divvy up queue among available worker(s). Each worker gets 1/nth of the queue.
+            if queue:
+                queue.sort()
+                while args.processes != len(futures):
+                    paths, queue = queue[:split], queue[split:]
+                    logging.debug(f'Worker Assigned: {len(futures)+1}/{args.processes} ({len(paths)} paths).')
+                    futures.append(pool.submit(process_work, paths, args, blacklist))
+            logging.debug(f'Workers: {len(futures)} {futures}.')
             # Extend the queue
             while not futures[0].done():  # concurrent.futures.wait(FIRST_COMPLETED) is slower
                 sleep(0.1)
             future = futures.pop(0)
-            logging.debug(f'Worker finished: {future}.')
-            queue.extend(future.result())
-            # Relaunch worker(s)
-            if queue:
-                queue.sort()
-                while args.processes != len(futures):
-                    split = (len(queue) // args.processes) + 1
-                    paths, queue = queue[:split], queue[split:]
-                    futures.append(pool.submit(process_work, paths, args, blacklist))
-                    logging.debug(f'Worker {future} reassigned. Workers: {futures}.')
+            result = future.result()
+            if result:
+                queue.extend(result)
+                split = math.ceil(len(queue) / args.processes)
+            logging.debug(f'Worker finished: {future} (enqueued {len(result)}).')
 
 
 def main():
@@ -791,7 +787,7 @@ def main():
     for arg, val in vars(args).items():
         logging.info(f'{arg}: {val}')
 
-    logging.info(f'Collecting metadata from {args.paths} and those in {args.paths_file}...')
+    logging.info(f'Collecting metadata from {args.paths} and those in file at ({args.paths_file})...')
 
     # Aggregate and sort all paths
     paths = args.paths

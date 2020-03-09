@@ -8,7 +8,6 @@ import hashlib
 import logging
 import math
 import os
-import pickle
 import re
 import tarfile
 import xml
@@ -773,13 +772,13 @@ def main():
     parser.add_argument('--no-patch', dest='no_patch', default=False, action='store_true',
                         help='do not PATCH if the file already exists in the file catalog')
     parser.add_argument('--blacklist-file', dest='blacklist_file',
-                        help='blacklist file containing all directory paths to skip')
+                        help='blacklist file containing all paths to skip')
     args = parser.parse_args()
 
     for arg, val in vars(args).items():
         logging.info(f'{arg}: {val}')
 
-    logging.info(f'Collecting metadata from {args.paths} and those in file at ({args.paths_file})...')
+    logging.info(f'Collecting metadata from {args.paths} and those in file (at {args.paths_file})...')
 
     # Aggregate and sort all paths
     paths = args.paths

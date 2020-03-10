@@ -2,6 +2,7 @@
 """Make the Condor/DAGMan script for indexing /data/exp/."""
 
 import argparse
+import getpass
 import os
 import re
 import subprocess
@@ -19,26 +20,23 @@ END_YEAR = 2021
 
 
 def _get_paths_files(paths_per_file=10000):
-    data_user = '/data/user/eevans'
-    root = f'{data_user}/indexerall/'
-    file_orig = f'{root}/paths.orig'
-    dir_temp = f'{root}/pathstemp/'
-    file_sort = f'{root}/paths.sort'
-    dir_split = f'{root}/paths/'
+    root = os.path.join('/data/user/', getpass.getuser(), 'indexerall/')
+    file_orig = os.path.join(root, 'paths.orig')
+    dir_temp = os.path.join(root, 'pathstemp/')
+    file_sort = os.path.join(root, 'paths.sort')
+    dir_split = os.path.join(root, 'paths/')
 
-    def os_system_print(cmd):
-        print(f'{cmd}')
-        os.system(cmd)
-
-    def check_call_print(cmd, cwd='.'):
+    def check_call_print(cmd, cwd='.', shell=False):
+        if shell and isinstance(cmd, []):
+            raise Exception('Do not set shell=True and pass a list--pass a string.')
         print(f'{cmd} @ {cwd}')
-        subprocess.check_call(cmd, cwd=cwd)
+        subprocess.check_call(cmd, cwd=cwd, shell=shell)
 
     check_call_print(f'mkdir {root}'.split())
 
     # Get all file-paths in /data/exp/ and sort the list
-    os_system_print(f'python directory_scanner.py /data/exp/ > {file_orig}')
-    os_system_print(f'sort -T {dir_temp} {file_orig} > {file_sort}')
+    check_call_print(f'python directory_scanner.py /data/exp/ > {file_orig}', shell=True)
+    check_call_print(f'sort -T {dir_temp} {file_orig} > {file_sort}', shell=True)
 
     # split the file into n files
     result = subprocess.run(f'wc -l {file_sort}'.split(), stdout=subprocess.PIPE)
@@ -89,7 +87,7 @@ def main():
     args = parser.parse_args()
 
     # make condor scratch directory
-    scratch = f"/scratch/eevans/{args.level}indexer"
+    scratch = os.path.join('/scratch/', getpass.getuser(), f'{args.level}indexer')
     if not os.path.exists(scratch):
         os.makedirs(scratch)
 

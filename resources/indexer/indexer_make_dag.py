@@ -6,6 +6,7 @@ import getpass
 import os
 import re
 import subprocess
+from datetime import datetime as dt
 
 LEVELS = {
     "L2": "filtered/level2",
@@ -19,17 +20,19 @@ BEGIN_YEAR = 2005
 END_YEAR = 2021
 
 
+def check_call_print(cmd, cwd='.', shell=False):
+    """Wrap subprocess.check_call and print command."""
+    if shell and isinstance(cmd, list):
+        raise Exception('Do not set shell=True and pass a list--pass a string.')
+    print(f'Execute: {cmd} @ {cwd}')
+    subprocess.check_call(cmd, cwd=cwd, shell=shell)
+
+
 def _get_paths_files(paths_per_file=10000):
-    root = os.path.join('/data/user/', getpass.getuser(), 'indexerall/')
+    root = os.path.join('/data/user/', getpass.getuser(), 'indexer-data-exp/')
     file_orig = os.path.join(root, 'paths.orig')
     file_sort = os.path.join(root, 'paths.sort')
     dir_split = os.path.join(root, 'paths/')
-
-    def check_call_print(cmd, cwd='.', shell=False):
-        if shell and isinstance(cmd, list):
-            raise Exception('Do not set shell=True and pass a list--pass a string.')
-        print(f'{cmd} @ {cwd}')
-        subprocess.check_call(cmd, cwd=cwd, shell=shell)
 
     if not os.path.exists(root):
         check_call_print(f'mkdir {root}'.split())
@@ -39,6 +42,12 @@ def _get_paths_files(paths_per_file=10000):
         check_call_print(f'''sed -i '/^[[:space:]]*$/d' {file_orig}''', shell=True)  # remove blanks
         check_call_print(f'sort -T {root} {file_orig} > {file_sort}', shell=True)
 
+        # Copy/Archive
+        time = dt.now().isoformat(timespec='seconds')
+        file_archive = os.path.join('/data/user/', getpass.getuser(), f'data-exp-{time}')
+        print(f'Archive File: at {file_archive}')
+        check_call_print(f'cp {file_sort} {file_archive}'.split())
+
         # split the file into n files
         result = subprocess.run(f'wc -l {file_sort}'.split(), stdout=subprocess.PIPE)
         num = int(result.stdout.decode('utf-8').split()[0]) // paths_per_file
@@ -46,7 +55,7 @@ def _get_paths_files(paths_per_file=10000):
         check_call_print(f'split -n{num} {file_sort} paths_file_'.split(), cwd=dir_split)
 
     else:
-        print(f'{root} already exists. Using preexisting files.')
+        print(f'Writing Bypassed: {root} already exists. Using preexisting files.')
 
     return sorted([os.path.abspath(p.path) for p in os.scandir(dir_split)])
 
@@ -98,7 +107,7 @@ def main():
     # make condor file
     condorpath = os.path.join(scratch, 'condor')
     if os.path.exists(condorpath):
-        print(f'{condorpath} already exists. Using preexisting condor file.')
+        print(f'Writing Bypassed: {condorpath} already exists. Using preexisting condor file.')
     else:
         with open(condorpath, 'w') as file:
             # configure transfer_input_files
@@ -133,7 +142,7 @@ queue
     # make dag file
     dagpath = os.path.join(scratch, 'dag')
     if os.path.exists(dagpath):
-        print(f'{dagpath} already exists. Using preexisting dag file.')
+        print(f'Writing Bypassed: {dagpath} already exists. Using preexisting dag file.')
     else:
         # write
         with open(dagpath, 'w') as file:
@@ -153,12 +162,10 @@ queue
                 file.write(f'VARS job{i} JOBNUM="{i}"\n')
 
     # Execute
-    cmd = ['condor_submit_dag', '-maxjobs', str(args.maxjobs), dagpath]
-    print(cmd)
     if args.dryrun:
         print('Indexer Aborted: Condor jobs not submitted.')
     else:
-        subprocess.check_call(cmd, cwd=scratch)
+        check_call_print(f'condor_submit_dag -maxjobs {args.maxjobs} {dagpath}', cwd=scratch)
 
 
 if __name__ == '__main__':

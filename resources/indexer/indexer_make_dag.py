@@ -36,6 +36,7 @@ def _get_paths_files(paths_per_file=10000):
 
         # Get all file-paths in /data/exp/ and sort the list
         check_call_print(f'python directory_scanner.py /data/exp/ > {file_orig}', shell=True)
+        check_call_print(f'''sed -i '/^[[:space:]]*$/d' {file_orig}''', shell=True)  # remove blanks
         check_call_print(f'sort -T {root} {file_orig} > {file_sort}', shell=True)
 
         # split the file into n files

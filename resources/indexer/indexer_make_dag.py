@@ -20,9 +20,10 @@ END_YEAR = 2021
 
 def _get_paths_files(paths_per_file=10000):
     data_user = '/data/user/eevans'
-    all_paths_orig = f'{data_user}/allpaths.orig'
-    all_paths_sort = f'{data_user}/allpaths.sort'
-    all_paths_dir = f'{data_user}/allpaths/'
+    file_orig = f'{data_user}/indexerallpaths.orig'
+    dir_temp = f'{data_user}/indexerallpathstemp/'
+    file_sort = f'{data_user}/indexerallpaths.sort'
+    dir_split = f'{data_user}/indexerallpaths/'
 
     def os_system_print(cmd):
         print(f'{cmd}')
@@ -32,15 +33,17 @@ def _get_paths_files(paths_per_file=10000):
         print(f'{cmd} @ {cwd}')
         subprocess.check_call(cmd, cwd=cwd)
 
-    os_system_print(f'python directory_scanner.py /data/exp/ > {all_paths_orig}')
-    os_system_print(f'sort {all_paths_orig} > {all_paths_sort}')
+    # Get all file-paths in /data/exp/ and sort the list
+    os_system_print(f'python directory_scanner.py /data/exp/ > {file_orig}')
+    os_system_print(f'sort -T {dir_temp} {file_orig} > {file_sort}')
 
-    result = subprocess.run(f'wc -l {all_paths_sort}'.split(), stdout=subprocess.PIPE)
+    # split the file into n files
+    result = subprocess.run(f'wc -l {file_sort}'.split(), stdout=subprocess.PIPE)
     num = int(result.stdout.decode('utf-8').split()[0]) // paths_per_file
-    check_call_print(f'mkdir {all_paths_dir}'.split())
-    check_call_print(f'split -n{num} {all_paths_sort} paths_file_'.split(), cwd=all_paths_dir)
+    check_call_print(f'mkdir {dir_split}'.split())
+    check_call_print(f'split -n{num} {file_sort} paths_file_'.split(), cwd=dir_split)
 
-    return sorted([os.path.abspath(p.path) for p in os.scandir(all_paths_dir)])
+    return sorted([os.path.abspath(p.path) for p in os.scandir(dir_split)])
 
 
 def _get_level_specific_dirpaths(begin_year, end_year, level):

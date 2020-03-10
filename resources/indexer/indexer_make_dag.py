@@ -32,7 +32,7 @@ def _get_paths_files(paths_per_file=10000):
         print(f'{cmd} @ {cwd}')
         subprocess.check_call(cmd, cwd=cwd, shell=shell)
 
-    if os.path.exists(root):
+    if not os.path.exists(root):
         check_call_print(f'mkdir {root}'.split())
 
         # Get all file-paths in /data/exp/ and sort the list

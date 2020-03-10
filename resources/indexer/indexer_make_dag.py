@@ -20,10 +20,11 @@ END_YEAR = 2021
 
 def _get_paths_files(paths_per_file=10000):
     data_user = '/data/user/eevans'
-    file_orig = f'{data_user}/indexerallpaths.orig'
-    dir_temp = f'{data_user}/indexerallpathstemp/'
-    file_sort = f'{data_user}/indexerallpaths.sort'
-    dir_split = f'{data_user}/indexerallpaths/'
+    root = f'{data_user}/indexerall/'
+    file_orig = f'{root}/paths.orig'
+    dir_temp = f'{root}/pathstemp/'
+    file_sort = f'{root}/paths.sort'
+    dir_split = f'{root}/paths/'
 
     def os_system_print(cmd):
         print(f'{cmd}')
@@ -32,6 +33,8 @@ def _get_paths_files(paths_per_file=10000):
     def check_call_print(cmd, cwd='.'):
         print(f'{cmd} @ {cwd}')
         subprocess.check_call(cmd, cwd=cwd)
+
+    check_call_print(f'mkdir {root}'.split())
 
     # Get all file-paths in /data/exp/ and sort the list
     os_system_print(f'python directory_scanner.py /data/exp/ > {file_orig}')

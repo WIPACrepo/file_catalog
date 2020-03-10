@@ -45,7 +45,7 @@ def _get_data_exp_paths_files(previous=None, paths_per_file=10000):
         # Get lines(file paths) unique to this scan versus the previous file
         if previous:
             check_call_print(f'comm -1 -3 {previous} {file_sort} > {file_sort}.unique', shell=True)
-            check_call_print(f'cp {file_sort}.unique {file_sort}'.split())
+            check_call_print(f'mv {file_sort}.unique {file_sort}'.split())
 
         # Copy/Archive
         time = dt.now().isoformat(timespec='seconds')

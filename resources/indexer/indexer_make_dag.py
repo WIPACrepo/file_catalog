@@ -84,6 +84,8 @@ def main():
     parser.add_argument('--cpus', type=int, help='number of CPUs', default=2)
     parser.add_argument('--memory', type=int, help='amount of memory (MB)', default=2000)
     parser.add_argument('--blacklist', help='blacklist file containing all paths to skip')
+    parser.add_argument('--dryrun', default=False, action='store_true',
+                        help='does everything except submitting the condor job(s)')
     args = parser.parse_args()
 
     # make condor scratch directory
@@ -143,7 +145,10 @@ queue
     # Execute
     cmd = ['condor_submit_dag', '-maxjobs', str(args.maxjobs), dagpath]
     print(cmd)
-    subprocess.check_call(cmd, cwd=scratch)
+    if args.dryrun:
+        print('Indexer Aborted: Condor jobs not submitted.')
+    else:
+        subprocess.check_call(cmd, cwd=scratch)
 
 
 if __name__ == '__main__':

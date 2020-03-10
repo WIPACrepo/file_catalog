@@ -27,7 +27,7 @@ def _get_paths_files(paths_per_file=10000):
     dir_split = os.path.join(root, 'paths/')
 
     def check_call_print(cmd, cwd='.', shell=False):
-        if shell and isinstance(cmd, []):
+        if shell and isinstance(cmd, list):
             raise Exception('Do not set shell=True and pass a list--pass a string.')
         print(f'{cmd} @ {cwd}')
         subprocess.check_call(cmd, cwd=cwd, shell=shell)

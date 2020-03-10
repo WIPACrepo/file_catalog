@@ -22,7 +22,6 @@ END_YEAR = 2021
 def _get_paths_files(paths_per_file=10000):
     root = os.path.join('/data/user/', getpass.getuser(), 'indexerall/')
     file_orig = os.path.join(root, 'paths.orig')
-    dir_temp = os.path.join(root, 'pathstemp/')
     file_sort = os.path.join(root, 'paths.sort')
     dir_split = os.path.join(root, 'paths/')
 
@@ -37,8 +36,7 @@ def _get_paths_files(paths_per_file=10000):
 
         # Get all file-paths in /data/exp/ and sort the list
         check_call_print(f'python directory_scanner.py /data/exp/ > {file_orig}', shell=True)
-        check_call_print(f'mkdir {dir_temp}'.split())
-        check_call_print(f'sort -T {dir_temp} {file_orig} > {file_sort}', shell=True)
+        check_call_print(f'sort -T {root} {file_orig} > {file_sort}', shell=True)
 
         # split the file into n files
         result = subprocess.run(f'wc -l {file_sort}'.split(), stdout=subprocess.PIPE)

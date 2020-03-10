@@ -96,24 +96,28 @@ def main():
     if not os.path.exists(scratch):
         os.makedirs(scratch)
 
-    # configure transfer_input_files
-    transfer_input_files = ['indexer.py']
-    blacklist_arg = ''
-    if args.blacklist:
-        blacklist_arg = f'--blacklist {args.blacklist}'
-        transfer_input_files.append(args.blacklist)
-
-    # path or paths_file
-    path_arg = ''
-    if args.level == 'Everything':
-        path_arg = '--paths-file $(PATHS_FILE)'
-    else:
-        path_arg = '$(PATH)'
-
     # make condor file
     condorpath = os.path.join(scratch, 'condor')
-    with open(condorpath, 'w') as file:
-        file.write(f"""executable = {os.path.abspath(args.env)}
+    if os.path.exists(condorpath):
+        print(f'{condorpath} already exists. Using preexisting condor file.')
+    else:
+        with open(condorpath, 'w') as file:
+            # configure transfer_input_files
+            transfer_input_files = ['indexer.py']
+            blacklist_arg = ''
+            if args.blacklist:
+                blacklist_arg = f'--blacklist {args.blacklist}'
+                transfer_input_files.append(args.blacklist)
+
+            # path or paths_file
+            path_arg = ''
+            if args.level == 'Everything':
+                path_arg = '--paths-file $(PATHS_FILE)'
+            else:
+                path_arg = '$(PATH)'
+
+            # write
+            file.write(f"""executable = {os.path.abspath(args.env)}
 arguments = python indexer.py -s WIPAC {path_arg} -t {args.token} --timeout {args.timeout} --retries {args.retries} {blacklist_arg}
 output = {scratch}/$(JOBNUM).out
 error = {scratch}/$(JOBNUM).err
@@ -129,21 +133,25 @@ queue
 
     # make dag file
     dagpath = os.path.join(scratch, 'dag')
-    with open(dagpath, 'w') as file:
-        if args.level == 'Everything':
-            paths = _get_paths_files()
-        else:
-            begin_year = min(args.levelyears)
-            end_year = max(args.levelyears)
-            paths = _get_level_specific_dirpaths(begin_year, end_year, args.level)
-
-        for i, path in enumerate(paths):
-            file.write(f'JOB job{i} condor\n')
+    if os.path.exists(dagpath):
+        print(f'{dagpath} already exists. Using preexisting dag file.')
+    else:
+        # write
+        with open(dagpath, 'w') as file:
             if args.level == 'Everything':
-                file.write(f'VARS job{i} PATHS_FILE="{path}"\n')
+                paths = _get_paths_files()
             else:
-                file.write(f'VARS job{i} PATH="{path}"\n')
-            file.write(f'VARS job{i} JOBNUM="{i}"\n')
+                begin_year = min(args.levelyears)
+                end_year = max(args.levelyears)
+                paths = _get_level_specific_dirpaths(begin_year, end_year, args.level)
+
+            for i, path in enumerate(paths):
+                file.write(f'JOB job{i} condor\n')
+                if args.level == 'Everything':
+                    file.write(f'VARS job{i} PATHS_FILE="{path}"\n')
+                else:
+                    file.write(f'VARS job{i} PATH="{path}"\n')
+                file.write(f'VARS job{i} JOBNUM="{i}"\n')
 
     # Execute
     cmd = ['condor_submit_dag', '-maxjobs', str(args.maxjobs), dagpath]

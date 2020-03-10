@@ -28,7 +28,7 @@ def check_call_print(cmd, cwd='.', shell=False):
     subprocess.check_call(cmd, cwd=cwd, shell=shell)
 
 
-def _get_paths_files(paths_per_file=10000):
+def _get_data_exp_paths_files(previous=None, paths_per_file=10000):
     root = os.path.join('/data/user/', getpass.getuser(), 'indexer-data-exp/')
     file_orig = os.path.join(root, 'paths.orig')
     file_sort = os.path.join(root, 'paths.sort')
@@ -41,6 +41,11 @@ def _get_paths_files(paths_per_file=10000):
         check_call_print(f'python directory_scanner.py /data/exp/ > {file_orig}', shell=True)
         check_call_print(f'''sed -i '/^[[:space:]]*$/d' {file_orig}''', shell=True)  # remove blanks
         check_call_print(f'sort -T {root} {file_orig} > {file_sort}', shell=True)
+
+        # Get lines(file paths) unique to this scan versus the previous file
+        if previous:
+            check_call_print(f'comm {previous} {file_sort} > {file_sort}.unique', shell=True)
+            check_call_print(f'cp {file_sort}.unique {file_sort}'.split())
 
         # Copy/Archive
         time = dt.now().isoformat(timespec='seconds')
@@ -95,9 +100,17 @@ def main():
     parser.add_argument('--cpus', type=int, help='number of CPUs', default=2)
     parser.add_argument('--memory', type=int, help='amount of memory (MB)', default=2000)
     parser.add_argument('--blacklist', help='blacklist file containing all paths to skip')
+    parser.add_argument('--previous-data-exp', dest='previous_data_exp',
+                        help='prior file with file paths, eg: /data/user/eevans/data-exp-2020-03-10T15:11:42.'
+                        ' These files will be skipped.')
     parser.add_argument('--dryrun', default=False, action='store_true',
                         help='does everything except submitting the condor job(s)')
     args = parser.parse_args()
+
+    # check paths in args
+    for path in [args.env, args.blacklist, args.previous_data_exp]:
+        if path and not os.path.exists(path):
+            raise FileNotFoundError(path)
 
     # make condor scratch directory
     scratch = os.path.join('/scratch/', getpass.getuser(), f'{args.level}indexer')
@@ -147,7 +160,7 @@ queue
         # write
         with open(dagpath, 'w') as file:
             if args.level == 'Everything':
-                paths = _get_paths_files()
+                paths = _get_data_exp_paths_files(previous=args.previous_data_exp)
             else:
                 begin_year = min(args.levelyears)
                 end_year = max(args.levelyears)

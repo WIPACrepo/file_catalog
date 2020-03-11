@@ -50,10 +50,8 @@ def _get_data_exp_paths_files(previous=None, paths_per_file=10000):
             check_call_print(f'mv {file_sort}.unique {file_sort}'.split())
 
         # split the file into n files
-        result = subprocess.run(f'wc -l {file_sort}'.split(), stdout=subprocess.PIPE)
-        num = math.ceil(int(result.stdout.decode('utf-8').split()[0]) / paths_per_file)
         check_call_print(f'mkdir {dir_split}'.split())
-        check_call_print(f'split -n{num} {file_sort} paths_file_'.split(), cwd=dir_split)
+        check_call_print(f'split -l{paths_per_file} {file_sort} paths_file_'.split(), cwd=dir_split)
 
         # Copy/Archive
         time = dt.now().isoformat(timespec='seconds')

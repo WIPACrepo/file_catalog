@@ -139,7 +139,7 @@ def main():
 
             # write
             file.write(f"""executable = {os.path.abspath(args.env)}
-arguments = python indexer.py -s WIPAC {path_arg} -t {args.token} --timeout {args.timeout} --retries {args.retries} {blacklist_arg}
+arguments = python indexer.py -s WIPAC {path_arg} -t {args.token} --timeout {args.timeout} --retries {args.retries} {blacklist_arg} -l info
 output = {scratch}/$(JOBNUM).out
 error = {scratch}/$(JOBNUM).err
 log = {scratch}/$(JOBNUM).log

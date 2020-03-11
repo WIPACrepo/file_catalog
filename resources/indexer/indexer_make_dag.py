@@ -41,23 +41,24 @@ def _get_data_exp_paths_files(previous=None, paths_per_file=10000):
         check_call_print(f'python directory_scanner.py /data/exp/ > {file_orig}', shell=True)
         check_call_print(f'''sed -i '/^[[:space:]]*$/d' {file_orig}''', shell=True)  # remove blanks
         check_call_print(f'sort -T {root} {file_orig} > {file_sort}', shell=True)
+        check_call_print(f'rm {file_orig}'.split())  # Cleanup
 
         # Get lines(file paths) unique to this scan versus the previous file
         if previous:
             check_call_print(f'comm -1 -3 {previous} {file_sort} > {file_sort}.unique', shell=True)
             check_call_print(f'mv {file_sort}.unique {file_sort}'.split())
 
-        # Copy/Archive
-        time = dt.now().isoformat(timespec='seconds')
-        file_archive = os.path.join('/data/user/', getpass.getuser(), f'data-exp-{time}')
-        print(f'Archive File: at {file_archive}')
-        check_call_print(f'cp {file_sort} {file_archive}'.split())
-
         # split the file into n files
         result = subprocess.run(f'wc -l {file_sort}'.split(), stdout=subprocess.PIPE)
         num = int(result.stdout.decode('utf-8').split()[0]) // paths_per_file
         check_call_print(f'mkdir {dir_split}'.split())
         check_call_print(f'split -n{num} {file_sort} paths_file_'.split(), cwd=dir_split)
+
+        # Copy/Archive
+        time = dt.now().isoformat(timespec='seconds')
+        file_archive = os.path.join('/data/user/', getpass.getuser(), f'data-exp-{time}')
+        check_call_print(f'mv {file_sort} {file_archive}'.split())
+        print(f'Archive File: at {file_archive}')
 
     else:
         print(f'Writing Bypassed: {root} already exists. Using preexisting files.')

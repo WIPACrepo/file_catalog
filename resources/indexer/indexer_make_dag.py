@@ -3,7 +3,6 @@
 
 import argparse
 import getpass
-import math
 import os
 import re
 import subprocess

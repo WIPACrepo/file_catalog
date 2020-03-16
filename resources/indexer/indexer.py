@@ -6,7 +6,9 @@ import asyncio
 import collections
 import hashlib
 import logging
+import math
 import os
+import pathlib
 import re
 import tarfile
 import xml
@@ -20,7 +22,23 @@ import yaml
 from icecube import dataclasses, dataio
 from rest_tools.client import RestClient
 
+ACCEPTED_ROOTS = ['/data/']
 TAR_EXTENSIONS = ('.tar.gz', '.tar.bz2', '.tar.zst')
+
+
+def is_processable_path(path):
+    """Return True if path is not a symlink, a socket, a fifo, a device, nor char device."""
+    plp = pathlib.Path(path)
+    return not (plp.is_symlink() or plp.is_socket() or plp.is_fifo() or plp.is_block_device() or plp.is_char_device())
+
+
+class FileInfo:
+    """Wrapper around common file information. Similar to os.DirEntry."""
+
+    def __init__(self, filepath):
+        self.path = filepath
+        self.name = os.path.basename(self.path)
+        self.stat = lambda: os.stat(self.path)
 
 
 class IceCubeSeason:
@@ -95,6 +113,7 @@ class ProcessingLevel:
 
 class BasicFileMetadata:
     """Metadata for basic files"""
+
     def __init__(self, file, site):
         self.file = file
         self.site = site
@@ -123,6 +142,7 @@ class BasicFileMetadata:
 
 class I3FileMetadata(BasicFileMetadata):
     """Metadata for i3 files"""
+
     def __init__(self, file, site, processing_level):
         super().__init__(file, site)
         self.processing_level = processing_level
@@ -285,6 +305,7 @@ class I3FileMetadata(BasicFileMetadata):
 
 class L2FileMetadata(I3FileMetadata):
     """Metadata for L2 i3 files"""
+
     def __init__(self, file, site, dir_meta_xml, gaps_dict, gcd_filepath):
         super().__init__(file, site, ProcessingLevel.L2)
         self.meta_xml = dir_meta_xml
@@ -301,8 +322,10 @@ class L2FileMetadata(I3FileMetadata):
             return None, None, None, None
 
         try:
-            first = self.gaps_dict['First Event of File'].split()  # Ex: '53162019 2018 206130762188498'
-            last = self.gaps_dict['Last Event of File'].split()  # Ex: '53164679 2018 206139955965204'
+            # Ex: '53162019 2018 206130762188498'
+            first = self.gaps_dict['First Event of File'].split()
+            # Ex: '53164679 2018 206139955965204'
+            last = self.gaps_dict['Last Event of File'].split()
 
             first_id = int(first[0])
             first_dt = dataclasses.I3Time(int(first[1]), int(first[2])).date_time
@@ -408,6 +431,7 @@ class L2FileMetadata(I3FileMetadata):
 
 class PFFiltFileMetadata(I3FileMetadata):
     """Metadata for PFFilt i3 files"""
+
     def __init__(self, file, site):
         super().__init__(file, site, ProcessingLevel.PFFilt)
         self._grab_meta_xml_from_tar()
@@ -444,6 +468,7 @@ class PFFiltFileMetadata(I3FileMetadata):
 
 class PFDSTFileMetadata(I3FileMetadata):
     """Metadata for PFDST i3 files"""
+
     def __init__(self, file, site):
         super().__init__(file, site, ProcessingLevel.PFDST)
         self._grab_meta_xml_from_tar()
@@ -473,12 +498,14 @@ class PFDSTFileMetadata(I3FileMetadata):
     @staticmethod
     def is_file(file, processing_level):
         """ True if PFDST and the file is in the [...#].tar.[...] file format. """
-        # Ex. ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
+        # Ex.
+        # ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
         return (processing_level == ProcessingLevel.PFDST) and I3FileMetadata._is_run_tar_file(file)
 
 
 class PFRawFileMetadata(I3FileMetadata):
     """Metadata for PFRaw i3 files"""
+
     def __init__(self, file, site):
         super().__init__(file, site, ProcessingLevel.PFRaw)
         self._grab_meta_xml_from_tar()
@@ -511,6 +538,7 @@ class PFRawFileMetadata(I3FileMetadata):
 
 class MetadataManager:
     """Commander class for handling metadata for different file types"""
+
     def __init__(self, site, basic_only=False):
         self.dir_path = ""
         self.site = site
@@ -554,8 +582,9 @@ class MetadataManager:
         self.l2_dir_metadata['gaps_files'] = gaps_files
         self.l2_dir_metadata['gcd_files'] = gcd_files
 
-    def new_file(self, file):
+    def new_file(self, filepath):
         """Factory method for returning different metadata-file types"""
+        file = FileInfo(filepath)
         if not self.basic_only:
             processing_level = ProcessingLevel.from_filename(file.name)
             # L2
@@ -595,63 +624,6 @@ class MetadataManager:
         return BasicFileMetadata(file, self.site)
 
 
-def process_dir(path, site, basic_only=False):
-    """Return list of sub-directories and metadata of files in directory given by path."""
-    try:
-        scan = list(os.scandir(path))
-    except (PermissionError, FileNotFoundError):
-        scan = []
-    dirs = []
-    file_meta = []
-
-    manager = MetadataManager(site, basic_only)
-
-    # get files' metadata
-    for dir_entry in scan:
-        if dir_entry.is_symlink():
-            continue
-        elif dir_entry.is_dir():
-            logging.debug(f'Directory appended, {dir_entry.path}')
-            dirs.append(dir_entry.path)
-        elif dir_entry.is_file():
-            try:
-                metadata_file = manager.new_file(dir_entry)
-                metadata = metadata_file.generate()
-            # OSError is thrown for special files like sockets
-            except (OSError, PermissionError, FileNotFoundError) as e:
-                logging.exception(f'{dir_entry.name} not gathered, {e.__class__.__name__}.')
-                continue
-            except:
-                logging.exception(f'Unexpected exception raised for {dir_entry.name}.')
-                raise
-            file_meta.append(metadata)
-            logging.debug(f'{dir_entry.name} gathered.')
-
-    return dirs, file_meta
-
-
-def gather_file_info(dirs, site, basic_only=False):
-    """Return an iterator for metadata of files recursively found under dirs."""
-    # Get full paths
-    dirs = [os.path.abspath(p) for p in dirs]
-    for path in dirs:
-        if not path.startswith('/data/'):
-            logging.critical(f'{path} is not rooted at /data/')
-            raise Exception(f'Invalid path ({path} is not rooted at /data/).')
-
-    # Traverse directories and process files
-    futures = []
-    with ProcessPoolExecutor() as pool:
-        while futures or dirs:
-            for d in dirs:
-                futures.append(pool.submit(process_dir, d, site, basic_only))
-            while not futures[0].done():  # concurrent.futures.wait(FIRST_COMPLETED) is slower
-                sleep(0.1)
-            future = futures.pop(0)
-            dirs, file_meta = future.result()
-            yield from file_meta
-
-
 async def request_post_patch(fc_rc, metadata, dont_patch=False):
     """POST metadata, and PATCH if file is already in the file catalog."""
     try:
@@ -670,14 +642,141 @@ async def request_post_patch(fc_rc, metadata, dont_patch=False):
     return fc_rc
 
 
-async def main():
-    """Main"""
+async def process_file(filepath, manager, fc_rc, no_patch):
+    """Gather and POST metadata for a file."""
+    try:
+        metadata_file = manager.new_file(filepath)
+        metadata = metadata_file.generate()
+    # OSError is thrown for special files like sockets
+    except (OSError, PermissionError, FileNotFoundError) as e:
+        logging.exception(f'{filepath} not gathered, {e.__class__.__name__}.')
+        return
+    except:
+        logging.exception(f'Unexpected exception raised for {filepath}.')
+        raise
+
+    logging.debug(f'{filepath} gathered.')
+    logging.debug(metadata)
+    await request_post_patch(fc_rc, metadata, no_patch)
+
+
+async def process_paths(paths, manager, fc_rc, no_patch):
+    """POST metadata of files given by paths, and return any directories."""
+    sub_files = []
+
+    for p in paths:
+        if is_processable_path(p):
+            if os.path.isfile(p):
+                await process_file(p, manager, fc_rc, no_patch)
+            elif os.path.isdir(p):
+                logging.debug(f'Directory found, {p}. Queuing its contents...')
+                try:
+                    sub_files.extend(dir_entry.path for dir_entry in os.scandir(p)
+                                     if not dir_entry.is_symlink())  # don't add symbolic links
+                except (PermissionError, FileNotFoundError):
+                    continue
+        else:
+            logging.debug(f'Skipping {p}, not a directory nor file.')
+
+    return sub_files
+
+
+def path_in_blacklist(path, blacklist):
+    """Return True if path is in the blacklist."""
+    for b in blacklist:
+        if path.startswith(b):
+            logging.debug(f'Skipping {path}, file and/or directory is in blacklist ({b}).')
+            return True
+    return False
+
+
+def process_work(paths, args, blacklist):
+    """Wrap async function, process_paths. Return files nested under any directories."""
+    if not isinstance(paths, list):
+        raise TypeError(f'`paths` object is not list {paths}')
+    if not paths:
+        return []
+
+    # Check blacklist
+    paths = [p for p in paths if not path_in_blacklist(p, blacklist)]
+
+    # Process Paths
+    fc_rc = RestClient(args.url, token=args.token, timeout=args.timeout, retries=args.retries)
+    manager = MetadataManager(args.site, args.basic_only)
+    sub_files = asyncio.get_event_loop().run_until_complete(
+        process_paths(paths, manager, fc_rc, args.no_patch))
+
+    fc_rc.close()
+    return sub_files
+
+
+def check_path(path):
+    """Check if path is rooted at a white-listed root path."""
+    for root in ACCEPTED_ROOTS:
+        if path.startswith(root):
+            return
+    message = f"{path} is not rooted at: {', '.join(ACCEPTED_ROOTS)}"
+    logging.critical(message)
+    raise Exception(f'Invalid path ({message}).')
+
+
+def gather_file_info(starting_paths, blacklist, args):
+    """Gather and post metadata from files rooted at starting_paths. Do this multi-processed."""
+    # Get full paths
+    starting_paths = [os.path.abspath(p) for p in starting_paths]
+    for p in starting_paths:
+        check_path(p)
+
+    # Traverse paths and process files
+    futures = []
+    with ProcessPoolExecutor() as pool:
+        queue = starting_paths
+        split = math.ceil(len(queue) / args.processes)
+        while futures or queue:
+            logging.debug(f'Queue: {len(queue)}.')
+            # Divvy up queue among available worker(s). Each worker gets 1/nth of the queue.
+            if queue:
+                queue.sort()
+                while args.processes != len(futures):
+                    paths, queue = queue[:split], queue[split:]
+                    logging.debug(f'Worker Assigned: {len(futures)+1}/{args.processes} ({len(paths)} paths).')
+                    futures.append(pool.submit(process_work, paths, args, blacklist))
+            logging.debug(f'Workers: {len(futures)} {futures}.')
+            # Extend the queue
+            while not futures[0].done():  # concurrent.futures.wait(FIRST_COMPLETED) is slower
+                sleep(0.1)
+            future = futures.pop(0)
+            result = future.result()
+            if result:
+                queue.extend(result)
+                split = math.ceil(len(queue) / args.processes)
+            logging.debug(f'Worker finished: {future} (enqueued {len(result)}).')
+
+
+def sorted_unique(infile, others=None):
+    """Read in lines from file, aggregate with those in others list. Return all unique lines, sorted."""
+    lines = []
+    if others:
+        lines.extend(others)
+    if infile:
+        with open(infile) as file:
+            lines.extend(l.rstrip() for l in file)
+    lines = [l for l in sorted(set(lines)) if l]
+    return lines
+
+
+def main():
+    """Main."""
     parser = argparse.ArgumentParser(description='Find files under PATH(s), compute their metadata and '
                                      'upload it to File Catalog.',
                                      epilog='Notes: (1) symbolic links are never followed.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('path', metavar='PATH', nargs='+',
+    parser.add_argument('paths', metavar='PATHS', nargs='*',
                         help='path(s) to scan for files.')
+    parser.add_argument('--paths-file', dest='paths_file', default=None,
+                        help='file containing path(s) to scan for files. (use this option for a large number of paths)')
+    parser.add_argument('--processes', type=int, default=1,
+                        help='number of process for multi-processing')
     parser.add_argument('-u', '--url', default='https://file-catalog.icecube.wisc.edu/',  # 'http://localhost:8888'
                         help='File Catalog URL')
     parser.add_argument('-s', '--site', required=True,
@@ -692,23 +791,26 @@ async def main():
                         help='only collect basic metadata')
     parser.add_argument('--no-patch', dest='no_patch', default=False, action='store_true',
                         help='do not PATCH if the file already exists in the file catalog')
+    parser.add_argument('--blacklist-file', dest='blacklist_file',
+                        help='blacklist file containing all paths to skip')
+    parser.add_argument('-l', '--log', default='DEBUG',
+                        help='the output logging level')
     args = parser.parse_args()
 
+    logging.basicConfig(level=getattr(logging, args.log.upper()))
     for arg, val in vars(args).items():
         logging.info(f'{arg}: {val}')
 
-    fc_rc = RestClient(args.url, token=args.token, timeout=args.timeout, retries=args.retries)
+    logging.info(f'Collecting metadata from {args.paths} and those in file (at {args.paths_file})...')
 
-    logging.info(f'Collecting metadata from {args.path}...')
+    # Aggregate and sort all paths
+    paths = sorted_unique(args.paths_file, others=args.paths)
 
-    # POST each file's metadata to file catalog
-    for metadata in gather_file_info(args.path, args.site, args.basic_only):
-        logging.info(metadata)
-        fc_rc = await request_post_patch(fc_rc, metadata, args.no_patch)
+    # Read blacklisted paths
+    blacklist = sorted_unique(args.blacklist_file)
 
-    fc_rc.close()
+    gather_file_info(paths, blacklist, args)
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-    asyncio.get_event_loop().run_until_complete(main())
+    main()

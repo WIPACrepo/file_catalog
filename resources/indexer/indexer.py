@@ -752,7 +752,7 @@ def sorted_unique(infile, others=None):
         lines.extend(others)
     if infile:
         with open(infile) as file:
-            lines.extend([l.rstrip() for l in file])
+            lines.extend(l.rstrip() for l in file)
     lines = [l for l in sorted(set(lines)) if l]
     return lines
 

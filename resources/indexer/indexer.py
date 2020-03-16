@@ -669,6 +669,8 @@ async def process_paths(paths, manager, fc_rc, no_patch):
                                   if not dir_entry.is_symlink()])  # don't add symbolic links
             except (PermissionError, FileNotFoundError):
                 continue
+        else:
+            logging.debug(f'Skipping {p}, not a directory nor file.')
 
     return sub_files
 

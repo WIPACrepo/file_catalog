@@ -8,6 +8,7 @@ import hashlib
 import logging
 import math
 import os
+import pathlib
 import re
 import tarfile
 import xml
@@ -23,6 +24,12 @@ from rest_tools.client import RestClient
 
 ACCEPTED_ROOTS = ['/data/']
 TAR_EXTENSIONS = ('.tar.gz', '.tar.bz2', '.tar.zst')
+
+
+def is_processable_path(path):
+    """Return True if path is not a symlink, a socket, a fifo, a device, nor char device."""
+    plp = pathlib.Path(path)
+    return not (plp.is_symlink() or plp.is_socket() or plp.is_fifo() or plp.is_block_device() or plp.is_char_device())
 
 
 class FileInfo:
@@ -657,18 +664,17 @@ async def process_paths(paths, manager, fc_rc, no_patch):
     """POST metadata of files given by paths, and return any directories."""
     sub_files = []
 
-    paths = [p for p in paths if not os.path.islink(p)]  # remove symbolic links
-
     for p in paths:
-        if os.path.isfile(p):
-            await process_file(p, manager, fc_rc, no_patch)
-        elif os.path.isdir(p):
-            logging.debug(f'Directory found, {p}. Queuing its contents...')
-            try:
-                sub_files.extend([dir_entry.path for dir_entry in os.scandir(p)
-                                  if not dir_entry.is_symlink()])  # don't add symbolic links
-            except (PermissionError, FileNotFoundError):
-                continue
+        if is_processable_path(p):
+            if os.path.isfile(p):
+                await process_file(p, manager, fc_rc, no_patch)
+            elif os.path.isdir(p):
+                logging.debug(f'Directory found, {p}. Queuing its contents...')
+                try:
+                    sub_files.extend(dir_entry.path for dir_entry in os.scandir(p)
+                                     if not dir_entry.is_symlink())  # don't add symbolic links
+                except (PermissionError, FileNotFoundError):
+                    continue
         else:
             logging.debug(f'Skipping {p}, not a directory nor file.')
 

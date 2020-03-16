@@ -3,6 +3,7 @@
 import argparse
 import logging
 import os
+import pathlib
 from concurrent.futures import ProcessPoolExecutor
 from time import sleep
 
@@ -17,7 +18,8 @@ def process_dir(path):
 
     all_file_count = 0
     for dir_entry in scan:
-        if dir_entry.is_symlink():
+        plp = pathlib.Path(dir_entry.path)
+        if plp.is_symlink() or plp.is_socket() or plp.is_fifo() or plp.is_block_device() or plp.is_char_device():
             continue
         elif dir_entry.is_dir():
             dirs.append(dir_entry.path)

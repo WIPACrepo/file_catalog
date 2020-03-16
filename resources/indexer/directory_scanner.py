@@ -10,7 +10,7 @@ from time import sleep
 def process_dir(path):
     """Print out file paths and return sub-directories."""
     try:
-        scan = list(os.scandir(path))
+        scan = os.scandir(path)
     except (PermissionError, FileNotFoundError):
         scan = []
     dirs = []
@@ -55,7 +55,7 @@ def main():
             dirs, result_all_file_count = future.result()
             all_file_count = all_file_count + result_all_file_count
 
-    logging.info(f"\nFile Count: {all_file_count}")
+    logging.info(f"File Count: {all_file_count}")
 
 
 if __name__ == '__main__':

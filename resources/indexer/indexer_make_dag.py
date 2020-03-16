@@ -112,7 +112,7 @@ def main():
             raise FileNotFoundError(path)
 
     # make condor scratch directory
-    scratch = os.path.join('/scratch/', getpass.getuser(), f'{args.level}indexer')
+    scratch = os.path.join('/scratch/', getpass.getuser(), f'{args.level}-indexer')
     if not os.path.exists(scratch):
         os.makedirs(scratch)
 

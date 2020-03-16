@@ -677,7 +677,7 @@ def path_in_blacklist(path, blacklist):
     """Return True if path is in the blacklist."""
     for b in blacklist:
         if path.startswith(b):
-            logging.debug(f'Skipping {path}, file and/or directory is in blacklist.')
+            logging.debug(f'Skipping {path}, file and/or directory is in blacklist ({b}).')
             return True
     return False
 

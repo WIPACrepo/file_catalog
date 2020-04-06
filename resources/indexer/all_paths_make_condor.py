@@ -46,10 +46,11 @@ def main():
         previous_arg = ''
         if args.previous_all_paths:
             previous_arg = f'--previous-all-paths {args.previous_all_paths}'
+        staging_dir = os.path.join('/data/user/', getpass.getuser())
 
         # write
         file.write(f"""executable = {os.path.abspath('indexer_env.sh')}
-arguments = python all_paths.py {args.paths_root} --workers {args.cpus} {previous_arg}
+arguments = python all_paths.py {args.paths_root} --staging-dir {staging_dir} --workers {args.cpus} {previous_arg}
 output = {scratch}/all_paths.out
 error = {scratch}/all_paths.err
 log = {scratch}/all_paths.log

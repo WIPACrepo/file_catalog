@@ -1,7 +1,6 @@
 """Recursively get all paths in given directory and split into chunks for indexer_make_dag.py jobs."""
 
 import argparse
-import getpass
 import os
 import subprocess
 from datetime import datetime as dt
@@ -15,8 +14,8 @@ def check_call_print(cmd, cwd='.', shell=False):
     subprocess.check_call(cmd, cwd=cwd, shell=shell)
 
 
-def _get_data_exp_paths_files(paths_root, workers, previous, paths_per_file=10000):
-    output_root = os.path.join('/data/user/', getpass.getuser(), 'indexer-data-exp/')
+def _get_data_exp_paths_files(staging_dir, paths_root, workers, previous, paths_per_file=10000):
+    output_root = os.path.join(staging_dir, 'indexer-data-exp/')
     file_orig = os.path.join(output_root, 'paths.orig')
     file_log = os.path.join(output_root, 'paths.log')
     file_sort = os.path.join(output_root, 'paths.sort')
@@ -42,7 +41,7 @@ def _get_data_exp_paths_files(paths_root, workers, previous, paths_per_file=1000
 
         # Copy/Archive
         time = dt.now().isoformat(timespec='seconds')
-        file_archive = os.path.join('/data/user/', getpass.getuser(), f'data-exp-{time}')
+        file_archive = os.path.join(staging_dir, f'data-exp-{time}')
         check_call_print(f'mv {file_sort} {file_archive}'.split())
         print(f'Archive File: at {file_archive}')
 
@@ -54,6 +53,8 @@ def main():
     """Main."""
     parser = argparse.ArgumentParser()
     parser.add_argument('paths_root', help='root directory to recursively scan for files.')
+    parser.add_argument('--staging-dir', dest='staging_dir', required=True,
+                        help='the base directory to store files for jobs, eg: /data/user/eevans/')
     parser.add_argument('--previous-all-paths', dest='previous_all_paths',
                         help='prior file with file paths, eg: /data/user/eevans/data-exp-2020-03-10T15:11:42.'
                         ' These files will be skipped.')
@@ -68,4 +69,5 @@ def main():
         if path and not os.path.exists(path):
             raise FileNotFoundError(path)
 
-    _get_data_exp_paths_files(args.paths_root, args.workers, args.previous_all_paths)
+    _get_data_exp_paths_files(args.staging_dir, args.paths_root,
+                              args.workers, args.previous_all_paths)

@@ -47,6 +47,7 @@ def main():
         if args.previous_all_paths:
             previous_arg = f'--previous-all-paths {args.previous_all_paths}'
         staging_dir = os.path.join('/data/user/', getpass.getuser())
+        transfer_input_files = ['all_paths.py', 'directory_scanner.py']
 
         # write
         file.write(f"""executable = {os.path.abspath('indexer_env.sh')}
@@ -56,7 +57,7 @@ error = {scratch}/all_paths.err
 log = {scratch}/all_paths.log
 +FileSystemDomain = "blah"
 should_transfer_files = YES
-transfer_input_files = {os.path.abspath('all_paths.py')}
+transfer_input_files = {",".join([os.path.abspath(f) for f in transfer_input_files])}
 request_cpus = {args.cpus}
 request_memory = {args.memory}
 notification = Error

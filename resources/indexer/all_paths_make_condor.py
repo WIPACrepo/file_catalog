@@ -19,6 +19,9 @@ def main():
     parser.add_argument('--memory', help='amount of memory', default='20GB')
     args = parser.parse_args()
 
+    for arg, val in vars(args).items():
+        print(f'{arg}: {val}')
+
     # check paths in args
     for path in [args.paths_root, args.previous_all_paths]:
         if path and not os.path.exists(path):

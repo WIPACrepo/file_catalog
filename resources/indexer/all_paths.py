@@ -65,7 +65,7 @@ def main():
         print(f'{arg}: {val}')
 
     # check paths in args
-    for path in [args.root, args.previous_all_paths]:
+    for path in [args.paths_root, args.previous_all_paths]:
         if path and not os.path.exists(path):
             raise FileNotFoundError(path)
 

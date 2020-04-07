@@ -71,3 +71,7 @@ def main():
 
     _get_data_exp_paths_files(args.staging_dir, args.paths_root,
                               args.workers, args.previous_all_paths)
+
+
+if __name__ == '__main__':
+    main()

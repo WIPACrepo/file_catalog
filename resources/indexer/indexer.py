@@ -8,8 +8,8 @@ import hashlib
 import logging
 import math
 import os
-import pathlib
 import re
+import stat
 import tarfile
 import xml
 from concurrent.futures import ProcessPoolExecutor
@@ -28,8 +28,8 @@ TAR_EXTENSIONS = ('.tar.gz', '.tar.bz2', '.tar.zst')
 
 def is_processable_path(path):
     """Return True if path is not a symlink, a socket, a fifo, a device, nor char device."""
-    plp = pathlib.Path(path)
-    return not (plp.is_symlink() or plp.is_socket() or plp.is_fifo() or plp.is_block_device() or plp.is_char_device())
+    mode = os.lstat(path).st_mode
+    return not (stat.S_ISLNK(mode) or stat.S_ISSOCK(mode) or stat.S_ISFIFO(mode) or stat.S_ISBLK(mode) or stat.S_ISCHR(mode))
 
 
 class FileInfo:

@@ -1,4 +1,3 @@
-# l2_indexer_make_dag.py
 """Make the Condor/DAGMan script for indexing /data/exp/."""
 
 import argparse
@@ -6,7 +5,6 @@ import getpass
 import os
 import re
 import subprocess
-from datetime import datetime as dt
 
 LEVELS = {
     "L2": "filtered/level2",
@@ -20,47 +18,8 @@ BEGIN_YEAR = 2005
 END_YEAR = 2021
 
 
-def check_call_print(cmd, cwd='.', shell=False):
-    """Wrap subprocess.check_call and print command."""
-    if shell and isinstance(cmd, list):
-        raise Exception('Do not set shell=True and pass a list--pass a string.')
-    print(f'Execute: {cmd} @ {cwd}')
-    subprocess.check_call(cmd, cwd=cwd, shell=shell)
-
-
-def _get_data_exp_paths_files(previous=None, paths_per_file=10000):
-    root = os.path.join('/data/user/', getpass.getuser(), 'indexer-data-exp/')
-    file_orig = os.path.join(root, 'paths.orig')
-    file_sort = os.path.join(root, 'paths.sort')
-    dir_split = os.path.join(root, 'paths/')
-
-    if not os.path.exists(root):
-        check_call_print(f'mkdir {root}'.split())
-
-        # Get all file-paths in /data/exp/ and sort the list
-        check_call_print(f'python directory_scanner.py /data/exp/ > {file_orig}', shell=True)
-        check_call_print(f'''sed -i '/^[[:space:]]*$/d' {file_orig}''', shell=True)  # remove blanks
-        check_call_print(f'sort -T {root} {file_orig} > {file_sort}', shell=True)
-        check_call_print(f'rm {file_orig}'.split())  # Cleanup
-
-        # Get lines(file paths) unique to this scan versus the previous file
-        if previous:
-            check_call_print(f'comm -1 -3 {previous} {file_sort} > {file_sort}.unique', shell=True)
-            check_call_print(f'mv {file_sort}.unique {file_sort}'.split())
-
-        # split the file into n files
-        check_call_print(f'mkdir {dir_split}'.split())
-        check_call_print(f'split -l{paths_per_file} {file_sort} paths_file_'.split(), cwd=dir_split)
-
-        # Copy/Archive
-        time = dt.now().isoformat(timespec='seconds')
-        file_archive = os.path.join('/data/user/', getpass.getuser(), f'data-exp-{time}')
-        check_call_print(f'mv {file_sort} {file_archive}'.split())
-        print(f'Archive File: at {file_archive}')
-
-    else:
-        print(f'Writing Bypassed: {root} already exists. Using preexisting files.')
-
+def _get_data_exp_paths_files():
+    dir_split = os.path.join('/data/user/', getpass.getuser(), 'indexer-data-exp/paths/')
     return sorted([os.path.abspath(p.path) for p in os.scandir(dir_split)])
 
 
@@ -85,9 +44,8 @@ def _get_level_specific_dirpaths(begin_year, end_year, level):
 
 
 def main():
-    """main"""
+    """Main."""
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', help='script to load env', required=True)
     parser.add_argument('-t', '--token', help='Auth Token', required=True)
     parser.add_argument('-j', '--maxjobs', default=500, help='max concurrent jobs')
     parser.add_argument('--timeout', type=int, default=300, help='REST client timeout duration')
@@ -99,17 +57,13 @@ def main():
     parser.add_argument('--cpus', type=int, help='number of CPUs', default=2)
     parser.add_argument('--memory', type=int, help='amount of memory (MB)', default=2000)
     parser.add_argument('--blacklist', help='blacklist file containing all paths to skip')
-    parser.add_argument('--previous-data-exp', dest='previous_data_exp',
-                        help='prior file with file paths, eg: /data/user/eevans/data-exp-2020-03-10T15:11:42.'
-                        ' These files will be skipped.')
     parser.add_argument('--dryrun', default=False, action='store_true',
                         help='does everything except submitting the condor job(s)')
     args = parser.parse_args()
 
     # check paths in args
-    for path in [args.env, args.blacklist, args.previous_data_exp]:
-        if path and not os.path.exists(path):
-            raise FileNotFoundError(path)
+    if not os.path.exists(args.blacklist):
+        raise FileNotFoundError(args.blacklist)
 
     # make condor scratch directory
     scratch = os.path.join('/scratch/', getpass.getuser(), f'{args.level}-indexer')
@@ -137,8 +91,8 @@ def main():
                 path_arg = '$(PATH)'
 
             # write
-            file.write(f"""executable = {os.path.abspath(args.env)}
-arguments = python indexer.py -s WIPAC {path_arg} -t {args.token} --timeout {args.timeout} --retries {args.retries} {blacklist_arg} -l info
+            file.write(f"""executable = {os.path.abspath('indexer_env.sh')}
+arguments = python indexer.py -s WIPAC {path_arg} -t {args.token} --timeout {args.timeout} --retries {args.retries} {blacklist_arg} --log info
 output = {scratch}/$(JOBNUM).out
 error = {scratch}/$(JOBNUM).err
 log = {scratch}/$(JOBNUM).log
@@ -159,7 +113,7 @@ queue
         # write
         with open(dagpath, 'w') as file:
             if args.level == 'Everything':
-                paths = _get_data_exp_paths_files(previous=args.previous_data_exp)
+                paths = _get_data_exp_paths_files()
             else:
                 begin_year = min(args.levelyears)
                 end_year = max(args.levelyears)
@@ -177,7 +131,9 @@ queue
     if args.dryrun:
         print('Indexer Aborted: Condor jobs not submitted.')
     else:
-        check_call_print(f'condor_submit_dag -maxjobs {args.maxjobs} {dagpath}', cwd=scratch)
+        cmd = f'condor_submit_dag -maxjobs {args.maxjobs} {dagpath}'
+        print(cmd)
+        subprocess.check_call(cmd.split(), cwd=scratch)
 
 
 if __name__ == '__main__':

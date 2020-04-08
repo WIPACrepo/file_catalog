@@ -3,7 +3,7 @@
 import argparse
 import logging
 import os
-import pathlib
+import stat
 from concurrent.futures import ProcessPoolExecutor
 from time import sleep
 
@@ -18,10 +18,16 @@ def process_dir(path):
 
     all_file_count = 0
     for dir_entry in scan:
-        plp = pathlib.Path(dir_entry.path)
-        if plp.is_symlink() or plp.is_socket() or plp.is_fifo() or plp.is_block_device() or plp.is_char_device():
+        try:
+            mode = os.lstat(dir_entry.path).st_mode
+            if stat.S_ISLNK(mode) or stat.S_ISSOCK(mode) or stat.S_ISFIFO(mode) or stat.S_ISBLK(mode) or stat.S_ISCHR(mode):
+                logging.info(f"Non-processable file: {dir_entry.path}")
+                continue
+        except PermissionError:
+            logging.info(f"Permission denied: {dir_entry.path}")
             continue
-        elif dir_entry.is_dir():
+
+        if dir_entry.is_dir():
             dirs.append(dir_entry.path)
         elif dir_entry.is_file():
             all_file_count = all_file_count + 1
@@ -42,12 +48,13 @@ def main():
                                      epilog='Notes: (1) symbolic links are never followed.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('path', metavar='PATH', nargs='+', help='path(s) to scan.')
+    parser.add_argument('--workers', type=int, help='max number of workers', required=True)
     args = parser.parse_args()
 
     dirs = [os.path.abspath(p) for p in args.path]
     futures = []
     all_file_count = 0
-    with ProcessPoolExecutor() as pool:
+    with ProcessPoolExecutor(max_workers=args.workers) as pool:
         while futures or dirs:
             for d in dirs:
                 futures.append(pool.submit(process_dir, d))

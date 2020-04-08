@@ -32,13 +32,6 @@ def main():
     if not os.path.exists(scratch):
         os.makedirs(scratch)
 
-    # make executable
-#     executable_path = os.path.join(scratch, 'all_paths_exe.sh')
-#     with open(executable_path, 'w') as file:
-#         file.write("""#!/bin/bash
-# . /home/eevans/env-fc-indexer/bin/activate $@
-# """)
-
     # make condor file
     condorpath = os.path.join(scratch, 'condor')
     with open(condorpath, 'w') as file:

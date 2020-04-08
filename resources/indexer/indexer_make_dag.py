@@ -62,7 +62,7 @@ def main():
     args = parser.parse_args()
 
     # check paths in args
-    if not os.path.exists(args.blacklist):
+    if args.blacklist and not os.path.exists(args.blacklist):
         raise FileNotFoundError(args.blacklist)
 
     # make condor scratch directory

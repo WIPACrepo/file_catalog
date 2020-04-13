@@ -408,7 +408,10 @@ class FilesHandler(APIHandler):
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
-        files = yield self.db.find_files(**kwargs)
+        if 'count' in kwargs:
+            files = yield self.db.count_files(**kwargs)
+        else:
+            files = yield self.db.find_files(**kwargs)
         self.write({
             '_links':{
                 'self': {'href': self.files_url},

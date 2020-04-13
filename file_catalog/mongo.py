@@ -79,6 +79,11 @@ class Mongo(object):
         return ret
 
     @run_on_executor
+    def count_files(self, query={}, **kwargs):
+        ret = self.client.files.count_documents(query)
+        return ret
+
+    @run_on_executor
     def create_file(self, metadata):
         result = self.client.files.insert_one(metadata)
         if (not result) or (not result.inserted_id):

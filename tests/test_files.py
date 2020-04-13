@@ -44,6 +44,30 @@ class TestFilesAPI(TestServerAPI):
             with self.assertRaises(Exception):
                 r.request_seq(m, '/api/files')
 
+    def test_11_files_count(self):
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        metadata = {
+            'logical_name': 'blah',
+            'checksum': {'sha512':hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
+        }
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
+        uid = url.split('/')[-1]
+
+        data = r.request_seq('GET', '/api/files?count=1')
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(data['files'], 1)
+
     def test_15_files_auth(self):
         self.start_server(config_override={'SECRET':'secret'})
         token = self.get_token()

@@ -62,7 +62,7 @@ class TestFilesAPI(TestServerAPI):
         url = data['file']
         uid = url.split('/')[-1]
 
-        data = r.request_seq('GET', '/api/files?count=1')
+        data = r.request_seq('GET', '/api/files/count')
         self.assertIn('_links', data)
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)

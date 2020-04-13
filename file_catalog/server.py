@@ -126,6 +126,7 @@ class Server(object):
                 (r"/account", AccountHandler, main_args),
                 (r"/api", HATEOASHandler, api_args),
                 (r"/api/files", FilesHandler, api_args),
+                (r"/api/files/count", FilesCountHandler, api_args),
                 (r"/api/files/([^\/]+)", SingleFileHandler, api_args),
                 (r"/api/files/([^\/]+)/locations", SingleFileLocationsHandler, api_args),
                 (r"/api/collections", CollectionsHandler, api_args),
@@ -350,6 +351,30 @@ class HATEOASHandler(APIHandler):
     def get(self):
         self.write(self.data)
 
+def build_files_query(kwargs):
+    if 'query' in kwargs:
+        kwargs['query'] = json_decode(kwargs['query'])
+    else:
+        kwargs['query'] = {}
+    if 'locations.archive' not in kwargs['query']:
+        kwargs['query']['locations.archive'] = None
+
+    # shortcut query params
+    if 'logical_name' in kwargs:
+        kwargs['query']['logical_name'] = kwargs.pop('logical_name')
+    if 'run_number' in kwargs:
+        kwargs['query']['run_number'] = kwargs.pop('run_number')
+    if 'dataset' in kwargs:
+        kwargs['query']['iceprod.dataset'] = kwargs.pop('dataset')
+    if 'event_id' in kwargs:
+        e = kwargs.pop('event_id')
+        kwargs['query']['first_event'] = {'$lte': e}
+        kwargs['query']['last_event'] = {'$gte': e}
+    if 'processing_level' in kwargs:
+        kwargs['query']['processing_level'] = kwargs.pop('processing_level')
+    if 'season' in kwargs:
+        kwargs['query']['offline.season'] = kwargs.pop('season')
+
 class FilesHandler(APIHandler):
     def initialize(self, **kwargs):
         super(FilesHandler, self).initialize(**kwargs)
@@ -379,28 +404,7 @@ class FilesHandler(APIHandler):
                 if kwargs['start'] < 0:
                     raise Exception('start is negative')
 
-            if 'query' in kwargs:
-                kwargs['query'] = json_decode(kwargs['query'])
-            else:
-                kwargs['query'] = {}
-            if 'locations.archive' not in kwargs['query']:
-                kwargs['query']['locations.archive'] = None
-
-            # shortcut query params
-            if 'logical_name' in kwargs:
-                kwargs['query']['logical_name'] = kwargs.pop('logical_name')
-            if 'run_number' in kwargs:
-                kwargs['query']['run_number'] = kwargs.pop('run_number')
-            if 'dataset' in kwargs:
-                kwargs['query']['iceprod.dataset'] = kwargs.pop('dataset')
-            if 'event_id' in kwargs:
-                e = kwargs.pop('event_id')
-                kwargs['query']['first_event'] = {'$lte': e}
-                kwargs['query']['last_event'] = {'$gte': e}
-            if 'processing_level' in kwargs:
-                kwargs['query']['processing_level'] = kwargs.pop('processing_level')
-            if 'season' in kwargs:
-                kwargs['query']['offline.season'] = kwargs.pop('season')
+            build_files_query(kwargs)
 
             if 'keys' in kwargs:
                 kwargs['keys'] = kwargs['keys'].split('|')
@@ -408,10 +412,7 @@ class FilesHandler(APIHandler):
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
-        if 'count' in kwargs:
-            files = yield self.db.count_files(**kwargs)
-        else:
-            files = yield self.db.find_files(**kwargs)
+        files = yield self.db.find_files(**kwargs)
         self.write({
             '_links':{
                 'self': {'href': self.files_url},
@@ -486,6 +487,32 @@ class FilesHandler(APIHandler):
                 'parent': {'href': self.base_url},
             },
             'file': os.path.join(self.files_url, ret),
+        })
+
+class FilesCountHandler(APIHandler):
+    def initialize(self, **kwargs):
+        super(FilesCountHandler, self).initialize(**kwargs)
+        self.files_url = os.path.join(self.base_url,'files')
+        self.validation = Validation(self.config)
+
+    @validate_auth
+    @catch_error
+    @coroutine
+    def get(self):
+        try:
+            kwargs = urlargparse.parse(self.request.query)
+            build_files_query(kwargs)
+        except:
+            logging.warn('query parameter error', exc_info=True)
+            self.send_error(400, message='invalid query parameters')
+            return
+        files = yield self.db.count_files(**kwargs)
+        self.write({
+            '_links':{
+                'self': {'href': self.files_url},
+                'parent': {'href': self.base_url},
+            },
+            'files': files,
         })
 
 class SingleFileHandler(APIHandler):

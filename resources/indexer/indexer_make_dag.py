@@ -92,7 +92,7 @@ def main():
 
             # write
             file.write(f"""executable = {os.path.abspath('indexer_env.sh')}
-arguments = python indexer.py -s WIPAC {path_arg} -t {args.token} --timeout {args.timeout} --retries {args.retries} {blacklist_arg} --log info
+arguments = python indexer.py -s WIPAC {path_arg} -t {args.token} --timeout {args.timeout} --retries {args.retries} {blacklist_arg} --log info --processes {args.cpus}
 output = {scratch}/$(JOBNUM).out
 error = {scratch}/$(JOBNUM).err
 log = {scratch}/$(JOBNUM).log

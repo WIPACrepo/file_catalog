@@ -23,11 +23,15 @@ def main():
 
     logging.basicConfig(level=('DEBUG' if config['DEBUG'] else 'INFO'))
     try:
-        Server(config, port=config['FC_PORT'], debug=config['DEBUG'],
-                db_host=config['MONGODB_HOST'], db_port=config['MONGODB_PORT'],
-                db_auth_source=config['MONGODB_AUTH_SOURCE_DB'],
-                db_user=config['MONGODB_AUTH_USER'], db_pass=config['MONGODB_AUTH_PASS'],
-                db_uri=config['MONGODB_URI']).run()
+        Server(config,
+               port=config['FC_PORT'],
+               debug=config['DEBUG'],
+               db_host=config.get('MONGODB_HOST', None),
+               db_port=config.get('MONGODB_PORT', None),
+               db_auth_source=config['MONGODB_AUTH_SOURCE_DB'],
+               db_user=config.get('MONGODB_AUTH_USER', None),
+               db_pass=config.get('MONGODB_AUTH_PASS', None),
+               db_uri=config.get('MONGODB_URI', None)).run()
     except Exception:
         logging.fatal('Server error', exc_info=True)
         raise

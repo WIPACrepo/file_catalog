@@ -29,7 +29,7 @@ class Config(dict):
                 'MongoDB host'),
         'MONGODB_PORT': cps(27017, int,
                 'MongoDB port'),
-        'MONGOD_URI': cps(None, str,
+        'MONGODB_URI': cps(None, str,
                 'MongoDB URI'),
         'META_FORBIDDEN_FIELDS_CREATION': cps(
                 ['mongo_id', '_id', 'meta_modify_date'], str.split,

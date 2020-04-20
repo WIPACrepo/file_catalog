@@ -104,7 +104,7 @@ class Mongo(object):
             logger.warn('Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
         elif result.modified_count != 1:
             logger.warn('updated %s files with id %r',
-                        result.modified_count, metadata_id)
+                        result.modified_count, uuid)
             raise Exception('did not update')
 
     @run_on_executor
@@ -118,7 +118,7 @@ class Mongo(object):
             logger.warn('Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
         elif result.modified_count != 1:
             logger.warn('updated %s files with id %r',
-                        result.modified_count, metadata_id)
+                        result.modified_count, uuid)
             raise Exception('did not update')
 
     @run_on_executor
@@ -222,5 +222,5 @@ class Mongo(object):
             logger.warn('Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
         elif result.modified_count != 1:
             logger.warn('updated %s files with id %r',
-                        result.modified_count, metadata_id)
+                        result.modified_count, uuid)
             raise Exception('did not update')

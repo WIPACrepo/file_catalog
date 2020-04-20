@@ -26,7 +26,8 @@ def main():
         Server(config, port=config['FC_PORT'], debug=config['DEBUG'],
                 db_host=config['MONGODB_HOST'], db_port=config['MONGODB_PORT'],
                 db_auth_source=config['MONGODB_AUTH_SOURCE_DB'],
-                db_user=config['MONGODB_AUTH_USER'], db_pass=config['MONGODB_AUTH_PASS']).run()
+                db_user=config['MONGODB_AUTH_USER'], db_pass=config['MONGODB_AUTH_PASS'],
+                db_uri=config['MONGODB_URI']).run()
     except Exception:
         logging.fatal('Server error', exc_info=True)
         raise

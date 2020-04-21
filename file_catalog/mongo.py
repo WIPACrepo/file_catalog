@@ -2,29 +2,35 @@ from __future__ import absolute_import, division, print_function
 
 import datetime
 import logging
+from concurrent.futures import ThreadPoolExecutor
+
+import pymongo
+from bson.objectid import ObjectId
+from pymongo import MongoClient
+from pymongo.errors import BulkWriteError
+from tornado.concurrent import run_on_executor
+
 try:
     from collections.abc import Iterable
 except ImportError:
     from collections import Iterable
 
-import pymongo
-from pymongo import MongoClient
-from pymongo.errors import BulkWriteError
-from bson.objectid import ObjectId
 
-from concurrent.futures import ThreadPoolExecutor
-from tornado.concurrent import run_on_executor
 
 logger = logging.getLogger('mongo')
 
 class Mongo(object):
     """A ThreadPoolExecutor-based MongoDB client"""
-    def __init__(self, host=None, port=None, authSource=None, username=None, password=None):
-        logger.info('MongoClient args: host=%s, port=%s, username=%s', host, port, username)
+    def __init__(self, host=None, port=None, authSource=None, username=None, password=None, uri=None):
 
-        self.client = MongoClient(host=host, port=port,
-                                  authSource=authSource,
-                                  username=username, password=password).file_catalog
+        if uri:
+            logger.info(f"MongoClient args: uri={uri}")
+            self.client = MongoClient(uri, authSource=authSource).file_catalog
+        else:
+            logger.info('MongoClient args: host=%s, port=%s, username=%s', host, port, username)
+            self.client = MongoClient(host=host, port=port,
+                                      authSource=authSource,
+                                      username=username, password=password).file_catalog
 
         self.client.files.create_index('uuid', unique=True)
         self.client.files.create_index('logical_name', unique=True)
@@ -104,7 +110,7 @@ class Mongo(object):
             logger.warn('Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
         elif result.modified_count != 1:
             logger.warn('updated %s files with id %r',
-                        result.modified_count, metadata_id)
+                        result.modified_count, uuid)
             raise Exception('did not update')
 
     @run_on_executor
@@ -118,7 +124,7 @@ class Mongo(object):
             logger.warn('Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
         elif result.modified_count != 1:
             logger.warn('updated %s files with id %r',
-                        result.modified_count, metadata_id)
+                        result.modified_count, uuid)
             raise Exception('did not update')
 
     @run_on_executor
@@ -222,5 +228,5 @@ class Mongo(object):
             logger.warn('Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s' % result.matched_count)
         elif result.modified_count != 1:
             logger.warn('updated %s files with id %r',
-                        result.modified_count, metadata_id)
+                        result.modified_count, uuid)
             raise Exception('did not update')

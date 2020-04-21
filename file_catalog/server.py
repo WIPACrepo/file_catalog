@@ -85,7 +85,7 @@ class Server(object):
 
     def __init__(self, config, port=8888, debug=False,
                  db_host='localhost', db_port=27017,
-                 db_auth_source='admin', db_user=None, db_pass=None):
+                 db_auth_source='admin', db_user=None, db_pass=None, db_uri=None):
         static_path = get_pkgdata_filename('file_catalog', 'data/www')
         if static_path is None:
             raise Exception('bad static path')
@@ -111,7 +111,8 @@ class Server(object):
 
         api_args = main_args.copy()
         api_args.update({
-            'db': Mongo(host=db_host, port=db_port, authSource=db_auth_source, username=db_user, password=db_pass),
+            'db': Mongo(host=db_host, port=db_port, authSource=db_auth_source,
+                        username=db_user, password=db_pass, uri=db_uri),
             'config': config,
         })
 

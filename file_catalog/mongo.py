@@ -32,10 +32,6 @@ class Mongo(object):
                                       authSource=authSource,
                                       username=username, password=password).file_catalog
 
-        self.client = MongoClient(host=host, port=port,
-                                  authSource=authSource,
-                                  username=username, password=password).file_catalog
-
         self.client.files.create_index('uuid', unique=True)
         self.client.files.create_index('logical_name', unique=True)
         self.client.files.create_index([('logical_name',pymongo.HASHED)])

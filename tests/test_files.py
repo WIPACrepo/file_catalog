@@ -89,6 +89,31 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('file', data)
         url = data['file']
 
+    def test_16_files_uri(self):
+        host = os.environ['TEST_DATABASE_HOST']
+        port = os.environ['TEST_DATABASE_PORT']
+        uri = f"mongodb://{host}:{port}"
+
+        self.start_server(config_override={'MONGODB_URI': uri})
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        metadata = {
+            'logical_name': 'blah',
+            'checksum': {'sha512':hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
+        }
+        r2 = RestClient(self.address, 'blah', timeout=1, retries=1)
+        with self.assertRaises(Exception):
+            r2.request_seq('POST', '/api/files', metadata)
+
+        data = r.request_seq('POST', '/api/files', metadata)
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('file', data)
+        url = data['file']
+
     def test_20_file(self):
         self.start_server()
         token = self.get_token()

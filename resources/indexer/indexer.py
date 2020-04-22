@@ -665,18 +665,18 @@ async def process_paths(paths, manager, fc_rc, no_patch):
     sub_files = []
 
     for p in paths:
-        if is_processable_path(p):
-            if os.path.isfile(p):
-                await process_file(p, manager, fc_rc, no_patch)
-            elif os.path.isdir(p):
-                logging.debug(f'Directory found, {p}. Queuing its contents...')
-                try:
+        try:
+            if is_processable_path(p):
+                if os.path.isfile(p):
+                    await process_file(p, manager, fc_rc, no_patch)
+                elif os.path.isdir(p):
+                    logging.debug(f'Directory found, {p}. Queuing its contents...')
                     sub_files.extend(dir_entry.path for dir_entry in os.scandir(p)
                                      if not dir_entry.is_symlink())  # don't add symbolic links
-                except (PermissionError, FileNotFoundError):
-                    continue
-        else:
-            logging.debug(f'Skipping {p}, not a directory nor file.')
+            else:
+                logging.info(f'Skipping {p}, not a directory nor file.')
+        except (PermissionError, FileNotFoundError) as e:
+            logging.info(f'Skipping {p}, {e.__class__.__name__}.')
 
     return sub_files
 

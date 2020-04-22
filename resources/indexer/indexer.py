@@ -12,6 +12,7 @@ import re
 import stat
 import tarfile
 import xml
+import zlib
 from concurrent.futures import ProcessPoolExecutor
 from datetime import date
 from time import sleep
@@ -289,8 +290,8 @@ class I3FileMetadata(BasicFileMetadata):
                 for tar_obj in tar:
                     if ".meta.xml" in tar_obj.name:
                         self.meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
-        except (xml.parsers.expat.ExpatError, tarfile.ReadError, EOFError):
-            pass
+        except (xml.parsers.expat.ExpatError, tarfile.ReadError, EOFError, zlib.error) as e:
+            logging.info(f"Cannot get *meta.xml file from {self.file.path}, {e.__class__.__name__}.")
 
     @staticmethod
     def _is_run_tar_file(file):

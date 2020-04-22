@@ -760,8 +760,12 @@ def sorted_unique(infile, others=None):
     if others:
         lines.extend(others)
     if infile:
-        with open(infile) as file:
-            lines.extend(l.rstrip() for l in file)
+        with open(infile, 'rb') as file:
+            for l in file:
+                try:
+                    lines.append(l.decode("utf-8", "strict").rstrip())
+                except UnicodeDecodeError as e:
+                    logging.info(f"Invalid filename, {l}, {e.__class__.__name__}.")
     lines = [l for l in sorted(set(lines)) if l]
     return lines
 

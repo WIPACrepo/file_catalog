@@ -70,7 +70,7 @@ class IceCubeSeason:
             return None
         for season_year, season_name in IceCubeSeason.SEASONS.items():
             if season_name == name:
-                return int(season_year)
+                return season_year
         raise Exception(f"No season found for {name}.")
 
     @staticmethod

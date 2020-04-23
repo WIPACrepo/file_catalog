@@ -148,8 +148,11 @@ class I3FileMetadata(BasicFileMetadata):
         super().__init__(file, site)
         self.processing_level = processing_level
         self.meta_xml = {}
-        self.season_year, self.run, self.subrun, self.part = I3FileMetadata.parse_year_run_subrun_part(
-            filename_formats, self.file.name)
+        try:
+            self.season_year, self.run, self.subrun, self.part = I3FileMetadata.parse_year_run_subrun_part(
+                filename_formats, self.file.name)
+        except Exception:
+            raise Exception(f"Filename not in a known {self.processing_level} file format, {file.name}")
 
     def generate(self):
         """Gather the file's metadata."""

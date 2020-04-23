@@ -185,19 +185,31 @@ class I3FileMetadata(BasicFileMetadata):
         """Set the year, run, subrun, and part from the file name."""
         raise NotImplementedError()
 
+    def _assign_year_run_subrun_part(self, formats):
+        """Set the year, run, subrun, and part from the file name from regex match parts."""
+        values = {'year': None, 'run': 0, 'subrun': 0, 'part': 0}
+
+        for pattern in formats:
+            match = re.match(pattern, self.file.name)
+            if match:
+                values.update(match.groupdict())
+                if 'ic_strings' in values:
+                    self.season_year = IceCubeSeason.name_to_year(f"IC{values['ic_strings']}")
+                elif values['year']:
+                    self.season_year = values['year']
+                self.run = int(values['run'])
+                self.subrun = int(values['subrun'])
+                self.part = int(values['part'])
+                return
+
+        raise Exception(f"Filename not in a known {self.processing_level} file format, {self.file.name}.")
+
     @staticmethod
     def parse_run_number(file):
         """Return run number from filename."""
-        # Ex. Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
-        # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
         # Ex: Run00125791_GapsTxt.tar
-        # Ex: Level2_IC86.2015_24HrTestRuns_data_Run00126291_Subrun00000203.i3.bz2
-        filename = file.name
-        if '24HrTestRuns' in filename:  # hard-coded fix
-            filename = filename.split('24HrTestRuns')[1]
-
-        r = filename.split('Run')[1]
-        run = int(r.split('_')[0])
+        match = re.match(r'(.*)Run(?P<run>\d+)', file.name)
+        run = match.groupdict()['run']
         return run
 
     def _get_data_type(self):
@@ -373,64 +385,32 @@ class L2FileMetadata(I3FileMetadata):
 
     def _parse_filepath(self):
         """Set the year, run, subrun, and part from the file name."""
-        self.run = I3FileMetadata.parse_run_number(self.file)
+        formats = [
+            # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
+            # Ex: Level2pass2_IC79.2010_data_Run00115975_Subrun00000000_00000055.i3.zst
+            r'(.*)(\.20\d{2})_data_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)(.*)',
 
-        # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
-        # Ex: Level2pass2_IC79.2010_data_Run00115975_Subrun00000000_00000055.i3.zst
-        if re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', self.file.name):
-            y = self.file.name.split('.')[1]
-            self.season_year = int(y.split('_')[0])
-            s = self.file.name.split('Subrun')[1]
-            self.subrun = int(s.split('_')[0])
-            p = self.file.name.split('_')[-1]
-            self.part = int(p.split('.')[0])
+            # Ex: Level2_PhysicsTrig_PhysicsFiltering_Run00120374_Subrun00000000_00000001.i3
+            # Ex: Level2pass3_PhysicsFiltering_Run00127353_Subrun00000000_00000000.i3.gz
+            r'(.*)_PhysicsFiltering_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)(.*)',
 
-        # Ex: Level2_PhysicsTrig_PhysicsFiltering_Run00120374_Subrun00000000_00000001.i3
-        # Ex: Level2pass3_PhysicsFiltering_Run00127353_Subrun00000000_00000000.i3.gz
-        elif re.match(r'(.*)_PhysicsFiltering_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', self.file.name):
-            self.season_year = None
-            s = self.file.name.split('Subrun')[1]
-            self.subrun = int(s.split('_')[0])
-            p = self.file.name.split('_')[-1]
-            self.part = int(p.split('.')[0])
+            # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
+            # Ex: Level2_IC86.2012_Test_data_Run00120028_Subrun00000081.i3.bz2
+            # Ex: Level2_IC86.2015_24HrTestRuns_data_Run00126291_Subrun00000203.i3.bz2
+            r'(.*)\.(?P<year>20\d{2})_data_Run(?P<run>\d+)_Subrun(?P<part>\d+)(.*)',
 
-        # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
-        # Ex: Level2_IC86.2012_Test_data_Run00120028_Subrun00000081.i3.bz2
-        # Ex: Level2_IC86.2015_24HrTestRuns_data_Run00126291_Subrun00000203.i3.bz2
-        elif re.match(r'(.*)(\.20\d{2})(.*)_data_Run[0-9]+_Subrun[0-9]+(.*)', self.file.name):
-            y = self.file.name.split('.')[1]
-            self.season_year = int(y.split('_')[0])
-            self.subrun = 0
-            p = self.file.name.split('Subrun')[1]
-            self.part = int(p.split('.')[0])
+            # Ex: Level2_IC86.2011_data_Run00119221_Part00000126.i3.bz2
+            r'(.*)\.(?P<year>20\d{2})_data_Run(?P<run>\d+)_Part(?P<part>\d+)(.*)',
 
-        # Ex: Level2_IC86.2011_data_Run00119221_Part00000126.i3.bz2
-        elif re.match(r'(.*)(\.20\d{2})_data_Run[0-9]+_Part[0-9]+(.*)', self.file.name):
-            y = self.file.name.split('.')[1]
-            self.season_year = int(y.split('_')[0])
-            self.subrun = 0
-            p = self.file.name.split('Part')[1]
-            self.part = int(p.split('.')[0])
+            # Ex: Level2a_IC59_data_Run00115968_Part00000290.i3.gz
+            # Ex: MoonEvents_Level2_IC79_data_Run00116082_NewPart00000613.i3.gz
+            r'(.*)_IC(?P<ic_strings>\d+)_data_Run(?P<run>\d+)_(New)?Part(?P<part>\d+)(.*)',
 
-        # Ex: Level2a_IC59_data_Run00115968_Part00000290.i3.gz
-        # Ex: MoonEvents_Level2_IC79_data_Run00116082_NewPart00000613.i3.gz
-        elif re.match(r'(.*)(_IC.*)_data_Run[0-9]+_(New)?Part[0-9]+(.*)', self.file.name):
-            n = self.file.name.split('IC')[1]
-            strings = n.split('_')[0]
-            self.season_year = IceCubeSeason.name_to_year(f"IC{strings}")
-            self.subrun = 0
-            p = self.file.name.split('Part')[1]
-            self.part = int(p.split('.')[0])
+            # Ex: Level2_All_Run00111562_Part00000046.i3.gz
+            r'(.*)_All_Run(?P<run>\d+)(.*)_Part(?P<part>\d+)(.*)'
+        ]
 
-        # Ex: Level2_All_Run00111562_Part00000046.i3.gz
-        elif re.match(r'(.*)_All_Run[0-9]+(.*)_Part[0-9]+(.*)', self.file.name):
-            self.season_year = None
-            self.subrun = 0
-            p = self.file.name.split('Part')[1]
-            self.part = int(p.split('.')[0])
-
-        else:
-            raise Exception(f"Filename not in a known L2 file format, {self.file.name}.")
+        self._assign_year_run_subrun_part(formats)
 
     @staticmethod
     def is_file(file, processing_level):
@@ -449,26 +429,18 @@ class PFFiltFileMetadata(I3FileMetadata):
 
     def _parse_filepath(self):
         """Set the year, run, subrun, and part from the file name."""
-        self.run = I3FileMetadata.parse_run_number(self.file)
+        formats = [
+            # Ex: PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
+            # Ex: PFFilt_PhysicsTrig_PhysicsFiltering_Run00121503_Subrun00000000_00000314.tar.bz2
+            # Ex: orig.PFFilt_PhysicsFiltering_Run00127080_Subrun00000000_00000244.tar.bz2.orig
+            r'(.*)PFFilt_(.*)_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)(.*)',
 
-        # Ex: PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
-        # Ex: PFFilt_PhysicsTrig_PhysicsFiltering_Run00121503_Subrun00000000_00000314.tar.bz2
-        # Ex: orig.PFFilt_PhysicsFiltering_Run00127080_Subrun00000000_00000244.tar.bz2.orig
-        if re.match(r'(.*)PFFilt_(.*)_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', self.file.name):
-            self.season_year = None
-            s = self.file.name.split('Subrun')[1]
-            self.subrun = int(s.split('_')[0])
-            p = self.file.name.split('_')[-1]
-            self.part = int(p.split('.')[0])
-        # Ex: PFFilt_PhysicsTrig_PhysicsFilt_Run00089959_00180.tar.gz
-        # Ex: PFFilt_PhysicsTrig_RandomFilt_Run86885_006.tar.gz
-        elif re.match(r'PFFilt_(.*)_Run[0-9]+_[0-9]+(.*)', self.file.name):
-            self.season_year = None
-            self.subrun = 0
-            p = self.file.name.split('_')[-1]
-            self.part = int(p.split('.')[0])
-        else:
-            raise Exception(f"Filename not in a known PFFilt file format, {self.file.name}.")
+            # Ex: PFFilt_PhysicsTrig_PhysicsFilt_Run00089959_00180.tar.gz
+            # Ex: PFFilt_PhysicsTrig_RandomFilt_Run86885_006.tar.gz
+            r'PFFilt_(.*)_Run(?P<run>\d+)_(?P<part>\d+)(.*)'
+        ]
+
+        self._assign_year_run_subrun_part(formats)
 
     @staticmethod
     def is_file(file, processing_level):
@@ -486,25 +458,20 @@ class PFDSTFileMetadata(I3FileMetadata):
 
     def _parse_filepath(self):
         """Set the year, run, subrun, and part from the file name."""
-        self.run = I3FileMetadata.parse_run_number(self.file)
+        formats = [
+            # Ex. ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
+            # Ex: ukey_42c89a63-e3f7-4c3e-94ae-840eff8bd4fd_PFDST_RandomFiltering_Run00131155_Subrun00000051_00000000.tar.gz
+            # Ex: PFDST_PhysicsFiltering_Run00125790_Subrun00000000_00000064.tar.gz
+            # Ex: PFDST_UW_PhysicsFiltering_Run00125832_Subrun00000000_00000000.tar.gz
+            # Ex: PFDST_RandomFiltering_Run00123917_Subrun00000000_00000000.tar.gz
+            # Ex: PFDST_PhysicsTrig_PhysicsFiltering_Run00121663_Subrun00000000_00000091.tar.gz
+            # Ex: PFDST_TestData_PhysicsFiltering_Run00122158_Subrun00000000_00000014.tar.gz
+            # Ex: PFDST_TestData_RandomFiltering_Run00119375_Subrun00000136_00000000.tar.gz
+            # Ex: PFDST_TestData_Unfiltered_Run00119982_Subrun00000000_000009.tar.gz
+            r'(.*)_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)(.*)'
+        ]
 
-        # Ex. ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
-        # Ex: ukey_42c89a63-e3f7-4c3e-94ae-840eff8bd4fd_PFDST_RandomFiltering_Run00131155_Subrun00000051_00000000.tar.gz
-        # Ex: PFDST_PhysicsFiltering_Run00125790_Subrun00000000_00000064.tar.gz
-        # Ex: PFDST_UW_PhysicsFiltering_Run00125832_Subrun00000000_00000000.tar.gz
-        # Ex: PFDST_RandomFiltering_Run00123917_Subrun00000000_00000000.tar.gz
-        # Ex: PFDST_PhysicsTrig_PhysicsFiltering_Run00121663_Subrun00000000_00000091.tar.gz
-        # Ex: PFDST_TestData_PhysicsFiltering_Run00122158_Subrun00000000_00000014.tar.gz
-        # Ex: PFDST_TestData_RandomFiltering_Run00119375_Subrun00000136_00000000.tar.gz
-        # Ex: PFDST_TestData_Unfiltered_Run00119982_Subrun00000000_000009.tar.gz
-        if re.match(r'(.*)_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', self.file.name):
-            self.season_year = None
-            s = self.file.name.split('Subrun')[1]
-            self.subrun = int(s.split('_')[0])
-            p = self.file.name.split('_')[-1]
-            self.part = int(p.split('.')[0])
-        else:
-            raise Exception(f"Filename not in a known PFDST file format, {self.file.name}.")
+        self._assign_year_run_subrun_part(formats)
 
     @staticmethod
     def is_file(file, processing_level):
@@ -523,22 +490,23 @@ class PFRawFileMetadata(I3FileMetadata):
 
     def _parse_filepath(self):
         """Set the year, run, subrun, and part from the file name."""
-        self.run = I3FileMetadata.parse_run_number(self.file)
+        formats = [
+            # Ex: key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
+            # Ex: ukey_b98a353f-72e8-4d2e-afd7-c41fa5c8d326_PFRaw_PhysicsFiltering_Run00131322_Subrun00000000_00000018.tar.gz
+            # Ex: ukey_05815dd9-2411-468c-9bd5-e99b8f759efd_PFRaw_RandomFiltering_Run00130470_Subrun00000060_00000000.tar.gz
+            # Ex: PFRaw_PhysicsTrig_PhysicsFiltering_Run00114085_Subrun00000000_00000208.tar.gz
+            # Ex: PFRaw_TestData_PhysicsFiltering_Run00114672_Subrun00000000_00000011.tar.gz
+            # Ex: PFRaw_TestData_RandomFiltering_Run00113816_Subrun00000033_00000000.tar.gz
+            r'(.*)_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)(.*)',
 
-        # Ex: key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
-        # Ex: ukey_b98a353f-72e8-4d2e-afd7-c41fa5c8d326_PFRaw_PhysicsFiltering_Run00131322_Subrun00000000_00000018.tar.gz
-        # Ex: ukey_05815dd9-2411-468c-9bd5-e99b8f759efd_PFRaw_RandomFiltering_Run00130470_Subrun00000060_00000000.tar.gz
-        # Ex: PFRaw_PhysicsTrig_PhysicsFiltering_Run00114085_Subrun00000000_00000208.tar.gz
-        # Ex: PFRaw_TestData_PhysicsFiltering_Run00114672_Subrun00000000_00000011.tar.gz
-        # Ex: PFRaw_TestData_RandomFiltering_Run00113816_Subrun00000033_00000000.tar.gz
-        if re.match(r'(.*)_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', self.file.name):
-            self.season_year = None
-            s = self.file.name.split('Subrun')[1]
-            self.subrun = int(s.split('_')[0])
-            p = self.file.name.split('_')[-1]
-            self.part = int(p.split('.')[0])
-        else:
-            raise Exception(f"Filename not in a known PFRaw file format, {self.file.name}.")
+            # Ex: EvtMonPFRaw_PhysicsTrig_RandomFiltering_Run00106489_Subrun00000000.tar.gz
+            r'(.*)_Run(?P<run>\d+)_Subrun(?P<part>\d+)(.*)',
+
+            # Ex: DebugData_PFRaw_Run110394_1.tar.gz
+            r'(.*)_Run(?P<run>\d+)_(?P<part>\d+)(.*)'
+        ]
+
+        self._assign_year_run_subrun_part(formats)
 
     @staticmethod
     def is_file(file, processing_level):

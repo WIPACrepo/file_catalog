@@ -23,7 +23,7 @@ import yaml
 from icecube import dataclasses, dataio
 from rest_tools.client import RestClient
 
-ACCEPTED_ROOTS = ['/data/']
+ACCEPTED_ROOTS = ['/data/', '/home/eevans/file_catalog/resources/indexer']
 TAR_EXTENSIONS = ('.tar.gz', '.tar.bz2', '.tar.zst')
 
 
@@ -192,7 +192,7 @@ class I3FileMetadata(BasicFileMetadata):
                 values.update(match.groupdict())
                 if 'ic_strings' in values:
                     year = IceCubeSeason.name_to_year(f"IC{values['ic_strings']}")
-                elif values['year']:
+                else:
                     year = values['year']
                 run = int(values['run'])
                 subrun = int(values['subrun'])
@@ -319,7 +319,7 @@ class L2FileMetadata(I3FileMetadata):
     FILENAME_FORMATS = [
         # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
         # Ex: Level2pass2_IC79.2010_data_Run00115975_Subrun00000000_00000055.i3.zst
-        r'(.*)(\.20\d{2})_data_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)(.*)',
+        r'(.*)\.(?P<year>20\d{2})_data_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)(.*)',
 
         # Ex: Level2_PhysicsTrig_PhysicsFiltering_Run00120374_Subrun00000000_00000001.i3
         # Ex: Level2pass3_PhysicsFiltering_Run00127353_Subrun00000000_00000000.i3.gz
@@ -328,7 +328,7 @@ class L2FileMetadata(I3FileMetadata):
         # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
         # Ex: Level2_IC86.2012_Test_data_Run00120028_Subrun00000081.i3.bz2
         # Ex: Level2_IC86.2015_24HrTestRuns_data_Run00126291_Subrun00000203.i3.bz2
-        r'(.*)\.(?P<year>20\d{2})_data_Run(?P<run>\d+)_Subrun(?P<part>\d+)(.*)',
+        r'(.*)\.(?P<year>20\d{2})(.*)_data_Run(?P<run>\d+)_Subrun(?P<part>\d+)(.*)',
 
         # Ex: Level2_IC86.2011_data_Run00119221_Part00000126.i3.bz2
         r'(.*)\.(?P<year>20\d{2})_data_Run(?P<run>\d+)_Part(?P<part>\d+)(.*)',

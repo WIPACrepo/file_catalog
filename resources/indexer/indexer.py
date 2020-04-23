@@ -204,10 +204,12 @@ class I3FileMetadata(BasicFileMetadata):
     @staticmethod
     def parse_run_number(filename):
         """Return run number from filename."""
+        # Ex: Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
+        # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
         # Ex: Run00125791_GapsTxt.tar
         match = re.match(r'(.*)Run(?P<run>\d+)', filename)
         run = match.groupdict()['run']
-        return run
+        return int(run)
 
     def _get_data_type(self):
         """Return the file data type, real or simulation"""

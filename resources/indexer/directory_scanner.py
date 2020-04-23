@@ -35,6 +35,7 @@ def process_dir(path):
                 logging.info(f"Blank file name in: {os.path.dirname(dir_entry.path)}")
             else:
                 try:
+                    dir_entry.path.decode('UTF-8', 'strict')
                     print(dir_entry.path)
                 except UnicodeEncodeError:
                     logging.info(f"Invalid file name in: {os.path.dirname(dir_entry.path)}")

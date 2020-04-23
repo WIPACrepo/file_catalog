@@ -186,7 +186,7 @@ class I3FileMetadata(BasicFileMetadata):
         raise NotImplementedError()
 
     def _assign_year_run_subrun_part(self, formats):
-        """Set the year, run, subrun, and part from the file name from regex match parts."""
+        """Set the year, run, subrun, and part from the file name from regex named groups."""
         values = {'year': None, 'run': 0, 'subrun': 0, 'part': 0}
 
         for pattern in formats:

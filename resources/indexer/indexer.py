@@ -385,6 +385,15 @@ class L2FileMetadata(I3FileMetadata):
             p = self.file.name.split('_')[-1]
             self.part = int(p.split('.')[0])
 
+        # Ex: Level2_PhysicsTrig_PhysicsFiltering_Run00120374_Subrun00000000_00000001.i3
+        # Ex: Level2pass3_PhysicsFiltering_Run00127353_Subrun00000000_00000000.i3.gz
+        elif re.match(r'(.*)_PhysicsFiltering_Run[0-9]+_Subrun[0-9]+_[0-9]+(.*)', self.file.name):
+            self.season_year = None
+            s = self.file.name.split('Subrun')[1]
+            self.subrun = int(s.split('_')[0])
+            p = self.file.name.split('_')[-1]
+            self.part = int(p.split('.')[0])
+
         # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
         # Ex: Level2_IC86.2012_Test_data_Run00120028_Subrun00000081.i3.bz2
         # Ex: Level2_IC86.2015_24HrTestRuns_data_Run00126291_Subrun00000203.i3.bz2
@@ -404,7 +413,8 @@ class L2FileMetadata(I3FileMetadata):
             self.part = int(p.split('.')[0])
 
         # Ex: Level2a_IC59_data_Run00115968_Part00000290.i3.gz
-        elif re.match(r'(.*)(_IC.*)_data_Run[0-9]+_Part[0-9]+(.*)', self.file.name):
+        # Ex: MoonEvents_Level2_IC79_data_Run00116082_NewPart00000613.i3.gz
+        elif re.match(r'(.*)(_IC.*)_data_Run[0-9]+_(New)?Part[0-9]+(.*)', self.file.name):
             n = self.file.name.split('IC')[1]
             strings = n.split('_')[0]
             self.season_year = IceCubeSeason.name_to_year(f"IC{strings}")
@@ -413,7 +423,7 @@ class L2FileMetadata(I3FileMetadata):
             self.part = int(p.split('.')[0])
 
         # Ex: Level2_All_Run00111562_Part00000046.i3.gz
-        elif re.match(r'(.*)_Run[0-9]+(.*)_Part[0-9]+(.*)', self.file.name):
+        elif re.match(r'(.*)_All_Run[0-9]+(.*)_Part[0-9]+(.*)', self.file.name):
             self.season_year = None
             self.subrun = 0
             p = self.file.name.split('Part')[1]

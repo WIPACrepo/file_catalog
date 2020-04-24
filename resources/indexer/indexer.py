@@ -183,8 +183,9 @@ class I3FileMetadata(BasicFileMetadata):
 
     @staticmethod
     def parse_year_run_subrun_part(formats, filename):
-        """Return the year, run, subrun, and part from the file name from regex named groups.
-        Only run and part are required in the filename/regex pattern."""
+        """Return the year, run, subrun, and part from the file name from regex patterns' named groups.
+        Only `run` and `part` are required in the filename/regex pattern.
+        Optionally include `ic_strings` group (\\d+), instead of `year` group."""
         values = {'year': None, 'run': 0, 'subrun': 0, 'part': 0}
 
         for pattern in formats:

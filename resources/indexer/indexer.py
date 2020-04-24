@@ -24,7 +24,6 @@ from icecube import dataclasses, dataio
 from rest_tools.client import RestClient
 
 ACCEPTED_ROOTS = ['/data/']
-TAR_EXTENSIONS = ('.tar.gz', '.tar.bz2', '.tar.zst')
 
 
 def is_processable_path(path):
@@ -94,24 +93,6 @@ class ProcessingLevel:
     L2 = "L2"
     L3 = "L3"
     L4 = "L4"
-
-    @staticmethod
-    def from_filename(path):
-        """Return the processing level parsed from the file name, case insensitive."""
-        # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
-        search_strings = {
-            "PFRAW": ProcessingLevel.PFRaw,
-            "PFFILT": ProcessingLevel.PFFilt,
-            "PFDST": ProcessingLevel.PFDST,
-            "LEVEL2": ProcessingLevel.L2,
-            "LEVEL3": ProcessingLevel.L3,
-            "LEVEL4": ProcessingLevel.L4
-        }
-        path_upper = path.upper()
-        for string, level in search_strings.items():
-            if string in path_upper:
-                return level
-        return None
 
 
 class BasicFileMetadata:
@@ -224,7 +205,7 @@ class I3FileMetadata(BasicFileMetadata):
             run = match.groupdict()['run']
             return int(run)
         except Exception:
-            raise Exception('No run number found in filename.')
+            raise Exception(f"No run number found in filename, {filename}.")
 
     def _get_data_type(self):
         """Return the file data type, real or simulation."""
@@ -317,16 +298,6 @@ class I3FileMetadata(BasicFileMetadata):
                         self.meta_xml = xmltodict.parse(tar.extractfile(tar_obj))
         except (xml.parsers.expat.ExpatError, tarfile.ReadError, EOFError, zlib.error) as e:
             logging.info(f"Cannot get *meta.xml file from {self.file.path}, {e.__class__.__name__}.")
-
-    @staticmethod
-    def _is_run_tar_file(file):
-        """`True` if the `file` is in the [...#].tar.[...] file format."""
-        # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
-        # check if last char of filename (w/o extension) is an int
-        for ext in TAR_EXTENSIONS:
-            if (ext in file.name) and (file.name.split(ext)[0][-1]).isdigit():
-                return True
-        return False
 
 
 class L2FileMetadata(I3FileMetadata):
@@ -423,11 +394,11 @@ class L2FileMetadata(I3FileMetadata):
         return metadata
 
     @staticmethod
-    def is_file(file, processing_level):
+    def is_valid_filename(filename):
         """`True` if L2 and the `file` is in the [...#].i3[...] file format."""
         # Ex: Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
         # check if last char of filename (w/o extension) is an int
-        return (processing_level == ProcessingLevel.L2) and (".i3" in file.name) and (file.name.split('.i3')[0][-1]).isdigit()
+        return bool(re.match(r"(.*)Level2(.*)Run(.*)[\d].i3(.*)", filename))
 
 
 class PFFiltFileMetadata(I3FileMetadata):
@@ -449,10 +420,10 @@ class PFFiltFileMetadata(I3FileMetadata):
         self._grab_meta_xml_from_tar()
 
     @staticmethod
-    def is_file(file, processing_level):
+    def is_valid_filename(filename):
         """`True` if PFFilt and the `file` is in the [...#].tar.[...] file format."""
         # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
-        return (processing_level == ProcessingLevel.PFFilt) and I3FileMetadata._is_run_tar_file(file)
+        return bool(re.match(r"(.*)PFFilt(.*)Run(.*)[\d]\.tar\.(gz|bz2|zst)(.*)", filename))
 
 
 class PFDSTFileMetadata(I3FileMetadata):
@@ -476,11 +447,11 @@ class PFDSTFileMetadata(I3FileMetadata):
         self._grab_meta_xml_from_tar()
 
     @staticmethod
-    def is_file(file, processing_level):
+    def is_valid_filename(filename):
         """`True` if PFDST and the `file` is in the [...#].tar.[...] file format."""
         # Ex.
         # ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
-        return (processing_level == ProcessingLevel.PFDST) and I3FileMetadata._is_run_tar_file(file)
+        return bool(re.match(r"(.*)PFDST(.*)Run(.*)[\d]\.tar\.(gz|bz2|zst)(.*)", filename))
 
 
 class PFRawFileMetadata(I3FileMetadata):
@@ -507,10 +478,10 @@ class PFRawFileMetadata(I3FileMetadata):
         self._grab_meta_xml_from_tar()
 
     @staticmethod
-    def is_file(file, processing_level):
+    def is_valid_filename(filename):
         """`True` if PFRaw and the `file` is in the [...#].tar.[...] file format."""
         # Ex. key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
-        return (processing_level == ProcessingLevel.PFRaw) and I3FileMetadata._is_run_tar_file(file)
+        return bool(re.match(r"(.*)PFRaw(.*)Run(.*)[\d]\.tar\.(gz|bz2|zst)(.*)", filename))
 
 
 class MetadataManager:
@@ -563,9 +534,8 @@ class MetadataManager:
         """Return different metadata-file objects. Factory method."""
         file = FileInfo(filepath)
         if not self.basic_only:
-            processing_level = ProcessingLevel.from_filename(file.name)
             # L2
-            if L2FileMetadata.is_file(file, processing_level):
+            if L2FileMetadata.is_valid_filename(file.name):
                 # get directory's metadata
                 file_dir_path = os.path.dirname(os.path.abspath(file.path))
                 if (not self.l2_dir_metadata) or (file_dir_path != self.dir_path):
@@ -584,15 +554,15 @@ class MetadataManager:
                 logging.debug(f'Gathering L2 metadata for {file.name}...')
                 return L2FileMetadata(file, self.site, self.l2_dir_metadata['dir_meta_xml'], gaps, gcd)
             # PFFilt
-            if PFFiltFileMetadata.is_file(file, processing_level):
+            if PFFiltFileMetadata.is_valid_filename(file.name):
                 logging.debug(f'Gathering PFFilt metadata for {file.name}...')
                 return PFFiltFileMetadata(file, self.site)
             # PFDST
-            if PFDSTFileMetadata.is_file(file, processing_level):
+            if PFDSTFileMetadata.is_valid_filename(file.name):
                 logging.debug(f'Gathering PFDST metadata for {file.name}...')
                 return PFDSTFileMetadata(file, self.site)
             # PFRaw
-            if PFRawFileMetadata.is_file(file, processing_level):
+            if PFRawFileMetadata.is_valid_filename(file.name):
                 logging.debug(f'Gathering PFRaw metadata for {file.name}...')
                 return PFRawFileMetadata(file, self.site)
             # if no match, fall-through to BasicFileMetadata...

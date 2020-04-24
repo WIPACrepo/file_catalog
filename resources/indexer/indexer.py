@@ -28,7 +28,7 @@ TAR_EXTENSIONS = ('.tar.gz', '.tar.bz2', '.tar.zst')
 
 
 def is_processable_path(path):
-    """Return True if path is not a symlink, a socket, a fifo, a device, nor char device."""
+    """Return `True` if `path` is not a symlink, a socket, a fifo, a device, nor char device."""
     mode = os.lstat(path).st_mode
     return not (stat.S_ISLNK(mode) or stat.S_ISSOCK(mode) or stat.S_ISFIFO(mode) or stat.S_ISBLK(mode) or stat.S_ISCHR(mode))
 
@@ -44,6 +44,7 @@ class FileInfo:
 
 class IceCubeSeason:
     """Wrapper static class encapsulating season-name - season-year mapping logic."""
+
     SEASONS = {
         '2005': 'ICstring9',
         '2006': 'IC9',
@@ -65,7 +66,7 @@ class IceCubeSeason:
 
     @staticmethod
     def name_to_year(name):
-        """Return the year of the season start for the season's name."""
+        """Return the year of the season start for the season's `name`."""
         if not name:
             return None
         for season_year, season_name in IceCubeSeason.SEASONS.items():
@@ -86,6 +87,7 @@ class IceCubeSeason:
 
 class ProcessingLevel:
     """Wrapper static class encapsulating processing-level parsing logic and levels constants."""
+
     PFRaw = "PFRaw"
     PFFilt = "PFFilt"
     PFDST = "PFDST"
@@ -113,7 +115,7 @@ class ProcessingLevel:
 
 
 class BasicFileMetadata:
-    """Metadata for basic files"""
+    """Metadata for basic files."""
 
     def __init__(self, file, site):
         self.file = file
@@ -142,7 +144,7 @@ class BasicFileMetadata:
 
 
 class I3FileMetadata(BasicFileMetadata):
-    """Metadata for i3 files"""
+    """Metadata for i3 files."""
 
     def __init__(self, file, site, processing_level, filename_formats):
         super().__init__(file, site)
@@ -182,17 +184,20 @@ class I3FileMetadata(BasicFileMetadata):
         return metadata
 
     @staticmethod
-    def parse_year_run_subrun_part(formats, filename):
-        """Return the year, run, subrun, and part from the file name from regex patterns' named groups.
-        Only `run` and `part` are required in the filename/regex pattern.
-        Optionally include `ic_strings` group (\\d+), instead of `year` group."""
+    def parse_year_run_subrun_part(patterns, filename):
+        r"""
+        Return the year, run, subrun, and part from the `filename` from regex `patterns`' named groups.
+
+        Only `run` and `part` group are required in the filename/regex pattern.
+        Optionally include `ic_strings` group (\d+), instead of `year` group.
+        """
         values = {'year': None, 'run': 0, 'subrun': 0, 'part': 0}
 
-        for pattern in formats:
-            if ('?P<run>' not in pattern) or ('?P<part>' not in pattern):
-                raise Exception(f"Pattern does not have `run` and `part` regex groups, {pattern}.")
+        for p in patterns:
+            if ('?P<run>' not in p) or ('?P<part>' not in p):
+                raise Exception(f"Pattern does not have `run` and `part` regex groups, {p}.")
 
-            match = re.match(pattern, filename)
+            match = re.match(p, filename)
             if match:
                 values.update(match.groupdict())
                 if 'ic_strings' in values:
@@ -208,7 +213,7 @@ class I3FileMetadata(BasicFileMetadata):
 
     @staticmethod
     def parse_run_number(filename):
-        """Return run number from filename."""
+        """Return run number from `filename`."""
         # Ex: Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
         # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
         # Ex: Run00125791_GapsTxt.tar
@@ -220,7 +225,7 @@ class I3FileMetadata(BasicFileMetadata):
             raise Exception('No run number found in filename.')
 
     def _get_data_type(self):
-        """Return the file data type, real or simulation"""
+        """Return the file data type, real or simulation."""
         if "/exp/" in self.file.path:
             return "real"
         if "/sim/" in self.file.path:
@@ -228,7 +233,7 @@ class I3FileMetadata(BasicFileMetadata):
         return None
 
     def _parse_xml(self):
-        """Return data points from xml dict"""
+        """Return data points from `self.meta_xml` dict."""
         start_dt = None
         end_dt = None
         create_date = None
@@ -258,8 +263,7 @@ class I3FileMetadata(BasicFileMetadata):
         return start_dt, end_dt, create_date, software
 
     def _get_software(self):
-        """Return software metadata"""
-
+        """Return software metadata from `self.meta_xml`."""
         def parse_project(project):
             software = {}
             if 'Name' in project:
@@ -285,7 +289,7 @@ class I3FileMetadata(BasicFileMetadata):
         return software_list
 
     def _get_events_data(self):
-        """Return the first/last event ids, number of events, and content status"""
+        """Return the first/last event ids, number of events, and content status."""
         first, last = None, None
         count = 0
         status = "good"
@@ -303,7 +307,7 @@ class I3FileMetadata(BasicFileMetadata):
         return first, last, count, status
 
     def _grab_meta_xml_from_tar(self):
-        """Open tar file and set *meta.xml as self.meta_xml."""
+        """Open `self.file.path` (tar file) and set '*meta.xml' file as `self.meta_xml`."""
         try:
             with tarfile.open(self.file.path) as tar:
                 for tar_obj in tar:
@@ -314,7 +318,7 @@ class I3FileMetadata(BasicFileMetadata):
 
     @staticmethod
     def _is_run_tar_file(file):
-        """ True if the file is in the [...#].tar.[...] file format. """
+        """`True` if the `file` is in the [...#].tar.[...] file format."""
         # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
         # check if last char of filename (w/o extension) is an int
         for ext in TAR_EXTENSIONS:
@@ -324,7 +328,7 @@ class I3FileMetadata(BasicFileMetadata):
 
 
 class L2FileMetadata(I3FileMetadata):
-    """Metadata for L2 i3 files"""
+    """Metadata for L2 i3 files."""
 
     FILENAME_FORMATS = [
         # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
@@ -358,7 +362,7 @@ class L2FileMetadata(I3FileMetadata):
         self.gcd_filepath = gcd_filepath
 
     def _parse_gaps_dict(self):
-        """Return data points from gaps file, formatted"""
+        """Return formatted data points from `self.gaps_dict`."""
         if not self.gaps_dict:
             return None, None, None, None
 
@@ -418,14 +422,14 @@ class L2FileMetadata(I3FileMetadata):
 
     @staticmethod
     def is_file(file, processing_level):
-        """True if the file is in the [...#].i3[...] file format."""
+        """`True` if L2 and the `file` is in the [...#].i3[...] file format."""
         # Ex: Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
         # check if last char of filename (w/o extension) is an int
         return (processing_level == ProcessingLevel.L2) and (".i3" in file.name) and (file.name.split('.i3')[0][-1]).isdigit()
 
 
 class PFFiltFileMetadata(I3FileMetadata):
-    """Metadata for PFFilt i3 files"""
+    """Metadata for PFFilt i3 files."""
 
     FILENAME_FORMATS = [
         # Ex: PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
@@ -444,13 +448,13 @@ class PFFiltFileMetadata(I3FileMetadata):
 
     @staticmethod
     def is_file(file, processing_level):
-        """ True if PFFilt and the file is in the [...#].tar.[...] file format. """
+        """`True` if PFFilt and the `file` is in the [...#].tar.[...] file format."""
         # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
         return (processing_level == ProcessingLevel.PFFilt) and I3FileMetadata._is_run_tar_file(file)
 
 
 class PFDSTFileMetadata(I3FileMetadata):
-    """Metadata for PFDST i3 files"""
+    """Metadata for PFDST i3 files."""
 
     FILENAME_FORMATS = [
         # Ex. ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
@@ -471,14 +475,14 @@ class PFDSTFileMetadata(I3FileMetadata):
 
     @staticmethod
     def is_file(file, processing_level):
-        """ True if PFDST and the file is in the [...#].tar.[...] file format. """
+        """`True` if PFDST and the `file` is in the [...#].tar.[...] file format."""
         # Ex.
         # ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
         return (processing_level == ProcessingLevel.PFDST) and I3FileMetadata._is_run_tar_file(file)
 
 
 class PFRawFileMetadata(I3FileMetadata):
-    """Metadata for PFRaw i3 files"""
+    """Metadata for PFRaw i3 files."""
 
     FILENAME_FORMATS = [
         # Ex: key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
@@ -502,13 +506,13 @@ class PFRawFileMetadata(I3FileMetadata):
 
     @staticmethod
     def is_file(file, processing_level):
-        """ True if PFRaw and the file is in the [...#].tar.[...] file format. """
+        """`True` if PFRaw and the `file` is in the [...#].tar.[...] file format."""
         # Ex. key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
         return (processing_level == ProcessingLevel.PFRaw) and I3FileMetadata._is_run_tar_file(file)
 
 
 class MetadataManager:
-    """Commander class for handling metadata for different file types"""
+    """Commander class for handling metadata for different file types."""
 
     def __init__(self, site, basic_only=False):
         self.dir_path = ""
@@ -554,7 +558,7 @@ class MetadataManager:
         self.l2_dir_metadata['gcd_files'] = gcd_files
 
     def new_file(self, filepath):
-        """Factory method for returning different metadata-file types"""
+        """Return different metadata-file objects. Factory method."""
         file = FileInfo(filepath)
         if not self.basic_only:
             processing_level = ProcessingLevel.from_filename(file.name)
@@ -653,7 +657,7 @@ async def process_paths(paths, manager, fc_rc, no_patch):
 
 
 def path_in_blacklist(path, blacklist):
-    """Return True if path is in the blacklist."""
+    """Return `True` if `path` is in the `blacklist`."""
     for b in blacklist:
         if path.startswith(b):
             logging.debug(f'Skipping {path}, file and/or directory is in blacklist ({b}).')
@@ -662,7 +666,7 @@ def path_in_blacklist(path, blacklist):
 
 
 def process_work(paths, args, blacklist):
-    """Wrap async function, process_paths. Return files nested under any directories."""
+    """Wrap async function, `process_paths`. Return files nested under any directories."""
     if not isinstance(paths, list):
         raise TypeError(f'`paths` object is not list {paths}')
     if not paths:
@@ -682,7 +686,7 @@ def process_work(paths, args, blacklist):
 
 
 def check_path(path):
-    """Check if path is rooted at a white-listed root path."""
+    """Check if `path` is rooted at a white-listed root path."""
     for root in ACCEPTED_ROOTS:
         if path.startswith(root):
             return
@@ -692,7 +696,7 @@ def check_path(path):
 
 
 def gather_file_info(starting_paths, blacklist, args):
-    """Gather and post metadata from files rooted at starting_paths. Do this multi-processed."""
+    """Gather and post metadata from files rooted at `starting_paths`. Do this multi-processed."""
     # Get full paths
     starting_paths = [os.path.abspath(p) for p in starting_paths]
     for p in starting_paths:
@@ -725,7 +729,11 @@ def gather_file_info(starting_paths, blacklist, args):
 
 
 def sorted_unique(infile, others=None):
-    """Read in lines from file, aggregate with those in others list. Return all unique lines, sorted."""
+    """
+    Read in lines from `infile`, aggregate with those in `others` list.
+
+    Return all unique lines, sorted.
+    """
     lines = []
     if others:
         lines.extend(others)
@@ -736,6 +744,7 @@ def sorted_unique(infile, others=None):
                     lines.append(l.decode("utf-8", "strict").rstrip())
                 except UnicodeDecodeError as e:
                     logging.info(f"Invalid filename, {l}, {e.__class__.__name__}.")
+
     lines = [l for l in sorted(set(lines)) if l]
     return lines
 

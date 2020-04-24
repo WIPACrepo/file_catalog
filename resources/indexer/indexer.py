@@ -183,10 +183,14 @@ class I3FileMetadata(BasicFileMetadata):
 
     @staticmethod
     def parse_year_run_subrun_part(formats, filename):
-        """Return the year, run, subrun, and part from the file name from regex named groups."""
+        """Return the year, run, subrun, and part from the file name from regex named groups.
+        Only run and part are required in the filename/regex pattern."""
         values = {'year': None, 'run': 0, 'subrun': 0, 'part': 0}
 
         for pattern in formats:
+            if ('?P<run>' not in pattern) or ('?P<part>' not in pattern):
+                raise Exception(f"Pattern does not have `run` and `part` regex groups, {pattern}.")
+
             match = re.match(pattern, filename)
             if match:
                 values.update(match.groupdict())
@@ -208,8 +212,11 @@ class I3FileMetadata(BasicFileMetadata):
         # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
         # Ex: Run00125791_GapsTxt.tar
         match = re.match(r'(.*)Run(?P<run>\d+)', filename)
-        run = match.groupdict()['run']
-        return int(run)
+        try:
+            run = match.groupdict()['run']
+            return int(run)
+        except Exception:
+            raise Exception('No run number found in filename.')
 
     def _get_data_type(self):
         """Return the file data type, real or simulation"""
@@ -381,6 +388,7 @@ class L2FileMetadata(I3FileMetadata):
             last_event_dict = {'event_id': last_id, 'datetime': last_dt.isoformat()}
 
             return gaps, livetime, first_event_dict, last_event_dict
+
         except KeyError:
             return None, livetime, None, None
 

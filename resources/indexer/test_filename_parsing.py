@@ -1,5 +1,6 @@
-"""Test indexer filename parsing"""
+"""Test indexer filename parsing."""
 
+import pytest
 from indexer import (I3FileMetadata, L2FileMetadata, PFDSTFileMetadata, PFFiltFileMetadata,
                      PFRawFileMetadata)
 
@@ -17,11 +18,26 @@ def test_run_number():
     assert I3FileMetadata.parse_run_number(
         'Level2_IC86.2015_24HrTestRuns_data_Run00126291_Subrun00000203.i3.bz2') == 126291
 
+    # Errors
+    errors_filenames = [
+        'Level2_IC86.2011_corsika.011690.000796.i3.bz2',
+        'SunEvents_Level2_IC79_data_test1.i3.bz2',
+        'logfiles_PFDST_2011.tar.gz',
+        'DebugData_PFRaw124751_001.tar.gz',
+        'logfiles_PFDST_2010.tar.gz'
+    ]
+
+    for filename in errors_filenames:
+        print(f"FILNAMES: {filename}")
+        with pytest.raises(Exception) as e:
+            I3FileMetadata.parse_run_number(filename)
+        assert str(e.value) == "No run number found in filename."
+
 
 def _test_filenames(test_filenames, filename_formats):
     for filename, values in test_filenames.items():
         y, r, s, p = I3FileMetadata.parse_year_run_subrun_part(filename_formats, filename)
-        print(f"OUTPUTS: {y}, {r}, {s}, {p}")
+        print(f"OUTPUTS: {filename}, {y}, {r}, {s}, {p}")
         assert y == values[0]
         assert r == values[1]
         assert s == values[2]
@@ -87,3 +103,17 @@ def test_PFRaw():
         'DebugData_PFRaw_Run110394_1.tar.gz': [None, 110394, 0, 1]
     }
     _test_filenames(test_filenames, PFRawFileMetadata.FILENAME_FORMATS)
+
+
+def test_bad_patterns():
+    """Run PFRaw filename parsing."""
+    bad_patterns = [
+        r'(.*)\.(?P<year>20\d{2})_Subrun(?P<subrun>\d+)',
+        r'(.*)\.(?P<run>20\d{2})_Subrun(?P<subrun>\d+)',
+        r'(.*)\.(?P<year>20\d{2})_Subrun(?P<part>\d+)'
+    ]
+
+    for bp in bad_patterns:
+        with pytest.raises(Exception) as e:
+            I3FileMetadata.parse_year_run_subrun_part([bp], 'filename-wont-be-matched-anyways')
+        assert "Pattern does not have `run` and `part` regex groups," in str(e.value)

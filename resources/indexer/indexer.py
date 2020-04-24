@@ -154,7 +154,7 @@ class I3FileMetadata(BasicFileMetadata):
             self.season_year, self.run, self.subrun, self.part = I3FileMetadata.parse_year_run_subrun_part(
                 filename_patterns, self.file.name)
         except ValueError:
-            raise Exception(f"Filename not in a known {self.processing_level} file format, {file.name}")
+            raise Exception(f"Filename not in a known {self.processing_level} file format, {file.name}.")
 
     def generate(self):
         """Gather the file's metadata."""
@@ -210,6 +210,7 @@ class I3FileMetadata(BasicFileMetadata):
                 part = int(values['part'])
                 return year, run, subrun, part
 
+        # fall-through
         raise ValueError(f"Filename does not match any pattern, {filename}.")
 
     @staticmethod

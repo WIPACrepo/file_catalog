@@ -153,7 +153,7 @@ class I3FileMetadata(BasicFileMetadata):
         try:
             self.season_year, self.run, self.subrun, self.part = I3FileMetadata.parse_year_run_subrun_part(
                 filename_patterns, self.file.name)
-        except Exception:
+        except ValueError:
             raise Exception(f"Filename not in a known {self.processing_level} file format, {file.name}")
 
     def generate(self):
@@ -210,7 +210,7 @@ class I3FileMetadata(BasicFileMetadata):
                 part = int(values['part'])
                 return year, run, subrun, part
 
-        raise Exception()
+        raise ValueError(f"Filename does not match any pattern, {filename}.")
 
     @staticmethod
     def parse_run_number(filename):

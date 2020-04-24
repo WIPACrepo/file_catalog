@@ -23,7 +23,7 @@ import yaml
 from icecube import dataclasses, dataio
 from rest_tools.client import RestClient
 
-ACCEPTED_ROOTS = ['/data/', '/home/eevans/file_catalog/resources/indexer']
+ACCEPTED_ROOTS = ['/data/']
 TAR_EXTENSIONS = ('.tar.gz', '.tar.bz2', '.tar.zst')
 
 

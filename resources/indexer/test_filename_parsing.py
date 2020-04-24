@@ -6,15 +6,16 @@ from indexer import (I3FileMetadata, L2FileMetadata, PFDSTFileMetadata, PFFiltFi
 
 def test_run_number():
     """Run generic filename parsing of run number."""
-    r = I3FileMetadata.parse_run_number('Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst')
-    assert r == 130484
+    assert I3FileMetadata.parse_run_number(
+        'Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst') == 130484
 
-    r = I3FileMetadata.parse_run_number(
-        'Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst')
-    assert r == 130567
+    assert I3FileMetadata.parse_run_number(
+        'Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst') == 130567
 
-    r = I3FileMetadata.parse_run_number('Run00125791_GapsTxt.tar')
-    assert r == 125791
+    assert I3FileMetadata.parse_run_number('Run00125791_GapsTxt.tar') == 125791
+
+    assert I3FileMetadata.parse_run_number(
+        'Level2_IC86.2015_24HrTestRuns_data_Run00126291_Subrun00000203.i3.bz2') == 126291
 
 
 def _test_filenames(test_filenames, filename_formats):

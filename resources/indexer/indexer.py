@@ -146,13 +146,13 @@ class BasicFileMetadata:
 class I3FileMetadata(BasicFileMetadata):
     """Metadata for i3 files."""
 
-    def __init__(self, file, site, processing_level, filename_formats):
+    def __init__(self, file, site, processing_level, filename_patterns):
         super().__init__(file, site)
         self.processing_level = processing_level
         self.meta_xml = {}
         try:
             self.season_year, self.run, self.subrun, self.part = I3FileMetadata.parse_year_run_subrun_part(
-                filename_formats, self.file.name)
+                filename_patterns, self.file.name)
         except Exception:
             raise Exception(f"Filename not in a known {self.processing_level} file format, {file.name}")
 
@@ -331,7 +331,7 @@ class I3FileMetadata(BasicFileMetadata):
 class L2FileMetadata(I3FileMetadata):
     """Metadata for L2 i3 files."""
 
-    FILENAME_FORMATS = [
+    FILENAME_PATTERNS = [
         # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
         # Ex: Level2pass2_IC79.2010_data_Run00115975_Subrun00000000_00000055.i3.zst
         r'(.*)\.(?P<year>20\d{2})_data_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)(.*)',
@@ -357,7 +357,7 @@ class L2FileMetadata(I3FileMetadata):
     ]
 
     def __init__(self, file, site, dir_meta_xml, gaps_dict, gcd_filepath):
-        super().__init__(file, site, ProcessingLevel.L2, L2FileMetadata.FILENAME_FORMATS)
+        super().__init__(file, site, ProcessingLevel.L2, L2FileMetadata.FILENAME_PATTERNS)
         self.meta_xml = dir_meta_xml
         self.gaps_dict = gaps_dict
         self.gcd_filepath = gcd_filepath
@@ -432,7 +432,7 @@ class L2FileMetadata(I3FileMetadata):
 class PFFiltFileMetadata(I3FileMetadata):
     """Metadata for PFFilt i3 files."""
 
-    FILENAME_FORMATS = [
+    FILENAME_PATTERNS = [
         # Ex: PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
         # Ex: PFFilt_PhysicsTrig_PhysicsFiltering_Run00121503_Subrun00000000_00000314.tar.bz2
         # Ex: orig.PFFilt_PhysicsFiltering_Run00127080_Subrun00000000_00000244.tar.bz2.orig
@@ -444,7 +444,7 @@ class PFFiltFileMetadata(I3FileMetadata):
     ]
 
     def __init__(self, file, site):
-        super().__init__(file, site, ProcessingLevel.PFFilt, PFFiltFileMetadata.FILENAME_FORMATS)
+        super().__init__(file, site, ProcessingLevel.PFFilt, PFFiltFileMetadata.FILENAME_PATTERNS)
         self._grab_meta_xml_from_tar()
 
     @staticmethod
@@ -457,7 +457,7 @@ class PFFiltFileMetadata(I3FileMetadata):
 class PFDSTFileMetadata(I3FileMetadata):
     """Metadata for PFDST i3 files."""
 
-    FILENAME_FORMATS = [
+    FILENAME_PATTERNS = [
         # Ex. ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
         # Ex: ukey_42c89a63-e3f7-4c3e-94ae-840eff8bd4fd_PFDST_RandomFiltering_Run00131155_Subrun00000051_00000000.tar.gz
         # Ex: PFDST_PhysicsFiltering_Run00125790_Subrun00000000_00000064.tar.gz
@@ -471,7 +471,7 @@ class PFDSTFileMetadata(I3FileMetadata):
     ]
 
     def __init__(self, file, site):
-        super().__init__(file, site, ProcessingLevel.PFDST, PFDSTFileMetadata.FILENAME_FORMATS)
+        super().__init__(file, site, ProcessingLevel.PFDST, PFDSTFileMetadata.FILENAME_PATTERNS)
         self._grab_meta_xml_from_tar()
 
     @staticmethod
@@ -485,7 +485,7 @@ class PFDSTFileMetadata(I3FileMetadata):
 class PFRawFileMetadata(I3FileMetadata):
     """Metadata for PFRaw i3 files."""
 
-    FILENAME_FORMATS = [
+    FILENAME_PATTERNS = [
         # Ex: key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
         # Ex: ukey_b98a353f-72e8-4d2e-afd7-c41fa5c8d326_PFRaw_PhysicsFiltering_Run00131322_Subrun00000000_00000018.tar.gz
         # Ex: ukey_05815dd9-2411-468c-9bd5-e99b8f759efd_PFRaw_RandomFiltering_Run00130470_Subrun00000060_00000000.tar.gz
@@ -502,7 +502,7 @@ class PFRawFileMetadata(I3FileMetadata):
     ]
 
     def __init__(self, file, site):
-        super().__init__(file, site, ProcessingLevel.PFRaw, PFRawFileMetadata.FILENAME_FORMATS)
+        super().__init__(file, site, ProcessingLevel.PFRaw, PFRawFileMetadata.FILENAME_PATTERNS)
         self._grab_meta_xml_from_tar()
 
     @staticmethod

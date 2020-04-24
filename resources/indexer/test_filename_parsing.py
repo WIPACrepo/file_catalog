@@ -34,9 +34,9 @@ def test_run_number():
         assert str(e.value) == "No run number found in filename."
 
 
-def _test_filenames(test_filenames, filename_formats):
+def _test_filenames(test_filenames, filename_patterns):
     for filename, values in test_filenames.items():
-        y, r, s, p = I3FileMetadata.parse_year_run_subrun_part(filename_formats, filename)
+        y, r, s, p = I3FileMetadata.parse_year_run_subrun_part(filename_patterns, filename)
         print(f"OUTPUTS: {filename}, {y}, {r}, {s}, {p}")
         assert y == values[0]
         assert r == values[1]
@@ -59,7 +59,7 @@ def test_L2():
         'MoonEvents_Level2_IC79_data_Run00116082_NewPart00000613.i3.gz': ['2010', 116082, 0, 613],
         'Level2_All_Run00111562_Part00000046.i3.gz': [None, 111562, 0, 46]
     }
-    _test_filenames(test_filenames, L2FileMetadata.FILENAME_FORMATS)
+    _test_filenames(test_filenames, L2FileMetadata.FILENAME_PATTERNS)
 
 
 def test_PFFilt():
@@ -71,7 +71,7 @@ def test_PFFilt():
         'PFFilt_PhysicsTrig_PhysicsFilt_Run00089959_00180.tar.gz': [None, 89959, 0, 180],
         'PFFilt_PhysicsTrig_RandomFilt_Run86885_006.tar.gz': [None, 86885, 0, 6]
     }
-    _test_filenames(test_filenames, PFFiltFileMetadata.FILENAME_FORMATS)
+    _test_filenames(test_filenames, PFFiltFileMetadata.FILENAME_PATTERNS)
 
 
 def test_PFDST():
@@ -87,7 +87,7 @@ def test_PFDST():
         'PFDST_TestData_RandomFiltering_Run00119375_Subrun00000136_00000000.tar.gz': [None, 119375, 136, 0],
         'PFDST_TestData_Unfiltered_Run00119982_Subrun00000000_000009.tar.gz': [None, 119982, 0, 9]
     }
-    _test_filenames(test_filenames, PFDSTFileMetadata.FILENAME_FORMATS)
+    _test_filenames(test_filenames, PFDSTFileMetadata.FILENAME_PATTERNS)
 
 
 def test_PFRaw():
@@ -102,7 +102,7 @@ def test_PFRaw():
         'EvtMonPFRaw_PhysicsTrig_RandomFiltering_Run00106489_Subrun00000000.tar.gz': [None, 106489, 0, 0],
         'DebugData_PFRaw_Run110394_1.tar.gz': [None, 110394, 0, 1]
     }
-    _test_filenames(test_filenames, PFRawFileMetadata.FILENAME_FORMATS)
+    _test_filenames(test_filenames, PFRawFileMetadata.FILENAME_PATTERNS)
 
 
 def test_bad_patterns():

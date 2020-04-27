@@ -99,7 +99,12 @@ def test_bad_L2():
         'Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst',
         'level2_meta.xml',
         'Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188_gaps.txt',
-        'Level2_Run00088383.i3.gz'
+        'Level2_Run00088383.i3.gz',
+        'Level2_Run0002484.i3',
+        'MoonEvents_Level2_All_Run00110864.i3.gz',
+        'Level2_All_Run00111399-000.i3.gz',
+        'IC59_MoonEvents_Level2_IC59_data_Run00114554.i3.gz',
+
     ]
 
     _test_bad_valid_filenames_parsing(filenames, L2FileMetadata.is_valid_filename)
@@ -170,7 +175,13 @@ def test_PFRaw():
 def test_bad_PFRaw():
     """Run bad PFRaw filename parsing."""
     filenames = [
-        'DebugData_PFRaw124751_001.tar.gz'
+        'DebugData_PFRaw124751_001.tar.gz',
+        'DebugData_PFRaw_Run_115244_v5.tar.gz',
+        'DebugData_PFRaw_TestData_PhysicsFiltering_Run00111448.tar.gz',
+        'DebugData-PFRaw_TestData_Run00118957.tar.gz',
+        'DebugData-PFRaw_PhysicsTrig_PhysicsFiltering_Run00119158.tar.gz',
+        'EvtMonPFRaw_PhysicsTrig_RandomFilt_Run86510.tar.gz',
+        'EvtMonPFRaw_PhysicsTrig_PhysicsFilt_Run00089012.tar.gz'
     ]
 
     _test_bad_valid_filenames_parsing(filenames, PFRawFileMetadata.is_valid_filename)

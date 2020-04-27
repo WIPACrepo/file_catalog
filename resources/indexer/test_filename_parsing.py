@@ -2,7 +2,7 @@
 
 import pytest
 from indexer import (I3FileMetadata, L2FileMetadata, PFDSTFileMetadata, PFFiltFileMetadata,
-                     PFRawFileMetadata)
+                     PFRawFileMetadata, fix_known_filepath_issues)
 
 
 def test_run_number():
@@ -189,3 +189,43 @@ def test_bad_patterns():
         with pytest.raises(Exception) as e:
             I3FileMetadata.parse_year_run_subrun_part([bp], 'filename-wont-be-matched-anyways')
         assert "Pattern does not have `run` and `part` regex groups," in str(e.value)
+
+
+def test_hard_coded_filepath_fixes():
+    """Run hard_coded_filepath_fixes() tests."""
+    raw_lines = [
+        (
+            '/data/exp/IceCube/2011/unbiased/AURA_Processed/0824/MDAQ-Run-186971/headers_unsorted.txt.new',
+            None
+        ),
+        (
+            '/data/exp/IceCube/2011/unbiased/AURA_Processed/0824/MDAQ-Run-186971/headers_unsorted.txt/data/exp/IceCube/2011/unbiased/AURA_Processed/0706/MDAQ-Run-175122/mdaq.hdr',
+            [
+                '/data/exp/IceCube/2011/unbiased/AURA_Processed/0824/MDAQ-Run-186971/headers_unsorted.txt',
+                '/data/exp/IceCube/2011/unbiased/AURA_Processed/0706/MDAQ-Run-175122/mdaq.hdr'
+            ],
+        ),
+        (
+            '/data/exp/IceCube/2011/unbiased/AURA_Processed/0824/MDAQ-Run-186971/mdaq.hdr',
+            None
+        ),
+        (
+            '/data/exp/IceCube/2012/filtered/level2/0815/Level2_IC86.2012_data_Run00120559_Subrun00000015_DST.root',
+            None
+        ),
+        (
+            '/data/exp/IceCube/2012/filtered/level2/0815/Level2_IC86.2012_data_Run00120559_Subrun00000015_IT.i3.bz2/data/exp/IceCube/2008/unbiased/acoustic/0112/spats_strBpts_200801120704.tar.gz',
+            [
+                '/data/exp/IceCube/2012/filtered/level2/0815/Level2_IC86.2012_data_Run00120559_Subrun00000015_IT.i3.bz2',
+                '/data/exp/IceCube/2008/unbiased/acoustic/0112/spats_strBpts_200801120704.tar.gz'
+            ]
+        ),
+        (
+            '/data/exp/IceCube/2012/filtered/level2/0815/Level2_IC86.2012_data_Run00120559_Subrun00000016.i3.bz2',
+            None
+        )
+    ]
+
+    for raw, fixed in raw_lines:
+        print(f"{raw} -- {fixed}")
+        assert fixed == fix_known_filepath_issues(raw)

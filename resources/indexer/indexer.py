@@ -609,6 +609,15 @@ async def process_file(filepath, manager, fc_rc, no_patch):
     await request_post_patch(fc_rc, metadata, no_patch)
 
 
+def fix_known_filepath_issues(filepath):
+    """Deal with weird quirks in filenames."""
+    # split filenames that were concatenated at some point in preprocessing
+    match = re.match(r'(?P<first>/data/exp/.*)(?P<second>/data/exp/.*)', filepath)
+    if match:
+        return list(match.groupdict().values())
+    return None
+
+
 async def process_paths(paths, manager, fc_rc, no_patch):
     """POST metadata of files given by paths, and return any directories."""
     sub_files = []
@@ -624,8 +633,17 @@ async def process_paths(paths, manager, fc_rc, no_patch):
                                      if not dir_entry.is_symlink())  # don't add symbolic links
             else:
                 logging.info(f'Skipping {p}, not a directory nor file.')
+
         except (PermissionError, FileNotFoundError) as e:
             logging.info(f'Skipping {p}, {e.__class__.__name__}.')
+
+        except NotADirectoryError as e:
+            fixed_filepaths = fix_known_filepath_issues(p)
+            if fixed_filepaths:
+                paths.extend(fixed_filepaths)
+                logging.info(f'Fixed known issue with filepath, {p} -> {fixed_filepaths}.')
+            else:
+                logging.info(f'Skipping {p}, {e.__class__.__name__}.')
 
     return sub_files
 

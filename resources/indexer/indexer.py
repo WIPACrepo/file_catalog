@@ -200,7 +200,7 @@ class I3FileMetadata(BasicFileMetadata):
         # Ex: Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
         # Ex: Level2_IC86.2017_data_Run00130567_Subrun00000000_00000280.i3.zst
         # Ex: Run00125791_GapsTxt.tar
-        match = re.match(r'(.*)Run(?P<run>\d+)', filename)
+        match = re.match(r'.*Run(?P<run>\d+)', filename)
         try:
             run = match.groupdict()['run']
             return int(run)
@@ -308,26 +308,26 @@ class L2FileMetadata(I3FileMetadata):
         # Ex: Level2pass2_IC79.2010_data_Run00115975_Subrun00000000_00000055.i3.zst
         # Ex:
         # Level2_IC86.2018RHEL_6_V05-02-00b_py2-v311_data_Run00132765_Subrun00000000_00000000.i3.zst
-        r'(.*)\.(?P<year>20\d{2})(.*)_data_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.',
+        r'.*\.(?P<year>20\d{2}).*_data_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.',
 
         # Ex: Level2_PhysicsTrig_PhysicsFiltering_Run00120374_Subrun00000000_00000001.i3
         # Ex: Level2pass3_PhysicsFiltering_Run00127353_Subrun00000000_00000000.i3.gz
-        r'(.*)_PhysicsFiltering_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.',
+        r'.*_PhysicsFiltering_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.',
 
         # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
         # Ex: Level2_IC86.2012_Test_data_Run00120028_Subrun00000081.i3.bz2
         # Ex: Level2_IC86.2015_24HrTestRuns_data_Run00126291_Subrun00000203.i3.bz2
-        r'(.*)\.(?P<year>20\d{2})_(.*)data_Run(?P<run>\d+)_Subrun(?P<part>\d+)\.',
+        r'.*\.(?P<year>20\d{2})_.*data_Run(?P<run>\d+)_Subrun(?P<part>\d+)\.',
 
         # Ex: Level2_IC86.2011_data_Run00119221_Part00000126.i3.bz2
-        r'(.*)\.(?P<year>20\d{2})_data_Run(?P<run>\d+)_Part(?P<part>\d+)\.',
+        r'.*\.(?P<year>20\d{2})_data_Run(?P<run>\d+)_Part(?P<part>\d+)\.',
 
         # Ex: Level2a_IC59_data_Run00115968_Part00000290.i3.gz
         # Ex: MoonEvents_Level2_IC79_data_Run00116082_NewPart00000613.i3.gz
-        r'(.*)_IC(?P<ic_strings>\d+)_data_Run(?P<run>\d+)_(New)?Part(?P<part>\d+)\.',
+        r'.*_IC(?P<ic_strings>\d+)_data_Run(?P<run>\d+)_(New)?Part(?P<part>\d+)\.',
 
         # Ex: Level2_All_Run00111562_Part00000046.i3.gz
-        r'(.*)_All_Run(?P<run>\d+)_Part(?P<part>\d+)\.'
+        r'.*_All_Run(?P<run>\d+)_Part(?P<part>\d+)\.'
     ]
 
     def __init__(self, file, site, dir_meta_xml, gaps_dict, gcd_filepath):
@@ -400,7 +400,7 @@ class L2FileMetadata(I3FileMetadata):
         """`True` if the `filename` matches the generic filename pattern for L2 files."""
         # Ex: Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
         # check if last char of filename (w/o extension) is an int
-        return bool(re.match(r'(.*)Level2(.*)Run(\d+)_(.*)\d\.i3', filename))
+        return bool(re.match(r'.*Level2.*Run(\d+)_.*\d\.i3', filename))
 
 
 class PFFiltFileMetadata(I3FileMetadata):
@@ -410,11 +410,11 @@ class PFFiltFileMetadata(I3FileMetadata):
         # Ex: PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
         # Ex: PFFilt_PhysicsTrig_PhysicsFiltering_Run00121503_Subrun00000000_00000314.tar.bz2
         # Ex: orig.PFFilt_PhysicsFiltering_Run00127080_Subrun00000000_00000244.tar.bz2.orig
-        r'(.*)PFFilt_(.*)_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.',
+        r'.*PFFilt_.*_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.',
 
         # Ex: PFFilt_PhysicsTrig_PhysicsFilt_Run00089959_00180.tar.gz
         # Ex: PFFilt_PhysicsTrig_RandomFilt_Run86885_006.tar.gz
-        r'PFFilt_(.*)_Run(?P<run>\d+)_(?P<part>\d+)\.'
+        r'PFFilt_.*_Run(?P<run>\d+)_(?P<part>\d+)\.'
     ]
 
     def __init__(self, file, site):
@@ -425,7 +425,7 @@ class PFFiltFileMetadata(I3FileMetadata):
     def is_valid_filename(filename):
         """`True` if the `filename` matches the generic filename pattern for PFFilt files."""
         # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
-        return bool(re.match(r'(.*)PFFilt(.*)Run(\d+)_(.*)\d\.tar\.(gz|bz2|zst)', filename))
+        return bool(re.match(r'.*PFFilt.*Run(\d+)_.*\d\.tar\.(gz|bz2|zst)', filename))
 
 
 class PFDSTFileMetadata(I3FileMetadata):
@@ -441,7 +441,7 @@ class PFDSTFileMetadata(I3FileMetadata):
         # Ex: PFDST_TestData_PhysicsFiltering_Run00122158_Subrun00000000_00000014.tar.gz
         # Ex: PFDST_TestData_RandomFiltering_Run00119375_Subrun00000136_00000000.tar.gz
         # Ex: PFDST_TestData_Unfiltered_Run00119982_Subrun00000000_000009.tar.gz
-        r'(.*)_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.'
+        r'.*_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.'
     ]
 
     def __init__(self, file, site):
@@ -453,7 +453,7 @@ class PFDSTFileMetadata(I3FileMetadata):
         """`True` if the `filename` matches the generic filename pattern for PFDST files."""
         # Ex.
         # ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
-        return bool(re.match(r'(.*)PFDST(.*)Run(\d+)_(.*)\d\.tar\.(gz|bz2|zst)', filename))
+        return bool(re.match(r'.*PFDST.*Run(\d+)_.*\d\.tar\.(gz|bz2|zst)', filename))
 
 
 class PFRawFileMetadata(I3FileMetadata):
@@ -466,13 +466,13 @@ class PFRawFileMetadata(I3FileMetadata):
         # Ex: PFRaw_PhysicsTrig_PhysicsFiltering_Run00114085_Subrun00000000_00000208.tar.gz
         # Ex: PFRaw_TestData_PhysicsFiltering_Run00114672_Subrun00000000_00000011.tar.gz
         # Ex: PFRaw_TestData_RandomFiltering_Run00113816_Subrun00000033_00000000.tar.gz
-        r'(.*)_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.',
+        r'.*_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.',
 
         # Ex: EvtMonPFRaw_PhysicsTrig_RandomFiltering_Run00106489_Subrun00000000.tar.gz
-        r'(.*)_Run(?P<run>\d+)_Subrun(?P<part>\d+)\.',
+        r'.*_Run(?P<run>\d+)_Subrun(?P<part>\d+)\.',
 
         # Ex: DebugData_PFRaw_Run110394_1.tar.gz
-        r'(.*)_Run(?P<run>\d+)_(?P<part>\d+)\.'
+        r'.*_Run(?P<run>\d+)_(?P<part>\d+)\.'
     ]
 
     def __init__(self, file, site):
@@ -483,7 +483,7 @@ class PFRawFileMetadata(I3FileMetadata):
     def is_valid_filename(filename):
         """`True` if the `filename` matches the generic filename pattern for PFRaw files."""
         # Ex. key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
-        return bool(re.match(r'(.*)PFRaw(.*)Run(\d+)_(.*)\d\.tar\.(gz|bz2|zst)', filename))
+        return bool(re.match(r'.*PFRaw.*Run(\d+)_.*\d\.tar\.(gz|bz2|zst)', filename))
 
 
 class MetadataManager:

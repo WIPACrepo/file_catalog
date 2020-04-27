@@ -180,9 +180,9 @@ def test_bad_PFRaw():
 def test_bad_patterns():
     """Run PFRaw filename parsing."""
     bad_patterns = [
-        r'(.*)\.(?P<year>20\d{2})_Subrun(?P<subrun>\d+)',
-        r'(.*)\.(?P<run>20\d{2})_Subrun(?P<subrun>\d+)',
-        r'(.*)\.(?P<year>20\d{2})_Subrun(?P<part>\d+)'
+        r'.*\.(?P<year>20\d{2})_Subrun(?P<subrun>\d+)',
+        r'.*\.(?P<run>20\d{2})_Subrun(?P<subrun>\d+)',
+        r'.*\.(?P<year>20\d{2})_Subrun(?P<part>\d+)'
     ]
 
     for bp in bad_patterns:

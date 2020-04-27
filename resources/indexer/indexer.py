@@ -501,18 +501,22 @@ class MetadataManager:
         dir_meta_xml = None
         gaps_files = {}  # gaps_files[<filename w/o extension>]
         gcd_files = {}  # gcd_files[<run id w/o leading zeros>]
+
         for dir_entry in os.scandir(self.dir_path):
             if not dir_entry.is_file():
                 continue
+
             # Meta XML (one per directory)
-            if "meta.xml" in dir_entry.name:  # Ex. level2_meta.xml, level2pass2_meta.xml
+            if re.match(r'level2.*meta\.xml$', dir_entry.name):  # Ex. level2_meta.xml, level2pass2_meta.xml
                 if dir_meta_xml is not None:
-                    raise Exception(f"Multiple *meta.xml files found in {self.dir_path}.")
+                    raise Exception(f"Multiple level2*meta.xml files found in {self.dir_path}.")
                 try:
                     with open(dir_entry.path, 'r') as xml_file:
                         dir_meta_xml = xmltodict.parse(xml_file.read())
+                    logging.debug(f"Grabbed level2*meta.xml file, {dir_entry.name}.")
                 except xml.parsers.expat.ExpatError:
                     pass
+
             # Gaps Files (one per i3 file)
             elif "_GapsTxt.tar" in dir_entry.name:  # Ex. Run00130484_GapsTxt.tar
                 try:
@@ -522,12 +526,16 @@ class MetadataManager:
                             # Ex. Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188_gaps.txt
                             no_extension = tar_obj.name.split("_gaps.txt")[0]
                             gaps_files[no_extension] = file_dict
+                            logging.debug(f"Grabbed gaps file for '{no_extension}', {dir_entry.name}.")
                 except tarfile.ReadError:
                     pass
+
             # GCD Files (one per run)
             elif "GCD" in dir_entry.name:  # Ex. Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst
                 run = I3FileMetadata.parse_run_number(dir_entry.name)
                 gcd_files[str(run)] = dir_entry.path
+                logging.debug(f"Grabbed GCD file for run {run}, {dir_entry.name}.")
+
         self.l2_dir_metadata['dir_meta_xml'] = dir_meta_xml
         self.l2_dir_metadata['gaps_files'] = gaps_files
         self.l2_dir_metadata['gcd_files'] = gcd_files

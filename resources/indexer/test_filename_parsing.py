@@ -31,13 +31,14 @@ def test_run_number():
         print(f"FILNAMES: {filename}")
         with pytest.raises(Exception) as e:
             I3FileMetadata.parse_run_number(filename)
-        assert str(e.value) == "No run number found in filename."
+        assert "No run number found in filename," in str(e.value)
 
 
 def _test_filenames_parsing(filenames_and_values, patterns):
     for filename, values in filenames_and_values.items():
+        print(filename)
         y, r, s, p = I3FileMetadata.parse_year_run_subrun_part(patterns, filename)
-        print(f"OUTPUTS: {filename}, {y}, {r}, {s}, {p}")
+        print(f"OUTPUTS: {y}, {r}, {s}, {p}")
         assert y == values[0]
         assert r == values[1]
         assert s == values[2]
@@ -47,6 +48,7 @@ def _test_filenames_parsing(filenames_and_values, patterns):
 def _test_bad_filenames_parsing(bad_filenames, patterns):
     for filename in bad_filenames:
         print(filename)
+
         with pytest.raises(ValueError) as e:
             I3FileMetadata.parse_year_run_subrun_part(patterns, filename)
         assert "Filename does not match any pattern, " in str(e.value)
@@ -56,6 +58,12 @@ def _test_valid_filenames(filenames, is_valid_filename_function):
     for f in filenames:
         print(f)
         assert is_valid_filename_function(f)
+
+
+def _test_bad_valid_filenames_parsing(bad_filenames, is_valid_filename_function):
+    for f in bad_filenames:
+        print(f)
+        assert not is_valid_filename_function(f)
 
 
 def test_L2():
@@ -71,7 +79,9 @@ def test_L2():
         'Level2_IC86.2011_data_Run00119221_Part00000126.i3.bz2': ['2011', 119221, 0, 126],
         'Level2a_IC59_data_Run00115968_Part00000290.i3.gz': ['2009', 115968, 0, 290],
         'MoonEvents_Level2_IC79_data_Run00116082_NewPart00000613.i3.gz': ['2010', 116082, 0, 613],
-        'Level2_All_Run00111562_Part00000046.i3.gz': [None, 111562, 0, 46]
+        'Level2_All_Run00111562_Part00000046.i3.gz': [None, 111562, 0, 46],
+        'Level2_IC86.2018RHEL_6_V05-02-00b_py2-v311_data_Run00132765_Subrun00000000_00000000.i3.zst': ['2018', 132765, 0, 0],
+        'Level2pass3_PhysicsFiltering_Run00127765_Subrun00000000_00000005.i3.gz': [None, 127765, 0, 5]
     }
 
     _test_valid_filenames(filenames_and_values.keys(), L2FileMetadata.is_valid_filename)
@@ -88,13 +98,12 @@ def test_bad_L2():
         'Level2_nugen_numu_ic40_twr.001825.000000.i3.gz',
         'Level2_IC86.2017_data_Run00130484_0101_71_375_GCD.i3.zst',
         'level2_meta.xml',
-        'Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188_gaps.txt'
+        'Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188_gaps.txt',
+        'Level2_Run00088383.i3.gz'
     ]
-    _test_bad_filenames_parsing(filenames, L2FileMetadata.FILENAME_PATTERNS)
 
-    for f in filenames:
-        print(f)
-        assert not L2FileMetadata.is_valid_filename(f)
+    _test_bad_valid_filenames_parsing(filenames, L2FileMetadata.is_valid_filename)
+    _test_bad_filenames_parsing(filenames, L2FileMetadata.FILENAME_PATTERNS)
 
 
 def test_PFFilt():
@@ -131,12 +140,13 @@ def test_PFDST():
 
 def test_bad_PFDST():
     """Run bad PFDST filename parsing."""
-    filenames_and_values = [
+    filenames = [
         'logfiles_PFDST_2011.tar.gz',
         'logfiles_PFDST_2010.tar.gz'
     ]
 
-    _test_bad_filenames_parsing(filenames_and_values, PFDSTFileMetadata.FILENAME_PATTERNS)
+    _test_bad_valid_filenames_parsing(filenames, PFDSTFileMetadata.is_valid_filename)
+    _test_bad_filenames_parsing(filenames, PFDSTFileMetadata.FILENAME_PATTERNS)
 
 
 def test_PFRaw():
@@ -149,7 +159,8 @@ def test_PFRaw():
         'PFRaw_TestData_PhysicsFiltering_Run00114672_Subrun00000000_00000011.tar.gz': [None, 114672, 0, 11],
         'PFRaw_TestData_RandomFiltering_Run00113816_Subrun00000033_00000000.tar.gz': [None, 113816, 33, 0],
         'EvtMonPFRaw_PhysicsTrig_RandomFiltering_Run00106489_Subrun00000000.tar.gz': [None, 106489, 0, 0],
-        'DebugData_PFRaw_Run110394_1.tar.gz': [None, 110394, 0, 1]
+        'DebugData_PFRaw_Run110394_1.tar.gz': [None, 110394, 0, 1],
+        'DebugData-PFRaw_RF_Run00129213_Subrun00000001.tar.gz.tar.gz': [None, 129213, 0, 1]
     }
 
     _test_valid_filenames(filenames_and_values.keys(), PFRawFileMetadata.is_valid_filename)
@@ -158,10 +169,12 @@ def test_PFRaw():
 
 def test_bad_PFRaw():
     """Run bad PFRaw filename parsing."""
-    filenames_and_values = [
+    filenames = [
         'DebugData_PFRaw124751_001.tar.gz'
     ]
-    _test_bad_filenames_parsing(filenames_and_values, PFRawFileMetadata.FILENAME_PATTERNS)
+
+    _test_bad_valid_filenames_parsing(filenames, PFRawFileMetadata.is_valid_filename)
+    _test_bad_filenames_parsing(filenames, PFRawFileMetadata.FILENAME_PATTERNS)
 
 
 def test_bad_patterns():

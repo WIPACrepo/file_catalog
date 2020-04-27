@@ -400,7 +400,7 @@ class L2FileMetadata(I3FileMetadata):
         """`True` if the `filename` matches the generic filename pattern for L2 files."""
         # Ex: Level2_IC86.2017_data_Run00130484_Subrun00000000_00000188.i3.zst
         # check if last char of filename (w/o extension) is an int
-        return bool(re.match(r'(.*)Level2(.*)Run([\d]+)_(.*)[\d]\.i3', filename))
+        return bool(re.match(r'(.*)Level2(.*)Run(\d+)_(.*)\d\.i3', filename))
 
 
 class PFFiltFileMetadata(I3FileMetadata):
@@ -425,7 +425,7 @@ class PFFiltFileMetadata(I3FileMetadata):
     def is_valid_filename(filename):
         """`True` if the `filename` matches the generic filename pattern for PFFilt files."""
         # Ex. PFFilt_PhysicsFiltering_Run00131989_Subrun00000000_00000295.tar.bz2
-        return bool(re.match(r'(.*)PFFilt(.*)Run([\d]+)_(.*)[\d]\.tar\.(gz|bz2|zst)', filename))
+        return bool(re.match(r'(.*)PFFilt(.*)Run(\d+)_(.*)\d\.tar\.(gz|bz2|zst)', filename))
 
 
 class PFDSTFileMetadata(I3FileMetadata):
@@ -453,7 +453,7 @@ class PFDSTFileMetadata(I3FileMetadata):
         """`True` if the `filename` matches the generic filename pattern for PFDST files."""
         # Ex.
         # ukey_fa818e64-f6d2-4cc1-9b34-e50bfd036bf3_PFDST_PhysicsFiltering_Run00131437_Subrun00000000_00000066.tar.gz
-        return bool(re.match(r'(.*)PFDST(.*)Run([\d]+)_(.*)[\d]\.tar\.(gz|bz2|zst)', filename))
+        return bool(re.match(r'(.*)PFDST(.*)Run(\d+)_(.*)\d\.tar\.(gz|bz2|zst)', filename))
 
 
 class PFRawFileMetadata(I3FileMetadata):
@@ -483,7 +483,7 @@ class PFRawFileMetadata(I3FileMetadata):
     def is_valid_filename(filename):
         """`True` if the `filename` matches the generic filename pattern for PFRaw files."""
         # Ex. key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
-        return bool(re.match(r'(.*)PFRaw(.*)Run([\d]+)_(.*)[\d]\.tar\.(gz|bz2|zst)', filename))
+        return bool(re.match(r'(.*)PFRaw(.*)Run(\d+)_(.*)\d\.tar\.(gz|bz2|zst)', filename))
 
 
 class MetadataManager:

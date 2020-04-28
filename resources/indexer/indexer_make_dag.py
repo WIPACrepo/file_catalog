@@ -97,6 +97,7 @@ output = {scratch}/$(JOBNUM).out
 error = {scratch}/$(JOBNUM).err
 log = {scratch}/$(JOBNUM).log
 +FileSystemDomain = "blah"
++AccountingGroup="1_week.$ENV(USER)"
 should_transfer_files = YES
 transfer_input_files = {",".join([os.path.abspath(f) for f in transfer_input_files])}
 request_cpus = {args.cpus}

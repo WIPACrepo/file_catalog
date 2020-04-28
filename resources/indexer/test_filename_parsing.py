@@ -103,8 +103,7 @@ def test_bad_L2():
         'Level2_Run0002484.i3',
         'MoonEvents_Level2_All_Run00110864.i3.gz',
         'Level2_All_Run00111399-000.i3.gz',
-        'IC59_MoonEvents_Level2_IC59_data_Run00114554.i3.gz',
-
+        'IC59_MoonEvents_Level2_IC59_data_Run00114554.i3.gz'
     ]
 
     _test_bad_valid_filenames_parsing(filenames, L2FileMetadata.is_valid_filename)

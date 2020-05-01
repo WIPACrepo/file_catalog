@@ -312,10 +312,8 @@ class L2FileMetadata(I3FileMetadata):
 
         # Ex: Level2_PhysicsTrig_PhysicsFiltering_Run00120374_Subrun00000000_00000001.i3
         # Ex: Level2pass3_PhysicsFiltering_Run00127353_Subrun00000000_00000000.i3.gz
-        r'.*_PhysicsFiltering_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.',
-
         # Ex: Level2_PhysicsTrig_PhysicsFiltering_Run00120374_Subrun00000000_00000001_new2.i3
-        r'.*_PhysicsFiltering_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)_new\d+\.',
+        r'.*_PhysicsFiltering_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)(_new\d+)?\.',
 
         # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
         # Ex: Level2_IC86.2012_Test_data_Run00120028_Subrun00000081.i3.bz2
@@ -330,7 +328,8 @@ class L2FileMetadata(I3FileMetadata):
         r'.*_IC(?P<ic_strings>\d+)_data_Run(?P<run>\d+)_(New)?Part(?P<part>\d+)\.',
 
         # Ex: Level2_All_Run00111562_Part00000046.i3.gz
-        r'.*_All_Run(?P<run>\d+)_Part(?P<part>\d+)\.'
+        # Ex: MoonEvents_Level2_All_Run00111887_part2.i3.gz
+        r'.*_All_Run(?P<run>\d+)_[Pp]art(?P<part>\d+)\.'
     ]
 
     def __init__(self, file, site, dir_meta_xml, gaps_dict, gcd_filepath):

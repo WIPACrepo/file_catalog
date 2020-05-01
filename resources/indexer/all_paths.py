@@ -14,7 +14,7 @@ def check_call_print(cmd, cwd='.', shell=False):
     subprocess.check_call(cmd, cwd=cwd, shell=shell)
 
 
-def _get_data_exp_paths_files(staging_dir, paths_root, workers, previous, paths_per_file=10000):
+def _get_data_exp_paths_files(staging_dir, paths_root, workers, previous, paths_per_file):
     output_root = os.path.join(staging_dir, 'indexer-data-exp/')
     file_orig = os.path.join(output_root, 'paths.orig')
     file_log = os.path.join(output_root, 'paths.log')
@@ -59,6 +59,8 @@ def main():
                         help='prior file with file paths, eg: /data/user/eevans/data-exp-2020-03-10T15:11:42.'
                         ' These files will be skipped.')
     parser.add_argument('--workers', type=int, help='max number of workers', required=True)
+    parser.add_argument('--paths-per-file', dest='paths_per_file', type=int, default=1000,
+                        help='number of paths per file/job')
     args = parser.parse_args()
 
     for arg, val in vars(args).items():
@@ -69,8 +71,11 @@ def main():
         if path and not os.path.exists(path):
             raise FileNotFoundError(path)
 
-    _get_data_exp_paths_files(args.staging_dir, args.paths_root,
-                              args.workers, args.previous_all_paths)
+    _get_data_exp_paths_files(args.staging_dir,
+                              args.paths_root,
+                              args.workers,
+                              args.previous_all_paths,
+                              args.paths_per_file)
 
 
 if __name__ == '__main__':

@@ -81,7 +81,8 @@ def test_L2():
         'MoonEvents_Level2_IC79_data_Run00116082_NewPart00000613.i3.gz': ['2010', 116082, 0, 613],
         'Level2_All_Run00111562_Part00000046.i3.gz': [None, 111562, 0, 46],
         'Level2_IC86.2018RHEL_6_V05-02-00b_py2-v311_data_Run00132765_Subrun00000000_00000000.i3.zst': ['2018', 132765, 0, 0],
-        'Level2pass3_PhysicsFiltering_Run00127765_Subrun00000000_00000005.i3.gz': [None, 127765, 0, 5]
+        'Level2pass3_PhysicsFiltering_Run00127765_Subrun00000000_00000005.i3.gz': [None, 127765, 0, 5],
+        'Level2_PhysicsTrig_PhysicsFiltering_Run00120374_Subrun00000000_00000001_new2.i3': [None, 120374, 0, 1]
     }
 
     _test_valid_filenames(filenames_and_values.keys(), L2FileMetadata.is_valid_filename)

@@ -314,6 +314,9 @@ class L2FileMetadata(I3FileMetadata):
         # Ex: Level2pass3_PhysicsFiltering_Run00127353_Subrun00000000_00000000.i3.gz
         r'.*_PhysicsFiltering_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)\.',
 
+        # Ex: Level2_PhysicsTrig_PhysicsFiltering_Run00120374_Subrun00000000_00000001_new2.i3
+        r'.*_PhysicsFiltering_Run(?P<run>\d+)_Subrun(?P<subrun>\d+)_(?P<part>\d+)_new\d+\.',
+
         # Ex: Level2_IC86.2016_data_Run00129004_Subrun00000316.i3.bz2
         # Ex: Level2_IC86.2012_Test_data_Run00120028_Subrun00000081.i3.bz2
         # Ex: Level2_IC86.2015_24HrTestRuns_data_Run00126291_Subrun00000203.i3.bz2

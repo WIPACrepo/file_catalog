@@ -23,7 +23,7 @@ import yaml
 from icecube import dataclasses, dataio
 from rest_tools.client import RestClient
 
-ACCEPTED_ROOTS = ['/data/']
+ACCEPTED_ROOTS = ['/data']  # don't include trailing slash
 
 
 def is_processable_path(path):
@@ -659,10 +659,10 @@ async def process_paths(paths, manager, fc_rc, no_patch):
 
 
 def path_in_blacklist(path, blacklist):
-    """Return `True` if `path` is in the `blacklist`."""
+    """Return `True` if `path` is in `blacklist`, or `path` has a parent path in `blacklist`."""
     for b in blacklist:
-        if path.startswith(b):
-            logging.debug(f'Skipping {path}, file and/or directory is in blacklist ({b}).')
+        if (path == b) or (os.path.commonpath([path, b]) == b):
+            logging.debug(f'Skipping {path}, file and/or directory path is blacklisted ({b}).')
             return True
     return False
 
@@ -690,7 +690,7 @@ def process_work(paths, args, blacklist):
 def check_path(path):
     """Check if `path` is rooted at a white-listed root path."""
     for root in ACCEPTED_ROOTS:
-        if path.startswith(root):
+        if root == os.path.commonpath([path, root]):
             return
     message = f"{path} is not rooted at: {', '.join(ACCEPTED_ROOTS)}"
     logging.critical(message)

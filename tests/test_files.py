@@ -223,34 +223,38 @@ class TestFilesAPI(TestServerAPI):
 
         metadata = {
             u'logical_name': u'blah',
-            u'checksum': {u'sha512':hex('foo bar')},
+            u'checksum': {u'sha512': hex('foo bar')},
             u'file_size': 1,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat'}],
-            u'processing_level':u'level2',
-            u'run_number':12345,
-            u'first_event':345,
-            u'last_event':456,
-            u'iceprod':{
-                u'dataset':23453,
+            u'locations': [{u'site': u'test', u'path': u'blah.dat'}],
+            u'processing_level': u'level2',
+            u'run': {
+                u'run_number': 12345,
+                u'first_event': 345,
+                u'last_event': 456,
             },
-            u'offline':{
-                u'season':2017,
+            u'iceprod': {
+                u'dataset': 23453,
+            },
+            u'offline_processing_metadata': {
+                u'season': 2017,
             },
         }
         metadata2 = {
             u'logical_name': u'blah2',
-            u'checksum': {u'sha512':hex('foo bar baz')},
+            u'checksum': {u'sha512': hex('foo bar baz')},
             u'file_size': 2,
-            u'locations': [{u'site':u'test',u'path':u'blah2.dat'}],
-            u'processing_level':u'level2',
-            r'run_number':12356,
-            u'first_event':578,
-            u'last_event':698,
-            u'iceprod':{
-                u'dataset':23454,
+            u'locations': [{u'site': u'test', u'path': u'blah2.dat'}],
+            u'processing_level': u'level2',
+            u'run': {
+                r'run_number': 12356,
+                u'first_event': 578,
+                u'last_event': 698,
             },
-            u'offline':{
-                u'season':2017,
+            u'iceprod': {
+                u'dataset': 23454,
+            },
+            u'offline': {
+                u'season': 2017,
             },
         }
         data = r.request_seq('POST', '/api/files', metadata)

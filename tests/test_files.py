@@ -253,7 +253,7 @@ class TestFilesAPI(TestServerAPI):
             u'iceprod': {
                 u'dataset': 23454,
             },
-            u'offline': {
+            u'offline_processing_metadata': {
                 u'season': 2017,
             },
         }

@@ -364,17 +364,17 @@ def build_files_query(kwargs):
     if 'logical_name' in kwargs:
         kwargs['query']['logical_name'] = kwargs.pop('logical_name')
     if 'run_number' in kwargs:
-        kwargs['query']['run_number'] = kwargs.pop('run_number')
+        kwargs['query']['run.run_number'] = kwargs.pop('run_number')
     if 'dataset' in kwargs:
         kwargs['query']['iceprod.dataset'] = kwargs.pop('dataset')
     if 'event_id' in kwargs:
         e = kwargs.pop('event_id')
-        kwargs['query']['first_event'] = {'$lte': e}
-        kwargs['query']['last_event'] = {'$gte': e}
+        kwargs['query']['run.first_event'] = {'$lte': e}
+        kwargs['query']['run.last_event'] = {'$gte': e}
     if 'processing_level' in kwargs:
         kwargs['query']['processing_level'] = kwargs.pop('processing_level')
     if 'season' in kwargs:
-        kwargs['query']['offline.season'] = kwargs.pop('season')
+        kwargs['query']['offline_processing_metadata.season'] = kwargs.pop('season')
 
 class FilesHandler(APIHandler):
     def initialize(self, **kwargs):

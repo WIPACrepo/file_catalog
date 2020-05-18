@@ -10,6 +10,7 @@ import math
 import os
 import re
 import stat
+import string
 import tarfile
 import xml
 import zlib
@@ -474,7 +475,10 @@ class PFRawFileMetadata(I3FileMetadata):
         r'.*_Run(?P<run>\d+)_Subrun(?P<part>\d+)\.',
 
         # Ex: DebugData_PFRaw_Run110394_1.tar.gz
-        r'.*_Run(?P<run>\d+)_(?P<part>\d+)\.'
+        r'.*_Run(?P<run>\d+)_(?P<part>\d+)\.',
+
+        # Ex: DebugData-PFRaw_RF_Run00129335_SR00_00.tar.gz.tar.gz
+        r'.*_Run(?P<run>\d+)_SR(?P<part>\d+)_00\.'
     ]
 
     def __init__(self, file, site):
@@ -743,7 +747,11 @@ def sorted_unique(infile, others=None):
         with open(infile, 'rb') as file:
             for l in file:
                 try:
-                    lines.append(l.decode("utf-8", "strict").rstrip())
+                    line = l.decode("utf-8", "strict").rstrip()
+                    if not set(line).issubset(string.printable):
+                        logging.info(f"Invalid filename, {l}, has non-printable characters.")
+                    else:
+                        lines.append(line)
                 except UnicodeDecodeError as e:
                     logging.info(f"Invalid filename, {l}, {e.__class__.__name__}.")
 

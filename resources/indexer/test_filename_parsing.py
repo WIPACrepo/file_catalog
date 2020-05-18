@@ -166,7 +166,8 @@ def test_PFRaw():
         'PFRaw_TestData_RandomFiltering_Run00113816_Subrun00000033_00000000.tar.gz': [None, 113816, 33, 0],
         'EvtMonPFRaw_PhysicsTrig_RandomFiltering_Run00106489_Subrun00000000.tar.gz': [None, 106489, 0, 0],
         'DebugData_PFRaw_Run110394_1.tar.gz': [None, 110394, 0, 1],
-        'DebugData-PFRaw_RF_Run00129213_Subrun00000001.tar.gz.tar.gz': [None, 129213, 0, 1]
+        'DebugData-PFRaw_RF_Run00129213_Subrun00000001.tar.gz.tar.gz': [None, 129213, 0, 1],
+        'DebugData-PFRaw_RF_Run00129335_SR01_00.tar.gz.tar.gz': [None, 129335, 0, 1]
     }
 
     _test_valid_filenames(filenames_and_values.keys(), PFRawFileMetadata.is_valid_filename)

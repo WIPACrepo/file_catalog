@@ -478,7 +478,7 @@ class PFRawFileMetadata(I3FileMetadata):
         r'.*_Run(?P<run>\d+)_(?P<part>\d+)\.',
 
         # Ex: DebugData-PFRaw_RF_Run00129335_SR00_00.tar.gz.tar.gz
-        r'.*_Run(?P<run>\d+)_SR(?P<part>\d+)_00\.'
+        r'.*_Run(?P<run>\d+)_SR(?P<part>\d+)_\d+\.'
     ]
 
     def __init__(self, file, site):

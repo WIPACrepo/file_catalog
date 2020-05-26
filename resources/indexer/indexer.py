@@ -607,6 +607,8 @@ def sorted_unique_filepaths(file_of_filepaths=None, list_of_filepaths=None):
         raise RuntimeError("Must pass at least one argument.")
 
     def convert_to_good_string(b_string):
+        if b_string[-1] == ord('\n'):
+            b_string = b_string[:-1]
         # ASCII parse
         for b in b_string:
             if not (ord('!') <= b <= ord('~')):  # pylint: disable=C0325

@@ -603,7 +603,7 @@ def sorted_unique_filepaths(file_of_filepaths=None, list_of_filepaths=None):
 
     Return all unique filepaths, sorted. Does not check if filepaths exist.
     """
-    if (not file_of_filepaths) and (not list_of_filepaths):
+    if (file_of_filepaths is None) and (list_of_filepaths is None):
         raise RuntimeError("Must pass at least one argument.")
 
     def convert_to_good_string(b_string):
@@ -611,7 +611,7 @@ def sorted_unique_filepaths(file_of_filepaths=None, list_of_filepaths=None):
             b_string = b_string[:-1]
         # ASCII parse
         for b in b_string:
-            if not (ord('!') <= b <= ord('~')):  # pylint: disable=C0325
+            if not (ord(' ') <= b <= ord('~')):  # pylint: disable=C0325
                 logging.info(f"Invalid filename, {b_string}, has special character(s).")
                 return None
         # Decode UTF-8

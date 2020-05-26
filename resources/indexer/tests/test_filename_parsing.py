@@ -167,7 +167,14 @@ def test_PFRaw():
         'EvtMonPFRaw_PhysicsTrig_RandomFiltering_Run00106489_Subrun00000000.tar.gz': [None, 106489, 0, 0],
         'DebugData_PFRaw_Run110394_1.tar.gz': [None, 110394, 0, 1],
         'DebugData-PFRaw_RF_Run00129213_Subrun00000001.tar.gz.tar.gz': [None, 129213, 0, 1],
-        'DebugData-PFRaw_RF_Run00129335_SR01_00.tar.gz.tar.gz': [None, 129335, 0, 1]
+        'DebugData-PFRaw_RF_Run00129335_SR01_00.tar.gz.tar.gz': [None, 129335, 0, 1],
+        'DebugData-missing_PFRaw_data_Run129969_21_to_24.tar.gz': [None, 129969, 0, 0],
+        'DebugData-PFRaw_flasher_Run130047.tar.gz': [None, 130047, 0, 0],
+        'DebugData_PFRaw_TestData_PhysicsFiltering_Run00111448.tar.gz': [None, 111448, 0, 0],
+        'DebugData-PFRaw_TestData_Run00118957.tar.gz': [None, 118957, 0, 0],
+        'DebugData-PFRaw_PhysicsTrig_PhysicsFiltering_Run00119158.tar.gz': [None, 119158, 0, 0],
+        'EvtMonPFRaw_PhysicsTrig_RandomFilt_Run86510.tar.gz': [None, 86510, 0, 0],
+        'EvtMonPFRaw_PhysicsTrig_PhysicsFilt_Run00089012.tar.gz': [None, 89012, 0, 0]
     }
 
     _test_valid_filenames(filenames_and_values.keys(), PFRawFileMetadata.is_valid_filename)
@@ -178,12 +185,7 @@ def test_bad_PFRaw():
     """Run bad PFRaw filename parsing."""
     filenames = [
         'DebugData_PFRaw124751_001.tar.gz',
-        'DebugData_PFRaw_Run_115244_v5.tar.gz',
-        'DebugData_PFRaw_TestData_PhysicsFiltering_Run00111448.tar.gz',
-        'DebugData-PFRaw_TestData_Run00118957.tar.gz',
-        'DebugData-PFRaw_PhysicsTrig_PhysicsFiltering_Run00119158.tar.gz',
-        'EvtMonPFRaw_PhysicsTrig_RandomFilt_Run86510.tar.gz',
-        'EvtMonPFRaw_PhysicsTrig_PhysicsFilt_Run00089012.tar.gz'
+        'DebugData_PFRaw_Run_115244_v5.tar.gz'
     ]
 
     _test_bad_valid_filenames_parsing(filenames, PFRawFileMetadata.is_valid_filename)
@@ -194,14 +196,14 @@ def test_bad_patterns():
     """Run PFRaw filename parsing."""
     bad_patterns = [
         r'.*\.(?P<year>20\d{2})_Subrun(?P<subrun>\d+)',
-        r'.*\.(?P<run>20\d{2})_Subrun(?P<subrun>\d+)',
+        r'.*\.(?P<runs>20\d{2})_Subrun(?P<subrun>\d+)',
         r'.*\.(?P<year>20\d{2})_Subrun(?P<part>\d+)'
     ]
 
     for bp in bad_patterns:
         with pytest.raises(Exception) as e:
             I3FileMetadata.parse_year_run_subrun_part([bp], 'filename-wont-be-matched-anyways')
-        assert "Pattern does not have `run` and `part` regex groups," in str(e.value)
+        assert "Pattern does not have `run` regex group," in str(e.value)
 
 
 def test_hard_coded_filepath_fixes():
@@ -240,5 +242,7 @@ def test_hard_coded_filepath_fixes():
     ]
 
     for raw, fixed in raw_lines:
+        if fixed:
+            fixed = sorted(fixed)
         print(f"{raw} -- {fixed}")
         assert fixed == fix_known_filepath_issues(raw)

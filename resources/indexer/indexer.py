@@ -177,8 +177,8 @@ class I3FileMetadata(BasicFileMetadata):
         values = {'year': None, 'run': 0, 'subrun': 0, 'part': 0}
 
         for p in patterns:
-            if ('?P<run>' not in p) or ('?P<part>' not in p):
-                raise Exception(f"Pattern does not have `run` and `part` regex groups, {p}.")
+            if '?P<run>' not in p:
+                raise Exception(f"Pattern does not have `run` regex group, {p}.")
 
             match = re.match(p, filename)
             if match:
@@ -478,7 +478,18 @@ class PFRawFileMetadata(I3FileMetadata):
         r'.*_Run(?P<run>\d+)_(?P<part>\d+)\.',
 
         # Ex: DebugData-PFRaw_RF_Run00129335_SR00_00.tar.gz.tar.gz
-        r'.*_Run(?P<run>\d+)_SR(?P<part>\d+)_\d+\.'
+        r'.*_Run(?P<run>\d+)_SR(?P<part>\d+)_\d+\.',
+
+        # Ex: DebugData-missing_PFRaw_data_Run129969_21_to_24.tar.gz
+        r'.*_Run(?P<run>\d+)_\d+_to_\d+\.',
+
+        # Ex: DebugData_PFRaw_TestData_PhysicsFiltering_Run00111448.tar.gz
+        # Ex: DebugData-PFRaw_TestData_Run00118957.tar.gz
+        # Ex: DebugData-PFRaw_flasher_Run130047.tar.gz
+        r'.*DebugData.*_Run(?P<run>\d+)\.',
+
+        # Ex: EvtMonPFRaw_PhysicsTrig_RandomFilt_Run86510.tar.gz
+        r'.*EvtMon.*_Run(?P<run>\d+)\.'
     ]
 
     def __init__(self, file, site):
@@ -489,7 +500,7 @@ class PFRawFileMetadata(I3FileMetadata):
     def is_valid_filename(filename):
         """`True` if the `filename` matches the generic filename pattern for PFRaw files."""
         # Ex. key_31445930_PFRaw_PhysicsFiltering_Run00128000_Subrun00000000_00000156.tar.gz
-        return bool(re.match(r'.*PFRaw.*Run(\d+)_.*\d\.tar\.(gz|bz2|zst)', filename))
+        return bool(re.match(r'.*PFRaw.*Run\d+.*\d\.tar\.(gz|bz2|zst)', filename))
 
 
 class MetadataManager:
@@ -587,6 +598,47 @@ class MetadataManager:
         return BasicFileMetadata(file, self.site)
 
 
+def sorted_unique_filepaths(file_of_filepaths=None, list_of_filepaths=None):
+    """Read in lines from `file_of_filepaths`, and/or aggregate with those in `list_of_filepaths` list.
+
+    Return all unique filepaths, sorted. Does not check if filepaths exist.
+    """
+    if (not file_of_filepaths) and (not list_of_filepaths):
+        raise RuntimeError("Must pass at least one argument.")
+
+    def convert_to_good_string(b_string):
+        # ASCII parse
+        for b in b_string:
+            if not (ord('!') <= b <= ord('~')):  # pylint: disable=C0325
+                logging.info(f"Invalid filename, {b_string}, has special character(s).")
+                return None
+        # Decode UTF-8
+        try:
+            path = b_string.decode('utf-8', 'strict').rstrip()
+        except UnicodeDecodeError as e:
+            logging.info(f"Invalid filename, {b_string}, {e.__class__.__name__}.")
+            return None
+        # Non-printable chars
+        if not set(path).issubset(string.printable):
+            logging.info(f"Invalid filename, {path}, has non-printable character(s).")
+            return None
+        # all good
+        return path
+
+    filepaths = []
+    if list_of_filepaths:
+        filepaths.extend(list_of_filepaths)
+    if file_of_filepaths:
+        with open(file_of_filepaths, 'rb') as bin_file:
+            for bin_line in bin_file:
+                fp = convert_to_good_string(bin_line)
+                if fp:
+                    filepaths.append(fp)
+
+    filepaths = [f for f in sorted(set(filepaths)) if f]
+    return filepaths
+
+
 async def request_post_patch(fc_rc, metadata, dont_patch=False):
     """POST metadata, and PATCH if file is already in the file catalog."""
     try:
@@ -624,11 +676,13 @@ async def process_file(filepath, manager, fc_rc, no_patch):
 
 
 def fix_known_filepath_issues(filepath):
-    """Deal with weird quirks in filenames."""
+    """Deal with known weird quirks in filenames."""
     # split filenames that were concatenated at some point in preprocessing
     match = re.match(r'(?P<first>/data/exp/.*)(?P<second>/data/exp/.*)', filepath)
     if match:
-        return list(match.groupdict().values())
+        files = list(match.groupdict().values())
+        files = sorted_unique_filepaths(list_of_filepaths=files)
+        return files
     return None
 
 
@@ -717,7 +771,7 @@ def gather_file_info(starting_paths, blacklist, args):
             logging.debug(f'Queue: {len(queue)}.')
             # Divvy up queue among available worker(s). Each worker gets 1/nth of the queue.
             if queue:
-                queue.sort()
+                queue = sorted_unique_filepaths(list_of_filepaths=queue)
                 while args.processes != len(futures):
                     paths, queue = queue[:split], queue[split:]
                     logging.debug(f'Worker Assigned: {len(futures)+1}/{args.processes} ({len(paths)} paths).')
@@ -732,31 +786,6 @@ def gather_file_info(starting_paths, blacklist, args):
                 queue.extend(result)
                 split = math.ceil(len(queue) / args.processes)
             logging.debug(f'Worker finished: {future} (enqueued {len(result)}).')
-
-
-def sorted_unique(infile, others=None):
-    """
-    Read in lines from `infile`, aggregate with those in `others` list.
-
-    Return all unique lines, sorted.
-    """
-    lines = []
-    if others:
-        lines.extend(others)
-    if infile:
-        with open(infile, 'rb') as file:
-            for l in file:
-                try:
-                    line = l.decode("utf-8", "strict").rstrip()
-                    if not set(line).issubset(string.printable):
-                        logging.info(f"Invalid filename, {l}, has non-printable characters.")
-                    else:
-                        lines.append(line)
-                except UnicodeDecodeError as e:
-                    logging.info(f"Invalid filename, {l}, {e.__class__.__name__}.")
-
-    lines = [l for l in sorted(set(lines)) if l]
-    return lines
 
 
 def main():
@@ -798,10 +827,10 @@ def main():
     logging.info(f'Collecting metadata from {args.paths} and those in file (at {args.paths_file})...')
 
     # Aggregate and sort all paths
-    paths = sorted_unique(args.paths_file, others=args.paths)
+    paths = sorted_unique_filepaths(file_of_filepaths=args.paths_file, list_of_filepaths=args.paths)
 
     # Read blacklisted paths
-    blacklist = sorted_unique(args.blacklist_file)
+    blacklist = sorted_unique_filepaths(file_of_filepaths=args.blacklist_file)
 
     gather_file_info(paths, blacklist, args)
 

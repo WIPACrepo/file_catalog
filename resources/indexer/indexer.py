@@ -603,9 +603,6 @@ def sorted_unique_filepaths(file_of_filepaths=None, list_of_filepaths=None):
 
     Return all unique filepaths, sorted. Does not check if filepaths exist.
     """
-    if (file_of_filepaths is None) and (list_of_filepaths is None):
-        raise RuntimeError("Must pass at least one argument.")
-
     def convert_to_good_string(b_string):
         if b_string[-1] == ord('\n'):
             b_string = b_string[:-1]

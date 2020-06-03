@@ -8,7 +8,10 @@ import subprocess
 
 def main():
     """Main."""
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Make Condor script for all_paths.py: "
+                                     "recursively find all filepaths in `paths_root`, "
+                                     "place all_paths.py's output files in /data/user/$USER/, and "
+                                     "Condor log files in /scratch/$USER/all-paths/.")
     parser.add_argument('paths_root', help='root directory to recursively scan for files.')
     parser.add_argument('--previous-all-paths', dest='previous_all_paths',
                         help='prior file with file paths, eg: /data/user/eevans/data-exp-2020-03-10T15:11:42.'

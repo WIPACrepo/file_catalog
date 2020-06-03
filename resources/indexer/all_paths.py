@@ -1,4 +1,4 @@
-"""Recursively get all paths in given directory and split into chunks for indexer_make_dag.py jobs."""
+"""Recursively get all filepaths in given directory and split into chunks for indexer_make_dag.py jobs."""
 
 import argparse
 import os
@@ -14,8 +14,10 @@ def check_call_print(cmd, cwd='.', shell=False):
     subprocess.check_call(cmd, cwd=cwd, shell=shell)
 
 
-def _get_data_exp_paths_files(staging_dir, paths_root, workers, previous, paths_per_file):
-    output_root = os.path.join(staging_dir, 'indexer-data-exp/')
+def _write_all_filepaths_to_files(staging_dir, paths_root, workers, previous, paths_per_file):
+    name = paths_root.strip('/').replace('/', '-')  # Ex: 'data-exp'
+
+    output_root = os.path.join(staging_dir, f'indexer-{name}/')
     file_orig = os.path.join(output_root, 'paths.orig')
     file_log = os.path.join(output_root, 'paths.log')
     file_sort = os.path.join(output_root, 'paths.sort')
@@ -30,7 +32,7 @@ def _get_data_exp_paths_files(staging_dir, paths_root, workers, previous, paths_
         check_call_print(f'sort -T {output_root} {file_orig} > {file_sort}', shell=True)
         check_call_print(f'rm {file_orig}'.split())  # Cleanup
 
-        # Get lines(file paths) unique to this scan versus the previous file
+        # Get lines(filepaths) unique to this scan versus the previous file
         if previous:
             check_call_print(f'comm -1 -3 {previous} {file_sort} > {file_sort}.unique', shell=True)
             check_call_print(f'mv {file_sort}.unique {file_sort}'.split())
@@ -40,8 +42,9 @@ def _get_data_exp_paths_files(staging_dir, paths_root, workers, previous, paths_
         check_call_print(f'split -l{paths_per_file} {file_sort} paths_file_'.split(), cwd=dir_split)
 
         # Copy/Archive
+        # Ex: /data/user/eevans/data-exp-2020-03-10T15:11:42
         time = dt.now().isoformat(timespec='seconds')
-        file_archive = os.path.join(staging_dir, f'data-exp-{time}')
+        file_archive = os.path.join(staging_dir, f'{name}-{time}')
         check_call_print(f'mv {file_sort} {file_archive}'.split())
         print(f'Archive File: at {file_archive}')
 
@@ -51,7 +54,7 @@ def _get_data_exp_paths_files(staging_dir, paths_root, workers, previous, paths_
 
 def main():
     """Main."""
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Run this script via all_paths_make_condor.py.")
     parser.add_argument('paths_root', help='root directory to recursively scan for files.')
     parser.add_argument('--staging-dir', dest='staging_dir', required=True,
                         help='the base directory to store files for jobs, eg: /data/user/eevans/')
@@ -71,11 +74,11 @@ def main():
         if path and not os.path.exists(path):
             raise FileNotFoundError(path)
 
-    _get_data_exp_paths_files(args.staging_dir,
-                              args.paths_root,
-                              args.workers,
-                              args.previous_all_paths,
-                              args.paths_per_file)
+    _write_all_filepaths_to_files(args.staging_dir,
+                                  args.paths_root,
+                                  args.workers,
+                                  args.previous_all_paths,
+                                  args.paths_per_file)
 
 
 if __name__ == '__main__':

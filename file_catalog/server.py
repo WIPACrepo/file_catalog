@@ -361,13 +361,13 @@ def build_files_query(kwargs: dict) -> dict:
     if 'query' in kwargs:
         # keep whatever was already in here, then add to it
         if isinstance(kwargs['query'], (str, bytes)):
-            query = json_decode(kwargs['query'])
+            query = json_decode(kwargs.pop('query'))
         else:
             query = kwargs.pop('query')
     else:
         query = {}
 
-    if 'locations.archive' not in kwargs['query']:
+    if 'locations.archive' not in query:
         query['locations.archive'] = None
 
     # shortcut query params

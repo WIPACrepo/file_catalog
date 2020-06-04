@@ -352,29 +352,41 @@ class HATEOASHandler(APIHandler):
     def get(self):
         self.write(self.data)
 
-def build_files_query(kwargs):
+
+def build_files_query(kwargs: dict) -> dict:
+    """Return dict with formatted/fully-named arguments for querying files.
+
+    Pop corresponding keys from `kwargs`.
+    """
     if 'query' in kwargs:
-        kwargs['query'] = json_decode(kwargs['query'])
+        # keep whatever was already in here, then add to it
+        if isinstance(kwargs['query'], (str, bytes)):
+            query = json_decode(kwargs.pop('query'))
+        else:
+            query = kwargs.pop('query')
     else:
-        kwargs['query'] = {}
-    if 'locations.archive' not in kwargs['query']:
-        kwargs['query']['locations.archive'] = None
+        query = {}
+
+    if 'locations.archive' not in query:
+        query['locations.archive'] = None
 
     # shortcut query params
     if 'logical_name' in kwargs:
-        kwargs['query']['logical_name'] = kwargs.pop('logical_name')
+        query['logical_name'] = kwargs.pop('logical_name')
     if 'run_number' in kwargs:
-        kwargs['query']['run.run_number'] = kwargs.pop('run_number')
+        query['run.run_number'] = kwargs.pop('run_number')
     if 'dataset' in kwargs:
-        kwargs['query']['iceprod.dataset'] = kwargs.pop('dataset')
+        query['iceprod.dataset'] = kwargs.pop('dataset')
     if 'event_id' in kwargs:
         e = kwargs.pop('event_id')
-        kwargs['query']['run.first_event'] = {'$lte': e}
-        kwargs['query']['run.last_event'] = {'$gte': e}
+        query['run.first_event'] = {'$lte': e}
+        query['run.last_event'] = {'$gte': e}
     if 'processing_level' in kwargs:
-        kwargs['query']['processing_level'] = kwargs.pop('processing_level')
+        query['processing_level'] = kwargs.pop('processing_level')
     if 'season' in kwargs:
-        kwargs['query']['offline_processing_metadata.season'] = kwargs.pop('season')
+        query['offline_processing_metadata.season'] = kwargs.pop('season')
+
+    return query
 
 class FilesHandler(APIHandler):
     def initialize(self, **kwargs):
@@ -405,7 +417,7 @@ class FilesHandler(APIHandler):
                 if kwargs['start'] < 0:
                     raise Exception('start is negative')
 
-            build_files_query(kwargs)
+            kwargs['query'] = build_files_query(kwargs)
 
             if 'keys' in kwargs:
                 kwargs['keys'] = kwargs['keys'].split('|')
@@ -809,27 +821,7 @@ class CollectionsHandler(CollectionBaseHandler):
 
         query = {}
         try:
-            if 'query' in metadata:
-                query = metadata.pop('query')
-            if 'locations.archive' not in query:
-                query['locations.archive'] = None
-
-            # shortcut query params
-            if 'logical_name' in metadata:
-                query['logical_name'] = metadata.pop('logical_name')
-            if 'run_number' in metadata:
-                query['run_number'] = metadata.pop('run_number')
-            if 'dataset' in metadata:
-                query['iceprod.dataset'] = metadata.pop('dataset')
-            if 'event_id' in metadata:
-                e = metadata.pop('event_id')
-                query['first_event'] = {'$lte': e}
-                query['last_event'] = {'$gte': e}
-            if 'processing_level' in metadata:
-                query['processing_level'] = metadata.pop('processing_level')
-            if 'season' in metadata:
-                query['offline.season'] = metadata.pop('season')
-
+            query = build_files_query(metadata)
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')

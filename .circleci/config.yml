@@ -26,8 +26,37 @@ jobs:
                 resources/enable_profiling.py &&
                 pytest --tb=short &&
                 resources/profile_queries.py
+    deploy:
+        docker:
+            - image: circleci/buildpack-deps:stretch
+              environment:
+                IMAGE_NAME: icecube/file-catalog
+        steps:
+            - checkout
+            - setup_remote_docker
+            - run: |
+                echo 'export TAG="${CIRCLE_TAG:=latest}"' >> $BASH_ENV
+            - run: |
+                docker build -t $IMAGE_NAME:$TAG .
+            - run: |
+                echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
+                docker push $IMAGE_NAME:$TAG
 workflows:
     version: 2
     build_and_test:
         jobs:
             - test
+            - deploy:
+                context: docker
+                filters:
+                    branches:
+                        only: master
+    release:
+        jobs:
+            - deploy:
+                context: docker
+                filters:
+                    branches:
+                        ignore: /.*/
+                    tags:
+                        only: /^v?\d+\.\d+\.\d+$/

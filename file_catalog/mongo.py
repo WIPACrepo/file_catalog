@@ -32,6 +32,7 @@ class Mongo(object):
                                       authSource=authSource,
                                       username=username, password=password).file_catalog
 
+        # all files
         self.client.files.create_index('uuid', unique=True, background=True)
         self.client.files.create_index('logical_name', unique=True, background=True)
         self.client.files.create_index([('logical_name',pymongo.HASHED)], background=True)
@@ -39,14 +40,21 @@ class Mongo(object):
         self.client.files.create_index([('locations.site',pymongo.DESCENDING),('locations.path',pymongo.DESCENDING)], background=True)
         self.client.files.create_index('locations.archive', background=True)
         self.client.files.create_index('create_date', background=True)
-        self.client.files.create_index('content_status', background=True)
+        
+        # all .i3 files
+        self.client.files.create_index('content_status', sparse=True, background=True)
         self.client.files.create_index('processing_level', sparse=True, background=True)
+        self.client.files.create_index('data_type', sparse=True, background=True)
+        
+        # data_type=real files
         self.client.files.create_index('run_number', sparse=True, background=True)
         self.client.files.create_index('start_datetime', sparse=True, background=True)
         self.client.files.create_index('end_datetime', sparse=True, background=True)
         self.client.files.create_index('offline_processing_metadata.first_event', sparse=True, background=True)
         self.client.files.create_index('offline_processing_metadata.last_event', sparse=True, background=True)
         self.client.files.create_index('offline_processing_metadata.season', sparse=True, background=True)
+        
+        # data_type=simulation files
         self.client.files.create_index('iceprod.dataset', sparse=True, background=True)
 
         self.client.collections.create_index('uuid', unique=True, background=True)

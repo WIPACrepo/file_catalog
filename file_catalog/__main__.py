@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 
+import coloredlogs  # type: ignore[import]
 from file_catalog.server import Server
 from file_catalog.config import Config
 from pprint import pprint
@@ -20,8 +21,9 @@ def main():
 
     config = Config()
     config.update_from_env()
-
-    logging.basicConfig(level=('DEBUG' if config['DEBUG'] else 'INFO'))
+    
+    coloredlogs.install(level=('DEBUG' if config['DEBUG'] else 'INFO'))
+    
     try:
         Server(config,
                port=config['FC_PORT'],

@@ -6,6 +6,7 @@ Babel==2.7.0
 certifi==2019.9.11
 cffi==1.13.0
 chardet==3.0.4
+coloredlogs==14.0
 coverage==4.5.4
 cryptography==3.2
 docutils==0.15.2

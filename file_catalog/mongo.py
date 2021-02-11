@@ -144,7 +144,7 @@ class Mongo(object):
         return ret
 
     @run_on_executor
-    def count_files(self, query: Optional[Dict[str, Any]] = None) -> int:
+    def count_files(self, query: Optional[Dict[str, Any]] = None, **kwargs: Any) -> int:
         """Get count of files matching query."""
         ret = self.client.files.count_documents(query)
         return cast(int, ret)

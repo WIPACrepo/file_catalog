@@ -8,6 +8,21 @@ from tornado.escape import json_decode
 from file_catalog.mongo import AllKeys
 
 
+def build_limit(kwargs: Dict[str, Any], config: Dict[str, Any]) -> None:
+    """Build the `"limit"` argument."""
+    if "limit" in kwargs:
+        kwargs["limit"] = int(kwargs["limit"])
+        if kwargs["limit"] < 1:
+            raise Exception("limit is not positive")
+
+        # check with config
+        if kwargs["limit"] > config["FC_QUERY_FILE_LIST_LIMIT"]:
+            kwargs["limit"] = config["FC_QUERY_FILE_LIST_LIMIT"]
+    else:
+        # if no limit has been defined, set max limit
+        kwargs["limit"] = config["FC_QUERY_FILE_LIST_LIMIT"]
+
+
 def build_files_query(kwargs: Dict[str, Any]) -> None:
     """Build `"query"` dict with formatted/fully-named arguments.
 

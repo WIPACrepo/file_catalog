@@ -382,17 +382,7 @@ class FilesHandler(APIHandler):
     def get(self):
         try:
             kwargs = urlargparse.parse(self.request.query)
-            if 'limit' in kwargs:
-                kwargs['limit'] = int(kwargs['limit'])
-                if kwargs['limit'] < 1:
-                    raise Exception('limit is not positive')
-
-                # check with config
-                if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
-                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-            else:
-                # if no limit has been defined, set max limit
-                kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
+            argbuilder.build_limit(kwargs, self.config)
 
             if 'start' in kwargs:
                 kwargs['start'] = int(kwargs['start'])
@@ -765,17 +755,7 @@ class CollectionsHandler(CollectionBaseHandler):
     def get(self):
         try:
             kwargs = urlargparse.parse(self.request.query)
-            if 'limit' in kwargs:
-                kwargs['limit'] = int(kwargs['limit'])
-                if kwargs['limit'] < 1:
-                    raise Exception('limit is not positive')
-
-                # check with config
-                if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
-                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-            else:
-                # if no limit has been defined, set max limit
-                kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
+            argbuilder.build_limit(kwargs, self.config)
 
             if 'start' in kwargs:
                 kwargs['start'] = int(kwargs['start'])
@@ -876,17 +856,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
         if ret:
             try:
                 kwargs = urlargparse.parse(self.request.query)
-                if 'limit' in kwargs:
-                    kwargs['limit'] = int(kwargs['limit'])
-                    if kwargs['limit'] < 1:
-                        raise Exception('limit is not positive')
-
-                    # check with config
-                    if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
-                        kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-                else:
-                    # if no limit has been defined, set max limit
-                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
+                argbuilder.build_limit(kwargs, self.config)
 
                 if 'start' in kwargs:
                     kwargs['start'] = int(kwargs['start'])
@@ -926,17 +896,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 
         try:
             kwargs = urlargparse.parse(self.request.query)
-            if 'limit' in kwargs:
-                kwargs['limit'] = int(kwargs['limit'])
-                if kwargs['limit'] < 1:
-                    raise Exception('limit is not positive')
-
-                # check with config
-                if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
-                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-            else:
-                # if no limit has been defined, set max limit
-                kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
+            argbuilder.build_limit(kwargs, self.config)
 
             if 'start' in kwargs:
                 kwargs['start'] = int(kwargs['start'])
@@ -1042,17 +1002,7 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
         if ret:
             try:
                 kwargs = urlargparse.parse(self.request.query)
-                if 'limit' in kwargs:
-                    kwargs['limit'] = int(kwargs['limit'])
-                    if kwargs['limit'] < 1:
-                        raise Exception('limit is not positive')
-
-                    # check with config
-                    if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
-                        kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-                else:
-                    # if no limit has been defined, set max limit
-                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
+                kwargs["limit"] = int(kwargs["limit"])
 
                 if 'start' in kwargs:
                     kwargs['start'] = int(kwargs['start'])

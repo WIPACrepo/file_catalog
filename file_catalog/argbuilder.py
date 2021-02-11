@@ -46,9 +46,10 @@ def build_files_query(kwargs: Dict[str, Any]) -> None:
 
 def build_keys(kwargs: Dict[str, Any]) -> None:
     """Build `"keys"` list, potentially using `"all-keys"` keyword."""
-    use_all_keys = kwargs.pop("all-keys", None) in ["True", "true", 1]
+    if "keys" not in kwargs:
+        return
 
-    if use_all_keys:
+    if kwargs.get("all-keys", None):
         kwargs["keys"] = AllKeys()
-    elif "keys" in kwargs:
+    else:
         kwargs["keys"] = kwargs["keys"].split("|")

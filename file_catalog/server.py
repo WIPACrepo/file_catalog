@@ -1062,7 +1062,7 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
                 kwargs['query'] = {'uuid':{'$in':ret['files']}}
                 logger.warning('getting files: %r', kwargs['query'])
 
-                argbuilder.build_keys(**kwargs)
+                argbuilder.build_keys(kwargs)
 
             except:
                 logging.warn('query parameter error', exc_info=True)

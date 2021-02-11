@@ -383,20 +383,16 @@ class FilesHandler(APIHandler):
         try:
             kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
-
-            if 'start' in kwargs:
-                kwargs['start'] = int(kwargs['start'])
-                if kwargs['start'] < 0:
-                    raise Exception('start is negative')
-
+            argbuilder.build_start(kwargs)
             argbuilder.build_files_query(kwargs)
             argbuilder.build_keys(kwargs)
-
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
+
         files = yield self.db.find_files(**kwargs)
+
         self.write({
             '_links':{
                 'self': {'href': self.files_url},
@@ -491,7 +487,9 @@ class FilesCountHandler(APIHandler):
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
+
         files = yield self.db.count_files(**kwargs)
+
         self.write({
             '_links':{
                 'self': {'href': self.files_url},
@@ -756,19 +754,15 @@ class CollectionsHandler(CollectionBaseHandler):
         try:
             kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
-
-            if 'start' in kwargs:
-                kwargs['start'] = int(kwargs['start'])
-                if kwargs['start'] < 0:
-                    raise Exception('start is negative')
-
+            argbuilder.build_start(kwargs)
             argbuilder.build_keys(kwargs)
-
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
+
         collections = yield self.db.find_collections(**kwargs)
+
         self.write({
             '_links':{
                 'self': {'href': self.collections_url},
@@ -785,11 +779,11 @@ class CollectionsHandler(CollectionBaseHandler):
 
         try:
             argbuilder.build_files_query(metadata)
+            metadata['query'] = json_encode(metadata['query'])
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
-        metadata['query'] = json_encode(metadata['query'])
 
         if 'collection_name' not in metadata:
             self.send_error(400, message='missing collection_name')
@@ -857,20 +851,16 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
             try:
                 kwargs = urlargparse.parse(self.request.query)
                 argbuilder.build_limit(kwargs, self.config)
-
-                if 'start' in kwargs:
-                    kwargs['start'] = int(kwargs['start'])
-                    if kwargs['start'] < 0:
-                        raise Exception('start is negative')
-
+                argbuilder.build_start(kwargs)
                 kwargs['query'] = json_decode(ret['query'])
                 argbuilder.build_keys(kwargs)
-
             except:
                 logging.warn('query parameter error', exc_info=True)
                 self.send_error(400, message='invalid query parameters')
                 return
+
             files = yield self.db.find_files(**kwargs)
+
             self.write({
                 '_links':{
                     'self': {'href': os.path.join(self.collections_url,uid,'files')},
@@ -897,20 +887,16 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
         try:
             kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
-
-            if 'start' in kwargs:
-                kwargs['start'] = int(kwargs['start'])
-                if kwargs['start'] < 0:
-                    raise Exception('start is negative')
-
+            argbuilder.build_start(kwargs)
             argbuilder.build_keys(kwargs)
-
+            kwargs['query'] = {'collection_id': ret['uuid']}
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
-        kwargs['query'] = {'collection_id': ret['uuid']}
+
         snapshots = yield self.db.find_snapshots(**kwargs)
+
         self.write({
             '_links':{
                 'self': {'href': os.path.join(self.collections_url,uid,'snapshots')},
@@ -1003,22 +989,17 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
             try:
                 kwargs = urlargparse.parse(self.request.query)
                 argbuilder.build_limit(kwargs, self.config)
-
-                if 'start' in kwargs:
-                    kwargs['start'] = int(kwargs['start'])
-                    if kwargs['start'] < 0:
-                        raise Exception('start is negative')
-
+                argbuilder.build_start(kwargs)
                 kwargs['query'] = {'uuid':{'$in':ret['files']}}
                 logger.warning('getting files: %r', kwargs['query'])
-
                 argbuilder.build_keys(kwargs)
-
             except:
                 logging.warn('query parameter error', exc_info=True)
                 self.send_error(400, message='invalid query parameters')
                 return
+
             files = yield self.db.find_files(**kwargs)
+
             self.write({
                 '_links':{
                     'self': {'href': os.path.join(self.snapshots_url,uid,'files')},

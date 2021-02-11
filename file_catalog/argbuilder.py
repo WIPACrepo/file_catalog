@@ -23,6 +23,14 @@ def build_limit(kwargs: Dict[str, Any], config: Dict[str, Any]) -> None:
         kwargs["limit"] = config["FC_QUERY_FILE_LIST_LIMIT"]
 
 
+def build_start(kwargs: Dict[str, Any]) -> None:
+    """Build the `"start"` argument."""
+    if "start" in kwargs:
+        kwargs["start"] = int(kwargs["start"])
+        if kwargs["start"] < 0:
+            raise Exception("start is negative")
+
+
 def build_files_query(kwargs: Dict[str, Any]) -> None:
     """Build `"query"` dict with formatted/fully-named arguments.
 

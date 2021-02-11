@@ -77,10 +77,11 @@ class Mongo(object):
         default: Optional[Dict[str, bool]] = None,
     ) -> Dict[str, bool]:
         projection = {"_id": False}
-        if not keys and default:
-            projection.update(default)
+        if not keys:
+            if default:  # use default keys if they're available
+                projection.update(default)
         elif isinstance(keys, AllKeys):
-            pass
+            pass  # only use "id_" constraint in projection
         elif isinstance(keys, list):
             projection.update({k: True for k in keys})
         else:

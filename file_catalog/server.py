@@ -1002,7 +1002,7 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
         if ret:
             try:
                 kwargs = urlargparse.parse(self.request.query)
-                argbuilder.build_limit(kwargs)
+                argbuilder.build_limit(kwargs, self.config)
 
                 if 'start' in kwargs:
                     kwargs['start'] = int(kwargs['start'])

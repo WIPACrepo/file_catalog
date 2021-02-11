@@ -1,26 +1,28 @@
+"""File Catalog MongoDB Interface."""
+
+
 from __future__ import absolute_import, division, print_function
 
 import datetime
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, cast, Dict, List, Optional, Union
 
-import pymongo
-from bson.objectid import ObjectId
+import pymongo  # type: ignore[import]
 from pymongo import MongoClient
-from pymongo.errors import BulkWriteError
 from tornado.concurrent import run_on_executor
 
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
+logger = logging.getLogger("mongo")
 
 
+class AllKeys:  # pylint: disable=R0903
+    """Include all keys in MongoDB find*() methods."""
 
-logger = logging.getLogger('mongo')
 
 class Mongo(object):
-    """A ThreadPoolExecutor-based MongoDB client"""
+    """A ThreadPoolExecutor-based MongoDB client."""
+
+    # fmt:off
     def __init__(self, host=None, port=None, authSource=None, username=None, password=None, uri=None):
 
         if uri:
@@ -40,12 +42,12 @@ class Mongo(object):
         self.client.files.create_index([('locations.site',pymongo.DESCENDING),('locations.path',pymongo.DESCENDING)], background=True)
         self.client.files.create_index('locations.archive', background=True)
         self.client.files.create_index('create_date', background=True)
-        
+
         # all .i3 files
         self.client.files.create_index('content_status', sparse=True, background=True)
         self.client.files.create_index('processing_level', sparse=True, background=True)
         self.client.files.create_index('data_type', sparse=True, background=True)
-        
+
         # data_type=real files
         self.client.files.create_index('run_number', sparse=True, background=True)
         self.client.files.create_index('start_datetime', sparse=True, background=True)
@@ -53,7 +55,7 @@ class Mongo(object):
         self.client.files.create_index('offline_processing_metadata.first_event', sparse=True, background=True)
         self.client.files.create_index('offline_processing_metadata.last_event', sparse=True, background=True)
         self.client.files.create_index('offline_processing_metadata.season', sparse=True, background=True)
-        
+
         # data_type=simulation files
         self.client.files.create_index('iceprod.dataset', sparse=True, background=True)
 
@@ -67,22 +69,38 @@ class Mongo(object):
 
         self.executor = ThreadPoolExecutor(max_workers=10)
         logger.info('done setting up Mongo')
+    # fmt:on
 
-    @run_on_executor
-    def find_files(self, query={}, keys=None, limit=None, start=0):
-        if keys and isinstance(keys,Iterable) and not isinstance(keys,str):
-            projection = {k:True for k in keys}
+    @staticmethod
+    def _get_projection(
+        keys: Optional[Union[List[str], AllKeys]] = None,
+        default: Optional[Dict[str, bool]] = None,
+    ) -> Dict[str, bool]:
+        projection = {"_id": False}
+        if not keys and default:
+            projection.update(default)
+        elif isinstance(keys, AllKeys):
+            pass
+        elif isinstance(keys, list):
+            projection.update({k: True for k in keys})
         else:
-            projection = {'uuid':True, 'logical_name':True}
-        projection['_id'] = False
+            raise TypeError(
+                f"`keys` argument ({keys}) is not NoneType, list, or AllKeys"
+            )
+        return projection
 
-        result = self.client.files.find(query, projection)
+    @staticmethod
+    def _limit_result_list(
+        result: List[Dict[str, Any]], limit: Optional[int] = None, start: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """Get sublist of `results` using `limit` and `start`.
+
+         `limit` and `skip` are ignored by __getitem__:
+         http://api.mongodb.com/python/current/api/pymongo/cursor.html#pymongo.cursor.Cursor.__getitem__
+
+        Therefore, implement it manually.
+        """
         ret = []
-
-        # `limit` and `skip` are ignored by __getitem__:
-        # http://api.mongodb.com/python/current/api/pymongo/cursor.html#pymongo.cursor.Cursor.__getitem__
-        #
-        # Therefore, implement it manually:
         end = None
 
         if limit is not None:

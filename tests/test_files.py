@@ -1,13 +1,18 @@
+# fmt:off
+
 from __future__ import absolute_import, division, print_function
 
+import hashlib
 import os
 import unittest
-import hashlib
 
-from tornado.escape import json_encode,json_decode
+from tornado.escape import json_decode, json_encode
+
+# local imports
 from rest_tools.client import RestClient
 
 from .test_server import TestServerAPI
+
 
 def hex(data):
     if isinstance(data, str):
@@ -67,6 +72,76 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)
         self.assertEqual(data['files'], 1)
+
+    def test_12_files_keys(self):
+        """Test the 'keys' and all-keys' arguments."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        metadata = {
+            "logical_name": "blah",
+            "checksum": {"sha512": hex("foo bar")},
+            "file_size": 1,
+            "locations": [{"site": "test", "path": "blah.dat"}],
+            "extra": "foo",
+            "supplemental": ["green", "eggs", "ham"],
+        }
+        data = r.request_seq("POST", "/api/files", metadata)
+        self.assertIn("_links", data)
+        self.assertIn("self", data["_links"])
+        self.assertIn("file", data)
+        assert "extra" not in data
+        assert "supplemental" not in data
+        url = data["file"]
+        uid = url.split("/")[-1]
+
+        # w/o all-keys
+        data = r.request_seq("GET", "/api/files")
+        assert set(data["files"][0].keys()) == {"logical_name", "uuid"}
+
+        # w/ all-keys
+        body = {"all-keys": True}
+        data = r.request_seq("GET", "/api/files", body)
+        assert set(data["files"][0].keys()) == {
+            "logical_name",
+            "uuid",
+            "checksum",
+            "file_size",
+            "locations",
+            "extra",
+            "supplemental",
+            "meta_modify_date"
+        }
+
+        # w/ all-keys = False
+        body = {"all-keys": False}
+        data = r.request_seq("GET", "/api/files", body)
+        assert set(data["files"][0].keys()) == {"logical_name", "uuid"}
+
+        # w/ all-keys & keys
+        body = {"all-keys": True, "keys": "checksum|file_size"}
+        data = r.request_seq("GET", "/api/files", body)
+        assert set(data["files"][0].keys()) == {
+            "logical_name",
+            "uuid",
+            "checksum",
+            "file_size",
+            "locations",
+            "extra",
+            "supplemental",
+            "meta_modify_date"
+        }
+
+        # w/ all-keys = False & keys
+        body = {"all-keys": False, "keys": "checksum|file_size"}
+        data = r.request_seq("GET", "/api/files", body)
+        assert set(data["files"][0].keys()) == {"checksum", "file_size"}
+
+        # w/ just keys
+        body = {"keys": "checksum|file_size"}
+        data = r.request_seq("GET", "/api/files", body)
+        assert set(data["files"][0].keys()) == {"checksum", "file_size"}
 
     def test_15_files_auth(self):
         self.start_server(config_override={'SECRET':'secret'})

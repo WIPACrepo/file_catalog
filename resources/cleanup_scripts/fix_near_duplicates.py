@@ -17,26 +17,22 @@ from rest_tools.client import RestClient  # type: ignore[import]
 
 PAGE_SIZE = 10000
 
-FCEntry = Dict[str, Any]
+FCMetadata = Dict[str, Any]
 
 
-def _find_fc_entry(rc: RestClient, logical_name: str) -> FCEntry:
-
-    # get uuid
+def _find_fc_metadata(rc: RestClient, logical_name: str) -> FCMetadata:
     try:
-        body = {"query": json.dumps({"logical_name": logical_name})}
-        results = rc.request_seq("GET", "/api/files", body)["files"]
+        body = {"query": json.dumps({"logical_name": logical_name}), "all-keys": True}
+        resp = rc.request_seq("GET", "/api/files", body)
+        fc_metas = cast(List[FCMetadata], resp["files"])
     except KeyError:
         raise FileNotFoundError
-    if not results:
+    if not fc_metas:
         raise FileNotFoundError
-    if len(results) > 1:
+    if len(fc_metas) > 1:
         raise Exception(f"Multiple FC matches for {logical_name}")
 
-    # get full metadata
-    metadata = rc.request_seq("GET", f"/api/files/{results[0]['uuid']}")
-
-    return cast(FCEntry, metadata)
+    return fc_metas[0]
 
 
 def remove_prefix(string: str, prefix: str) -> str:
@@ -74,8 +70,8 @@ def _compatible_locations_values(
     return True
 
 
-def _compare_fc_entries(
-    evil_twin: FCEntry, good_twin: FCEntry, ignored_fields: List[str]
+def _compare_twins(
+    evil_twin: FCMetadata, good_twin: FCMetadata, ignored_fields: List[str]
 ) -> bool:
     keys = set(list(evil_twin.keys()) + list(good_twin.keys()))
 
@@ -91,14 +87,14 @@ def _compare_fc_entries(
     return True
 
 
-def _evil_twin_updated_later(evil_twin: FCEntry, good_twin: FCEntry) -> bool:
+def _evil_twin_was_updated_later(evil_twin: FCMetadata, good_twin: FCMetadata) -> bool:
     evil_twin_time = dateutil.parser.isoparse(evil_twin["meta_modify_date"])
     good_twin_time = dateutil.parser.isoparse(good_twin["meta_modify_date"])
 
     return evil_twin_time > good_twin_time
 
 
-def _resolve_deprecated_fields(fc_entry: FCEntry) -> FCEntry:
+def _resolve_deprecated_fields(fc_meta: FCMetadata) -> FCMetadata:
     deprecated_fields = [
         ("end_datetime", "end_datetime"),
         ("first_event", "first_event"),
@@ -109,55 +105,55 @@ def _resolve_deprecated_fields(fc_entry: FCEntry) -> FCEntry:
         ("events", "event_count"),
     ]
     for old_field, run_field in deprecated_fields:
-        if old_field not in fc_entry:
+        if old_field not in fc_meta:
             continue
-        if run_field not in fc_entry["run"]:
+        if run_field not in fc_meta["run"]:
             raise Exception(
                 f"Deprecated field: {run_field} is not also in 'run' object"
             )
-        elif fc_entry[old_field] != fc_entry["run"][run_field]:
+        elif fc_meta[old_field] != fc_meta["run"][run_field]:
             raise Exception(
                 f"Deprecated field: {old_field} has differing value than 'run' object "
-                f"({fc_entry[old_field]} vs {fc_entry['run'][run_field]})"
+                f"({fc_meta[old_field]} vs {fc_meta['run'][run_field]})"
             )
-        del fc_entry[old_field]
+        del fc_meta[old_field]
 
-    return fc_entry
-
-
-def _resolve_gcd_filepath(fc_entry: FCEntry) -> FCEntry:
-    if "offline_processing_metadata" in fc_entry:
-        path = _get_good_path(fc_entry["offline_processing_metadata"]["L2_gcd_file"])
-        fc_entry["offline_processing_metadata"]["L2_gcd_file"] = path
-    return fc_entry
+    return fc_meta
 
 
-def _resolve_wipac_location_filepath(fc_entry: FCEntry) -> FCEntry:
+def _resolve_gcd_filepath(fc_meta: FCMetadata) -> FCMetadata:
+    if "offline_processing_metadata" in fc_meta:
+        path = _get_good_path(fc_meta["offline_processing_metadata"]["L2_gcd_file"])
+        fc_meta["offline_processing_metadata"]["L2_gcd_file"] = path
+    return fc_meta
+
+
+def _resolve_wipac_location_filepath(fc_meta: FCMetadata) -> FCMetadata:
     # replace WIPAC-site path (these will differ b/c they are the logical_name)
-    for i in range(len(fc_entry["locations"])):  # pylint: disable=C0200
+    for i in range(len(fc_meta["locations"])):  # pylint: disable=C0200
         # allow in-line changes
-        if fc_entry["locations"][i]["site"] == "WIPAC":
-            path = _get_good_path(fc_entry["locations"][i]["path"])
-            fc_entry["locations"][i]["path"] = path
-    return fc_entry
+        if fc_meta["locations"][i]["site"] == "WIPAC":
+            path = _get_good_path(fc_meta["locations"][i]["path"])
+            fc_meta["locations"][i]["path"] = path
+    return fc_meta
 
 
-def _resolve_season_value(fc_entry: FCEntry) -> FCEntry:
-    if "offline_processing_metadata" in fc_entry:
-        season = fc_entry["offline_processing_metadata"]["season"]
-        fc_entry["offline_processing_metadata"]["season"] = int(season)
-    return fc_entry
+def _resolve_season_value(fc_meta: FCMetadata) -> FCMetadata:
+    if "offline_processing_metadata" in fc_meta:
+        season = fc_meta["offline_processing_metadata"]["season"]
+        fc_meta["offline_processing_metadata"]["season"] = int(season)
+    return fc_meta
 
 
-def find_twins(rc: RestClient, bad_rooted_fpath: str) -> Tuple[str, str]:
-    """Get evil twin and good twin FC entries' uuids.
+def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
+    """Return whether the `evil_twin` has a good twin.
 
-    If no twin (good or bad) is found, raise FileNotFoundError.
+    If the two sets of metadata are not compatible, raise an Exception.
     """
-    good_twin = _find_fc_entry(rc, _get_good_path(bad_rooted_fpath))
-    good_twin_uuid = good_twin["uuid"]
-    evil_twin = _find_fc_entry(rc, bad_rooted_fpath)
-    evil_twin_uuid = evil_twin["uuid"]
+    try:
+        good_twin = _find_fc_metadata(rc, _get_good_path(evil_twin["logical_name"]))
+    except FileNotFoundError:
+        return False
 
     # resolve special fields
     evil_twin = _resolve_deprecated_fields(evil_twin)
@@ -176,7 +172,7 @@ def find_twins(rc: RestClient, bad_rooted_fpath: str) -> Tuple[str, str]:
             raise Exception("Locations metadata not compatible")
 
         # compare "meta_modify_date"-fields
-        if _evil_twin_updated_later(evil_twin, good_twin):
+        if _evil_twin_was_updated_later(evil_twin, good_twin):
             raise Exception("Evil twin was updated after the good twin")
 
         # compare basic fields
@@ -187,7 +183,7 @@ def find_twins(rc: RestClient, bad_rooted_fpath: str) -> Tuple[str, str]:
             "locations",
             "meta_modify_date",
         ]
-        if not _compare_fc_entries(evil_twin, good_twin, ignored_fields):
+        if not _compare_twins(evil_twin, good_twin, ignored_fields):
             raise Exception(f"Fields don't match (disregarding: {ignored_fields})")
 
     except Exception:
@@ -195,14 +191,14 @@ def find_twins(rc: RestClient, bad_rooted_fpath: str) -> Tuple[str, str]:
         logging.critical(f"good_twin={good_twin}")
         raise
 
-    return evil_twin_uuid, good_twin_uuid
+    return True
 
 
-def bad_rooted_fc_fpaths(rc: RestClient) -> Generator[str, None, None]:
-    """Yield each FC filepath rooted at /mnt/lfs*/.
+def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
+    """Yield each FC entry (w/ full metadata) rooted at /mnt/lfs*/.
 
-    Search will be halted either by a REST error, or manually by the
-    user.
+    Search will be halted either by a REST error, manually by the user,
+    or when the FC has been exhausted.
     """
     previous_page: List[Dict[str, Any]] = []
     page = 0
@@ -212,60 +208,63 @@ def bad_rooted_fc_fpaths(rc: RestClient) -> Generator[str, None, None]:
         )
 
         # Query
-        body = {"start": page * PAGE_SIZE, "limit": PAGE_SIZE}
-        files = rc.request_seq("GET", "/api/files", body)["files"]
-        if not files:
+        body = {"start": page * PAGE_SIZE, "limit": PAGE_SIZE, "all-keys": True}
+        resp = rc.request_seq("GET", "/api/files", body)
+        fc_metas = cast(List[FCMetadata], resp["files"])
+
+        # pre-check
+        if not fc_metas:
             logging.error("No more files.")
             return
-        if len(files) != PAGE_SIZE:
-            logging.error(f"Asked for {PAGE_SIZE} files, received {len(files)}")
+        if len(fc_metas) != PAGE_SIZE:
+            logging.error(f"Asked for {PAGE_SIZE} files, received {len(fc_metas)}")
 
         # Case 0: nothing was deleted from the bad-paths yield last time -> get next page
-        if files == previous_page:
+        if fc_metas == previous_page:
             logging.error("This page is the same as the previous page.")
             page += 1
             continue
 
-        previous_page = files
-        bad_paths = [
-            f["logical_name"] for f in files if f["logical_name"].startswith("/mnt/lfs")
+        previous_page = fc_metas
+        bad_fc_metas = [
+            fcm for fcm in fc_metas if fcm["logical_name"].startswith("/mnt/lfs")
         ]
 
         # Case 1a: there are no bad paths -> get next page
-        if not bad_paths:
+        if not bad_fc_metas:
             # since there were no bad paths, we know nothing will be deleted
-            logging.error("No bad-rooted paths found in page.")
+            logging.error("No bad-rooted-path metadata found in page.")
             page += 1
             continue
 
         # Case 1b: there *are* bad paths
-        for path in bad_paths:
+        for fcm in bad_fc_metas:
             logging.warning(f"PAGE-{page}")
-            yield path
+            yield fcm
 
 
 def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> int:
     """Delete each bad-rooted path FC entry (if each has a good twin)."""
     i = 0
-    for i, bad_rooted_fpath in enumerate(bad_rooted_fc_fpaths(rc), start=1):
-        logging.warning(f"Bad path #{i}: {bad_rooted_fpath}")
+    for i, bad_fcm in enumerate(bad_fc_metadata(rc), start=1):
+        uuid = bad_fcm["uuid"]
+        logging.warning(f"Bad path #{i}: {bad_fcm['logical_name']}")
 
-        try:
-            evil_twin_uuid, good_twin_uuid = find_twins(rc, bad_rooted_fpath)
-            logging.info(
-                f"Found: good-twin={good_twin_uuid} evil-twin={evil_twin_uuid}"
-            )
-        except FileNotFoundError:
+        if not has_good_twin(rc, bad_fcm):
             logging.error("No good twin found.")
             continue
+        # sanity check -- this is the point of no return
+        if uuid != bad_fcm["uuid"]:
+            raise Exception(f"uuid was changed ({uuid}) vs ({bad_fcm['uuid']}).")
 
+        # delete!
         if dryrun:
             logging.error(
-                f"Dry-Run Enabled: Not DELETE'ing File Catalog entry! i={i}  -- {evil_twin_uuid}"
+                f"Dry-Run Enabled: Not DELETE'ing File Catalog entry! i={i}  -- {uuid}"
             )
         else:
-            rc.request_seq("DELETE", f"/api/files/{evil_twin_uuid}")
-            logging.warning(f"DELETED #{i} -- {evil_twin_uuid}")
+            rc.request_seq("DELETE", f"/api/files/{uuid}")
+            logging.warning(f"DELETED #{i} -- {uuid}")
 
     return i
 

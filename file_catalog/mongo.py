@@ -77,6 +77,7 @@ class Mongo(object):
         default: Optional[Dict[str, bool]] = None,
     ) -> Dict[str, bool]:
         projection = {"_id": False}
+
         if not keys:
             if default:  # use default keys if they're available
                 projection.update(default)
@@ -88,6 +89,7 @@ class Mongo(object):
             raise TypeError(
                 f"`keys` argument ({keys}) is not NoneType, list, or AllKeys"
             )
+
         return projection
 
     @staticmethod
@@ -109,6 +111,7 @@ class Mongo(object):
 
         for row in result[start:end]:
             ret.append(row)
+
         return ret
 
     @run_on_executor
@@ -150,7 +153,9 @@ class Mongo(object):
         """Get count of files matching query."""
         if not query:
             query = {}
+
         ret = self.client.files.count_documents(query)
+
         return cast(int, ret)
 
     @run_on_executor
@@ -160,9 +165,12 @@ class Mongo(object):
         Return uuid.
         """
         result = self.client.files.insert_one(metadata)
+
         if (not result) or (not result.inserted_id):
-            logger.warning("did not insert file")
-            raise Exception("did not insert new file")
+            msg = "did not insert new file"
+            logger.warning(msg)
+            raise Exception(msg)
+
         return cast(str, metadata["uuid"])
 
     @run_on_executor
@@ -182,8 +190,9 @@ class Mongo(object):
                 result.matched_count,
             )
         elif result.modified_count != 1:
-            logger.warning("updated %s files with id %r", result.modified_count, uuid)
-            raise Exception("did not update")
+            msg = f"updated {result.modified_count} files with id {uuid}"
+            logger.warning(msg)
+            raise Exception(msg)
 
     @run_on_executor
     def replace_file(self, metadata: Dict[str, Any]) -> None:
@@ -201,8 +210,9 @@ class Mongo(object):
                 result.matched_count,
             )
         elif result.modified_count != 1:
-            logger.warning("updated %s files with id %r", result.modified_count, uuid)
-            raise Exception("did not update")
+            msg = f"updated {result.modified_count} files with id {uuid}"
+            logger.warning(msg)
+            raise Exception(msg)
 
     @run_on_executor
     def delete_file(self, filters: Dict[str, Any]) -> None:
@@ -210,10 +220,9 @@ class Mongo(object):
         result = self.client.files.delete_one(filters)
 
         if result.deleted_count != 1:
-            logger.warning(
-                "deleted %d files with filter %r", result.deleted_count, filters
-            )
-            raise Exception("did not delete")
+            msg = f"deleted {result.deleted_count} files with filter {filters}"
+            logger.warning(msg)
+            raise Exception(msg)
 
     @run_on_executor
     def find_collections(
@@ -250,9 +259,12 @@ class Mongo(object):
         Return uuid.
         """
         result = self.client.collections.insert_one(metadata)
+
         if (not result) or (not result.inserted_id):
-            logger.warning("did not insert collection")
-            raise Exception("did not insert new collection")
+            msg = "did not insert new collection"
+            logger.warning(msg)
+            raise Exception(msg)
+
         return cast(str, metadata["uuid"])
 
     @run_on_executor
@@ -295,9 +307,12 @@ class Mongo(object):
     def create_snapshot(self, metadata: Dict[str, Any]) -> str:
         """Insert metadata into 'snapshots' collection."""
         result = self.client.snapshots.insert_one(metadata)
+
         if (not result) or (not result.inserted_id):
-            logger.warning("did not insert snapshot")
-            raise Exception("did not insert new snapshot")
+            msg = "did not insert new snapshot"
+            logger.warning(msg)
+            raise Exception(msg)
+
         return cast(str, metadata["uuid"])
 
     @run_on_executor
@@ -330,5 +345,6 @@ class Mongo(object):
                 result.matched_count,
             )
         elif result.modified_count != 1:
-            logger.warning("updated %s files with id %r", result.modified_count, uuid)
-            raise Exception("did not update")
+            msg = f"updated {result.modified_count} files with id {uuid}"
+            logger.warning(msg)
+            raise Exception(msg)

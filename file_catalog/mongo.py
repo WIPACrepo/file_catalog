@@ -81,7 +81,7 @@ class Mongo(object):
             if default:  # use default keys if they're available
                 projection.update(default)
         elif isinstance(keys, AllKeys):
-            pass  # only use "id_" constraint in projection
+            pass  # only use "_id" constraint in projection
         elif isinstance(keys, list):
             projection.update({k: True for k in keys})
         else:
@@ -121,7 +121,7 @@ class Mongo(object):
     ) -> List[Dict[str, Any]]:
         """Find files.
 
-        Optionally, apply keyword arguments. "id_" is always excluded.
+        Optionally, apply keyword arguments. "_id" is always excluded.
 
         Decorators:
             run_on_executor
@@ -224,7 +224,7 @@ class Mongo(object):
     ) -> List[Dict[str, Any]]:
         """Find all collections.
 
-        Optionally, apply keyword arguments. "id_" is always excluded.
+        Optionally, apply keyword arguments. "_id" is always excluded.
 
         Decorators:
             run_on_executor
@@ -271,7 +271,7 @@ class Mongo(object):
     ) -> List[Dict[str, Any]]:
         """Find snapshots.
 
-        Optionally, apply keyword arguments. "id_" is always excluded.
+        Optionally, apply keyword arguments. "_id" is always excluded.
 
         Decorators:
             run_on_executor

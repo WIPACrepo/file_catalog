@@ -101,8 +101,8 @@ class TestFilesAPI(TestServerAPI):
         assert set(data["files"][0].keys()) == {"logical_name", "uuid"}
 
         # w/ all-keys
-        body = {"all-keys": True}
-        data = r.request_seq("GET", "/api/files", body)
+        args = {"all-keys": True}
+        data = r.request_seq("GET", "/api/files", args)
         assert set(data["files"][0].keys()) == {
             "logical_name",
             "uuid",
@@ -115,13 +115,13 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # w/ all-keys = False
-        body = {"all-keys": False}
-        data = r.request_seq("GET", "/api/files", body)
+        args = {"all-keys": False}
+        data = r.request_seq("GET", "/api/files", args)
         assert set(data["files"][0].keys()) == {"logical_name", "uuid"}
 
         # w/ all-keys & keys
-        body = {"all-keys": True, "keys": "checksum|file_size"}
-        data = r.request_seq("GET", "/api/files", body)
+        args = {"all-keys": True, "keys": "checksum|file_size"}
+        data = r.request_seq("GET", "/api/files", args)
         assert set(data["files"][0].keys()) == {
             "logical_name",
             "uuid",
@@ -134,13 +134,13 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # w/ all-keys = False & keys
-        body = {"all-keys": False, "keys": "checksum|file_size"}
-        data = r.request_seq("GET", "/api/files", body)
+        args = {"all-keys": False, "keys": "checksum|file_size"}
+        data = r.request_seq("GET", "/api/files", args)
         assert set(data["files"][0].keys()) == {"checksum", "file_size"}
 
         # w/ just keys
-        body = {"keys": "checksum|file_size"}
-        data = r.request_seq("GET", "/api/files", body)
+        args = {"keys": "checksum|file_size"}
+        data = r.request_seq("GET", "/api/files", args)
         assert set(data["files"][0].keys()) == {"checksum", "file_size"}
 
     def test_15_files_auth(self):

@@ -1,3 +1,8 @@
+"""File Catalog REST Server Interface."""
+
+# fmt: off
+# isort:skip_file
+
 from __future__ import absolute_import, division, print_function
 
 import copy
@@ -27,15 +32,17 @@ from tornado.gen import coroutine
 from tornado.httpclient import HTTPError
 from rest_tools.server import Auth
 
+# local imports
 import file_catalog
 from file_catalog.mongo import Mongo
-from file_catalog import urlargparse
+from file_catalog import urlargparse, argbuilder
 from file_catalog.validation import Validation
 
 logger = logging.getLogger('server')
 
+
 def get_pkgdata_filename(package, resource):
-    """Get a filename for a resource bundled within the package"""
+    """Get a filename for a resource bundled within the package."""
     loader = get_loader(package)
     if loader is None or not hasattr(loader, 'get_data'):
         return None
@@ -50,8 +57,9 @@ def get_pkgdata_filename(package, resource):
     parts.insert(0, os.path.dirname(mod.__file__))
     return os.path.join(*parts)
 
+
 def tornado_logger(handler):
-    """Log levels based on status code"""
+    """Log levels based on status code."""
     if handler.get_status() < 400:
         log_method = logger.debug
     elif handler.get_status() < 500:
@@ -62,9 +70,10 @@ def tornado_logger(handler):
     log_method("%d %s %.2fms", handler.get_status(),
             handler._request_summary(), request_time)
 
+
 def sort_dict(d):
-    """
-    Creates an OrderedDict by taking the `dict` named `d` and orders its keys.
+    """Creates an OrderedDict by taking `dict` named `d` and orders its keys.
+
     If a key contains a `dict` it will call this function recursively.
     """
 
@@ -77,11 +86,13 @@ def sort_dict(d):
 
     return od
 
+
 def set_last_modification_date(d):
     d['meta_modify_date'] = str(datetime.datetime.utcnow())
 
+
 class Server(object):
-    """A file_catalog server instance"""
+    """A file_catalog server instance."""
 
     def __init__(self, config, port=8888, debug=False,
                  db_host='localhost', db_port=27017,
@@ -150,8 +161,9 @@ class Server(object):
     def run(self):
         tornado.ioloop.IOLoop.current().start()
 
+
 class MainHandler(tornado.web.RequestHandler):
-    """Main HTML handler"""
+    """Main HTML handler."""
     def initialize(self, base_url='/', debug=False, config=None):
         self.base_url = base_url
         self.debug = debug
@@ -204,8 +216,9 @@ class MainHandler(tornado.web.RequestHandler):
             self.write('<br />'.join(kwargs['message'].split('\n')))
         self.finish()
 
+
 def catch_error(method):
-    """Decorator to catch and handle errors on api handlers"""
+    """Decorator to catch and handle errors on api handlers."""
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         try:
@@ -218,8 +231,9 @@ def catch_error(method):
             self.send_error(**kwargs)
     return wrapper
 
+
 class LoginHandler(MainHandler):
-    """Login HTML handler"""
+    """Login HTML handler."""
     @catch_error
     def get(self):
         if not self.get_argument('access', False):
@@ -240,7 +254,7 @@ class LoginHandler(MainHandler):
 
 
 class AccountHandler(MainHandler):
-    """Account HTML handler"""
+    """Account HTML handler."""
     @catch_error
     def get(self):
         if not self.get_argument('access', False):
@@ -255,8 +269,9 @@ class AccountHandler(MainHandler):
         refresh = self.get_argument('refresh')
         self.render('account.html', authkey=refresh, tempkey=access)
 
+
 def validate_auth(method):
-    """Decorator to check auth key on api handlers"""
+    """Decorator to check auth key on api handlers."""
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         if not self.auth: # skip auth if not present
@@ -278,8 +293,9 @@ def validate_auth(method):
             return method(self, *args, **kwargs)
     return wrapper
 
+
 class APIHandler(tornado.web.RequestHandler):
-    """Base class for API handlers"""
+    """Base class for API handlers."""
     def initialize(self, config, db=None, base_url='/', debug=False, rate_limit=10):
         self.db = db
         self.base_url = base_url
@@ -336,6 +352,7 @@ class APIHandler(tornado.web.RequestHandler):
             self.write(kwargs)
         self.finish()
 
+
 class HATEOASHandler(APIHandler):
     def initialize(self, **kwargs):
         super(HATEOASHandler, self).initialize(**kwargs)
@@ -353,41 +370,6 @@ class HATEOASHandler(APIHandler):
         self.write(self.data)
 
 
-def build_files_query(kwargs: dict) -> dict:
-    """Return dict with formatted/fully-named arguments for querying files.
-
-    Pop corresponding keys from `kwargs`.
-    """
-    if 'query' in kwargs:
-        # keep whatever was already in here, then add to it
-        if isinstance(kwargs['query'], (str, bytes)):
-            query = json_decode(kwargs.pop('query'))
-        else:
-            query = kwargs.pop('query')
-    else:
-        query = {}
-
-    if 'locations.archive' not in query:
-        query['locations.archive'] = None
-
-    # shortcut query params
-    if 'logical_name' in kwargs:
-        query['logical_name'] = kwargs.pop('logical_name')
-    if 'run_number' in kwargs:
-        query['run.run_number'] = kwargs.pop('run_number')
-    if 'dataset' in kwargs:
-        query['iceprod.dataset'] = kwargs.pop('dataset')
-    if 'event_id' in kwargs:
-        e = kwargs.pop('event_id')
-        query['run.first_event'] = {'$lte': e}
-        query['run.last_event'] = {'$gte': e}
-    if 'processing_level' in kwargs:
-        query['processing_level'] = kwargs.pop('processing_level')
-    if 'season' in kwargs:
-        query['offline_processing_metadata.season'] = kwargs.pop('season')
-
-    return query
-
 class FilesHandler(APIHandler):
     def initialize(self, **kwargs):
         super(FilesHandler, self).initialize(**kwargs)
@@ -400,32 +382,17 @@ class FilesHandler(APIHandler):
     def get(self):
         try:
             kwargs = urlargparse.parse(self.request.query)
-            if 'limit' in kwargs:
-                kwargs['limit'] = int(kwargs['limit'])
-                if kwargs['limit'] < 1:
-                    raise Exception('limit is not positive')
-
-                # check with config
-                if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
-                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-            else:
-                # if no limit has been defined, set max limit
-                kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-
-            if 'start' in kwargs:
-                kwargs['start'] = int(kwargs['start'])
-                if kwargs['start'] < 0:
-                    raise Exception('start is negative')
-
-            kwargs['query'] = build_files_query(kwargs)
-
-            if 'keys' in kwargs:
-                kwargs['keys'] = kwargs['keys'].split('|')
+            argbuilder.build_limit(kwargs, self.config)
+            argbuilder.build_start(kwargs)
+            argbuilder.build_files_query(kwargs)
+            argbuilder.build_keys(kwargs)
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
+
         files = yield self.db.find_files(**kwargs)
+
         self.write({
             '_links':{
                 'self': {'href': self.files_url},
@@ -502,6 +469,7 @@ class FilesHandler(APIHandler):
             'file': os.path.join(self.files_url, ret),
         })
 
+
 class FilesCountHandler(APIHandler):
     def initialize(self, **kwargs):
         super(FilesCountHandler, self).initialize(**kwargs)
@@ -514,12 +482,14 @@ class FilesCountHandler(APIHandler):
     def get(self):
         try:
             kwargs = urlargparse.parse(self.request.query)
-            build_files_query(kwargs)
+            argbuilder.build_files_query(kwargs)
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
+
         files = yield self.db.count_files(**kwargs)
+
         self.write({
             '_links':{
                 'self': {'href': self.files_url},
@@ -527,6 +497,7 @@ class FilesCountHandler(APIHandler):
             },
             'files': files,
         })
+
 
 class SingleFileHandler(APIHandler):
     def initialize(self, **kwargs):
@@ -695,7 +666,7 @@ class SingleFileLocationsHandler(APIHandler):
     """Initialize a handler for adding new locations to an existing record."""
 
     def initialize(self, **kwargs):
-        """Initialize a handler for adding new locations to an existing record."""
+        """Initialize a handler for adding new locations to existing record."""
         super(SingleFileLocationsHandler, self).initialize(**kwargs)
         self.files_url = os.path.join(self.base_url, 'files')
 
@@ -774,6 +745,7 @@ class CollectionBaseHandler(APIHandler):
         self.collections_url = os.path.join(self.base_url,'collections')
         self.snapshots_url = os.path.join(self.base_url,'snapshots')
 
+
 class CollectionsHandler(CollectionBaseHandler):
     @validate_auth
     @catch_error
@@ -781,30 +753,16 @@ class CollectionsHandler(CollectionBaseHandler):
     def get(self):
         try:
             kwargs = urlargparse.parse(self.request.query)
-            if 'limit' in kwargs:
-                kwargs['limit'] = int(kwargs['limit'])
-                if kwargs['limit'] < 1:
-                    raise Exception('limit is not positive')
-
-                # check with config
-                if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
-                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-            else:
-                # if no limit has been defined, set max limit
-                kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-
-            if 'start' in kwargs:
-                kwargs['start'] = int(kwargs['start'])
-                if kwargs['start'] < 0:
-                    raise Exception('start is negative')
-
-            if 'keys' in kwargs:
-                kwargs['keys'] = kwargs['keys'].split('|')
+            argbuilder.build_limit(kwargs, self.config)
+            argbuilder.build_start(kwargs)
+            argbuilder.build_keys(kwargs)
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
+
         collections = yield self.db.find_collections(**kwargs)
+
         self.write({
             '_links':{
                 'self': {'href': self.collections_url},
@@ -819,14 +777,13 @@ class CollectionsHandler(CollectionBaseHandler):
     def post(self):
         metadata = json_decode(self.request.body)
 
-        query = {}
         try:
-            query = build_files_query(metadata)
+            argbuilder.build_files_query(metadata)
+            metadata['query'] = json_encode(metadata['query'])
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
-        metadata['query'] = json_encode(query)
 
         if 'collection_name' not in metadata:
             self.send_error(400, message='missing collection_name')
@@ -860,6 +817,7 @@ class CollectionsHandler(CollectionBaseHandler):
             'collection': os.path.join(self.collections_url, ret),
         })
 
+
 class SingleCollectionHandler(CollectionBaseHandler):
     @validate_auth
     @catch_error
@@ -879,6 +837,7 @@ class SingleCollectionHandler(CollectionBaseHandler):
         else:
             self.send_error(404, message='collection not found')
 
+
 class SingleCollectionFilesHandler(CollectionBaseHandler):
     @validate_auth
     @catch_error
@@ -891,32 +850,17 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
         if ret:
             try:
                 kwargs = urlargparse.parse(self.request.query)
-                if 'limit' in kwargs:
-                    kwargs['limit'] = int(kwargs['limit'])
-                    if kwargs['limit'] < 1:
-                        raise Exception('limit is not positive')
-
-                    # check with config
-                    if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
-                        kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-                else:
-                    # if no limit has been defined, set max limit
-                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-
-                if 'start' in kwargs:
-                    kwargs['start'] = int(kwargs['start'])
-                    if kwargs['start'] < 0:
-                        raise Exception('start is negative')
-
+                argbuilder.build_limit(kwargs, self.config)
+                argbuilder.build_start(kwargs)
                 kwargs['query'] = json_decode(ret['query'])
-
-                if 'keys' in kwargs:
-                    kwargs['keys'] = kwargs['keys'].split('|')
+                argbuilder.build_keys(kwargs)
             except:
                 logging.warn('query parameter error', exc_info=True)
                 self.send_error(400, message='invalid query parameters')
                 return
+
             files = yield self.db.find_files(**kwargs)
+
             self.write({
                 '_links':{
                     'self': {'href': os.path.join(self.collections_url,uid,'files')},
@@ -926,6 +870,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
             })
         else:
             self.send_error(404, message='collection not found')
+
 
 class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
     @validate_auth
@@ -941,31 +886,17 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 
         try:
             kwargs = urlargparse.parse(self.request.query)
-            if 'limit' in kwargs:
-                kwargs['limit'] = int(kwargs['limit'])
-                if kwargs['limit'] < 1:
-                    raise Exception('limit is not positive')
-
-                # check with config
-                if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
-                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-            else:
-                # if no limit has been defined, set max limit
-                kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-
-            if 'start' in kwargs:
-                kwargs['start'] = int(kwargs['start'])
-                if kwargs['start'] < 0:
-                    raise Exception('start is negative')
-
-            if 'keys' in kwargs:
-                kwargs['keys'] = kwargs['keys'].split('|')
+            argbuilder.build_limit(kwargs, self.config)
+            argbuilder.build_start(kwargs)
+            argbuilder.build_keys(kwargs)
+            kwargs['query'] = {'collection_id': ret['uuid']}
         except:
             logging.warn('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
-        kwargs['query'] = {'collection_id': ret['uuid']}
+
         snapshots = yield self.db.find_snapshots(**kwargs)
+
         self.write({
             '_links':{
                 'self': {'href': os.path.join(self.collections_url,uid,'snapshots')},
@@ -1028,6 +959,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
                 'snapshot': os.path.join(self.snapshots_url, ret),
             })
 
+
 class SingleSnapshotHandler(CollectionBaseHandler):
     @validate_auth
     @catch_error
@@ -1045,6 +977,7 @@ class SingleSnapshotHandler(CollectionBaseHandler):
         else:
             self.send_error(404, message='snapshot not found')
 
+
 class SingleSnapshotFilesHandler(CollectionBaseHandler):
     @validate_auth
     @catch_error
@@ -1055,33 +988,18 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
         if ret:
             try:
                 kwargs = urlargparse.parse(self.request.query)
-                if 'limit' in kwargs:
-                    kwargs['limit'] = int(kwargs['limit'])
-                    if kwargs['limit'] < 1:
-                        raise Exception('limit is not positive')
-
-                    # check with config
-                    if kwargs['limit'] > self.config['FC_QUERY_FILE_LIST_LIMIT']:
-                        kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-                else:
-                    # if no limit has been defined, set max limit
-                    kwargs['limit'] = self.config['FC_QUERY_FILE_LIST_LIMIT']
-
-                if 'start' in kwargs:
-                    kwargs['start'] = int(kwargs['start'])
-                    if kwargs['start'] < 0:
-                        raise Exception('start is negative')
-
+                argbuilder.build_limit(kwargs, self.config)
+                argbuilder.build_start(kwargs)
                 kwargs['query'] = {'uuid':{'$in':ret['files']}}
                 logger.warning('getting files: %r', kwargs['query'])
-
-                if 'keys' in kwargs:
-                    kwargs['keys'] = kwargs['keys'].split('|')
+                argbuilder.build_keys(kwargs)
             except:
                 logging.warn('query parameter error', exc_info=True)
                 self.send_error(400, message='invalid query parameters')
                 return
+
             files = yield self.db.find_files(**kwargs)
+
             self.write({
                 '_links':{
                     'self': {'href': os.path.join(self.snapshots_url,uid,'files')},

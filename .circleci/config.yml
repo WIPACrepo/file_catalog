@@ -24,7 +24,7 @@ jobs:
             - run: |
                 . env/bin/activate &&
                 resources/enable_profiling.py &&
-                pytest --tb=short &&
+                pytest -vvvvv --tb=short &&
                 resources/profile_queries.py
     deploy:
         docker:

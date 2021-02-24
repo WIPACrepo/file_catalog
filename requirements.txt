@@ -31,7 +31,7 @@ requests==2.22.0
 requests-futures==1.0.0
 requests-mock==1.7.0
 requests-toolbelt==0.9.1
-rest-tools @ git+https://github.com/WIPACrepo/rest-tools@74b241a7cd83f30b2bf5effac3e2b705dc867a4c#egg=rest_tools
+rest-tools @ git+https://github.com/WIPACrepo/rest-tools@fee14ea3ec717bf1ebe2f08e6581bfc611f5c821#egg=rest_tools
 six==1.12.0
 snowballstemmer==2.0.0
 Sphinx==2.2.0

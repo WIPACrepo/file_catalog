@@ -201,7 +201,7 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
     previous_page: List[Dict[str, Any]] = []
     page = 0
     while True:
-        logging.warning(
+        logging.info(
             f"Looking for more bad-rooted paths (page={page}, limit={PAGE_SIZE})..."
         )
 
@@ -212,14 +212,14 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
 
         # pre-check
         if not fc_metas:
-            logging.error("No more files.")
+            logging.warning("No more files.")
             return
         if len(fc_metas) != PAGE_SIZE:
-            logging.error(f"Asked for {PAGE_SIZE} files, received {len(fc_metas)}")
+            logging.warning(f"Asked for {PAGE_SIZE} files, received {len(fc_metas)}")
 
         # Case 0: nothing was deleted from the bad-paths yield last time -> get next page
         if fc_metas == previous_page:
-            logging.error("This page is the same as the previous page.")
+            logging.warning("This page is the same as the previous page.")
             page += 1
             continue
 
@@ -231,13 +231,13 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
         # Case 1a: there are no bad paths -> get next page
         if not bad_fc_metas:
             # since there were no bad paths, we know nothing will be deleted
-            logging.error("No bad-rooted-path metadata found in page.")
+            logging.info("No bad-rooted-path metadata found in page.")
             page += 1
             continue
 
         # Case 1b: there *are* bad paths
         for fcm in bad_fc_metas:
-            logging.warning(f"PAGE-{page}")
+            logging.info(f"PAGE-{page}")
             yield fcm
 
 
@@ -246,7 +246,7 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
     i = 0
     for i, bad_fcm in enumerate(bad_fc_metadata(rc), start=1):
         uuid = bad_fcm["uuid"]
-        logging.warning(f"Bad path #{i}: {bad_fcm['logical_name']}")
+        logging.info(f"Bad path #{i}: {bad_fcm['logical_name']}")
 
         if not has_good_twin(rc, bad_fcm):
             logging.error("No good twin found.")
@@ -262,7 +262,7 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
             )
         else:
             rc.request_seq("DELETE", f"/api/files/{uuid}")
-            logging.warning(f"DELETED #{i} -- {uuid}")
+            logging.info(f"DELETED #{i} -- {uuid}")
 
     return i
 
@@ -282,7 +282,7 @@ def main() -> None:
         "NOTE: since the FC will remain the same size, "
         '"GET" @ "/api/files" will continue to return the same entries.',
     )
-    parser.add_argument("-l", "--log", default="WARNING", help="output logging level")
+    parser.add_argument("-l", "--log", default="INFO", help="output logging level")
     args = parser.parse_args()
 
     coloredlogs.install(level=args.log)
@@ -293,7 +293,7 @@ def main() -> None:
     if not total_deleted:
         raise Exception("No FC entries found/deleted")
     else:
-        logging.warning(f"Total Deleted: {total_deleted}")
+        logging.info(f"Total Deleted: {total_deleted}")
 
 
 if __name__ == "__main__":

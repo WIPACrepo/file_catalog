@@ -28,7 +28,7 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
             return False
 
     for page in count(0):
-        logging.warning(
+        logging.info(
             f"Looking for more bad season values (page={page}, limit={PAGE_SIZE})..."
         )
 
@@ -40,19 +40,19 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
 
         # pre-check
         if not fc_metas:
-            logging.error("No more files.")
+            logging.warning("No more files.")
             return
         if len(fc_metas) != PAGE_SIZE:
-            logging.error(f"Asked for {PAGE_SIZE} files, received {len(fc_metas)}")
+            logging.warning(f"Asked for {PAGE_SIZE} files, received {len(fc_metas)}")
 
         # get bads
         bad_fc_metas = [fcm for fcm in fc_metas if has_bad_season(fcm)]
         if not bad_fc_metas:
-            logging.error("No bad metadata found in page.")
+            logging.warning("No bad metadata found in page.")
             continue
 
         for fcm in bad_fc_metas:
-            logging.warning(f"PAGE-{page}")
+            logging.info(f"PAGE-{page}")
             yield fcm
 
 
@@ -69,7 +69,7 @@ def patch_catalog_entries(rc: RestClient, dryrun: bool = False) -> int:
             )
         else:
             rc.request_seq("PATCH", f"/api/files/{bad_fcm['uuid']}", patched_fcm)
-            logging.warning(f"PATCHED #{i} -- {bad_fcm['uuid']}")
+            logging.info(f"PATCHED #{i} -- {bad_fcm['uuid']}")
 
     return i
 
@@ -87,7 +87,7 @@ def main() -> None:
         action="store_true",
         help="do everything except patching File Catalog entries",
     )
-    parser.add_argument("-l", "--log", default="WARNING", help="output logging level")
+    parser.add_argument("-l", "--log", default="INFO", help="output logging level")
     args = parser.parse_args()
 
     coloredlogs.install(level=args.log)

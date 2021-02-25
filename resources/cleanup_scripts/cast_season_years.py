@@ -31,7 +31,7 @@ def get_offline_processing_metadata_w_str_season(
     def check_seasons(fc_metas: List[FCMetadata]) -> None:
         for fcm in fc_metas:
             if fcm["offline_processing_metadata"]["season"] != str_season:
-                raise RuntimeWarning(f"Wrong season! (not {str_season}) {fc_metas}")
+                raise RuntimeWarning(f"Wrong season! (not {str_season}) {fcm}")
 
     # infinite querying (break when no more files)
     for num in count(1):

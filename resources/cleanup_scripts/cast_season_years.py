@@ -100,6 +100,9 @@ def main() -> None:
     )
     parser.add_argument("--token", required=True, help="file catalog token")
     parser.add_argument(
+        "--timeout", type=int, default=15, help="file catalog REST timeout"
+    )
+    parser.add_argument(
         "--dryrun",
         default=False,
         action="store_true",
@@ -109,7 +112,9 @@ def main() -> None:
     args = parser.parse_args()
 
     coloredlogs.install(level=args.log)
-    rc = RestClient("https://file-catalog.icecube.wisc.edu/", token=args.token)
+    rc = RestClient(
+        "https://file-catalog.icecube.wisc.edu/", token=args.token, timeout=args.timeout
+    )
 
     # Find & Patch by Season
     patch_totals: Dict[str, int] = {}

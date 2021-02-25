@@ -44,7 +44,7 @@ def get_offline_processing_metadata_w_str_season(
         body = {
             "start": 0,  # always start at the first page b/c will delete from front of queue
             "limit": PAGE_SIZE,
-            "keys": "offline_processing_metadata",
+            "keys": "uuid|offline_processing_metadata",
             "query": json.dumps({"offline_processing_metadata.season": str_season}),
         }
         resp = rc.request_seq("GET", "/api/files", body)

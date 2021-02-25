@@ -4,7 +4,7 @@
 import argparse
 import logging
 from itertools import count
-from typing import Any, cast, Dict, Generator, List
+from typing import Any, cast, Dict, Generator, List, Tuple
 
 import coloredlogs  # type: ignore[import]
 from rest_tools.client import RestClient  # type: ignore[import]
@@ -12,29 +12,40 @@ from rest_tools.client import RestClient  # type: ignore[import]
 PAGE_SIZE = 10000
 
 FCMetadata = Dict[str, Any]
+OfflineProcessingMetadata = Dict[str, Any]
 
 
-def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
+def get_offline_processing_metadata_w_str_season(
+    rc: RestClient, str_season: str
+) -> Generator[Tuple[str, OfflineProcessingMetadata], None, None]:
     """Yield each FC entry that has a str-typed season value.
 
     Search will be halted either by a REST error, manually by the user,
     or when the FC has been exhausted.
     """
+    # type check str_season
+    int(str_season)
+    if not isinstance(str_season, str):
+        raise TypeError("`str_season` must be a str")
 
-    def has_bad_season(fcm: FCMetadata) -> bool:
-        try:
-            return isinstance(fcm["offline_processing_metadata"]["season"], str)
-        except KeyError:
-            return False
+    def check_seasons(fc_metas: List[FCMetadata]) -> None:
+        for fcm in fc_metas:
+            if fcm["offline_processing_metadata"]["season"] != str_season:
+                raise RuntimeWarning(f"Wrong season! (not {str_season}) {fc_metas}")
 
-    for page in count(0):
+    # infinite querying (break when no more files)
+    for num in count(1):
         logging.info(
-            f"Looking for more bad season values (page={page}, limit={PAGE_SIZE})..."
+            f'Looking for more "{str_season}" string-season entries (Query #{num}, limit={PAGE_SIZE})...'
         )
 
         # Query
-        body = {"start": page * PAGE_SIZE, "limit": PAGE_SIZE, "all-keys": True}
-        # TODO -- think about query & whether I want to deal w/ FC-resp universe changing size
+        body = {
+            "start": 0,  # always start at the first page b/c will delete from front of queue
+            "limit": PAGE_SIZE,
+            "keys": "offline_processing_metadata",
+            "query": {"season": str_season},
+        }
         resp = rc.request_seq("GET", "/api/files", body)
         fc_metas = cast(List[FCMetadata], resp["files"])
 
@@ -44,32 +55,38 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
             return
         if len(fc_metas) != PAGE_SIZE:
             logging.warning(f"Asked for {PAGE_SIZE} files, received {len(fc_metas)}")
+        check_seasons(fc_metas)
 
-        # get bads
-        bad_fc_metas = [fcm for fcm in fc_metas if has_bad_season(fcm)]
-        if not bad_fc_metas:
-            logging.warning("No bad metadata found in page.")
-            continue
-
-        for fcm in bad_fc_metas:
-            logging.info(f"PAGE-{page}")
-            yield fcm
+        # yield
+        for fcm in fc_metas:
+            logging.info(f'Season "{str_season}", Query #{num}')
+            yield fcm["uuid"], fcm["offline_processing_metadata"]
 
 
-def patch_catalog_entries(rc: RestClient, dryrun: bool = False) -> int:
+def patch_fc_entries_seasons(
+    rc: RestClient, str_season: str, dryrun: bool = False
+) -> int:
     """Patch each FC entry that has a str-typed season value."""
     i = 0
-    for i, bad_fcm in enumerate(bad_fc_metadata(rc), start=1):
-        patched_fcm = bad_fcm  # TODO -- patch file - can I just send the one field?
+    logging.info(f'Looking at offline_processing_metadata.season="{str_season}"')
+
+    for i, (uuid, op_meta) in enumerate(
+        get_offline_processing_metadata_w_str_season(rc, str_season), start=1
+    ):
+        # fix
+        op_meta["season"] = int(op_meta["season"])
 
         # patch!
         if dryrun:
             logging.error(
-                f"Dry-Run Enabled: Not PATCHING'ing File Catalog entry! i={i}  -- {bad_fcm['uuid']}"
+                f"Dry-Run Enabled: Not PATCHING'ing File Catalog entry! "
+                f"i={i} -- {op_meta['season']} | {uuid} | {op_meta}"
             )
         else:
-            rc.request_seq("PATCH", f"/api/files/{bad_fcm['uuid']}", patched_fcm)
-            logging.info(f"PATCHED #{i} -- {bad_fcm['uuid']}")
+            rc.request_seq(
+                "PATCH", f"/api/files/{uuid}", {"offline_processing_metadata": op_meta},
+            )
+            logging.info(f"PATCHED #{i} -- {op_meta['season']} | {uuid}")
 
     return i
 
@@ -93,9 +110,12 @@ def main() -> None:
     coloredlogs.install(level=args.log)
     rc = RestClient("https://file-catalog.icecube.wisc.edu/", token=args.token)
 
-    # Go
-    total_patched = patch_catalog_entries(rc, args.dryrun)
-    if not total_patched:
-        raise Exception("No FC entries found/patched")
-    else:
-        logging.warning(f"Total Patched: {total_patched}")
+    # Find & Patch by Season
+    patch_totals: Dict[str, int] = {}
+    for int_season in range(2000, 2025):
+        total_patched = patch_fc_entries_seasons(rc, str(int_season), args.dryrun)
+        logging.warning(f'Total Patched (Season="{int_season}"): {total_patched}')
+        patch_totals[str(int_season)] = total_patched
+
+    logging.warning(f"Seasons Patched: {patch_totals}")
+    logging.warning(f"Grand Total Patched: {sum(tot for tot in patch_totals.values())}")

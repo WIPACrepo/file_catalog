@@ -119,3 +119,7 @@ def main() -> None:
 
     logging.warning(f"Seasons Patched: {patch_totals}")
     logging.warning(f"Grand Total Patched: {sum(tot for tot in patch_totals.values())}")
+
+
+if __name__ == "__main__":
+    main()

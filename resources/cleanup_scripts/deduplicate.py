@@ -7,12 +7,10 @@ where the duplicate is indexed under /mnt/lfs*/.
 import argparse
 import json
 import logging
-from typing import Any, cast, Dict, Generator, List, Tuple
+from typing import Any, cast, Dict, Generator, List
 
 import coloredlogs  # type: ignore[import]
 import dateutil.parser
-
-# local imports
 from rest_tools.client import RestClient  # type: ignore[import]
 
 PAGE_SIZE = 10000

@@ -7,8 +7,6 @@ from itertools import count
 from typing import Any, cast, Dict, Generator, List
 
 import coloredlogs  # type: ignore[import]
-
-# local imports
 from rest_tools.client import RestClient  # type: ignore[import]
 
 PAGE_SIZE = 10000

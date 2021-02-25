@@ -2,7 +2,6 @@
 
 
 import argparse
-import json
 import logging
 from itertools import count
 from typing import Any, cast, Dict, Generator, List, Tuple
@@ -45,7 +44,7 @@ def get_offline_processing_metadata_w_str_season(
             "start": 0,  # always start at the first page b/c will delete from front of queue
             "limit": PAGE_SIZE,
             "keys": "offline_processing_metadata",
-            "query": json.dumps({"season": str_season}),
+            "season": str_season,
         }
         resp = rc.request_seq("GET", "/api/files", body)
         fc_metas = cast(List[FCMetadata], resp["files"])

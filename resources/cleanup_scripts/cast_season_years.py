@@ -5,7 +5,7 @@ import argparse
 import json
 import logging
 from itertools import count
-from typing import Any, cast, Dict, Generator, List, Tuple
+from typing import Any, cast, Dict, Generator, List, Set, Tuple
 
 import coloredlogs  # type: ignore[import]
 from rest_tools.client import RestClient  # type: ignore[import]
@@ -29,7 +29,7 @@ def get_offline_processing_metadata_w_str_season(
     if not isinstance(str_season, str):
         raise TypeError("`str_season` must be a str")
 
-    previous_page: List[Dict[str, Any]] = []
+    previous_page: Set[Dict[str, Any]] = set()
 
     def check_seasons(fc_metas: List[FCMetadata]) -> None:
         for fcm in fc_metas:
@@ -59,11 +59,11 @@ def get_offline_processing_metadata_w_str_season(
         if len(fc_metas) != PAGE_SIZE:
             logging.warning(f"Asked for {PAGE_SIZE} files, received {len(fc_metas)}")
         check_seasons(fc_metas)
-        if fc_metas == previous_page:
+        if set(fc_metas) == previous_page:
             msg = "This page is the same as the previous page."
             logging.critical(msg)
             raise RuntimeError(msg)
-        previous_page = fc_metas
+        previous_page = set(fc_metas)
 
         # yield
         for fcm in fc_metas:

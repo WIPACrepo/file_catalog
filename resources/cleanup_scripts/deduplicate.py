@@ -8,7 +8,7 @@ import argparse
 import json
 import logging
 from itertools import count
-from typing import Any, cast, Dict, Generator, List
+from typing import Any, cast, Dict, Generator, List, Set
 
 import coloredlogs  # type: ignore[import]
 import dateutil.parser
@@ -199,7 +199,7 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
     Search will be halted either by a REST error, manually by the user,
     or when the FC has been exhausted.
     """
-    previous_page: List[Dict[str, Any]] = []
+    previous_page: Set[Dict[str, Any]] = set()
 
     def check_paths(fc_metas: List[FCMetadata]) -> None:
         for fcm in fc_metas:
@@ -229,11 +229,11 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
         if len(fc_metas) != PAGE_SIZE:
             logging.warning(f"Asked for {PAGE_SIZE} files, received {len(fc_metas)}")
         check_paths(fc_metas)
-        if fc_metas == previous_page:
+        if set(fc_metas) == previous_page:
             msg = "This page is the same as the previous page."
             logging.critical(msg)
             raise RuntimeError(msg)
-        previous_page = fc_metas
+        previous_page = set(fc_metas)
 
         # yield
         for fcm in fc_metas:

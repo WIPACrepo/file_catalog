@@ -234,7 +234,7 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
         if set(f["uuid"] for f in fc_metas) == previous_uuids:
             logging.warning(
                 "This page is the same as the previous page "
-                "(front of queue was not cleared)."
+                "(that portion of the queue was not cleared)."
             )
             page_seek += 1
             logging.warning(f"Now seeking to page #{page_seek}...")

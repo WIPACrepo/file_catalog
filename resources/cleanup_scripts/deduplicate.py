@@ -207,14 +207,16 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
                 raise RuntimeError(f"Wrong path! (doesn't start with /mnt/lfs) {fcm}")
 
     # infinite querying (break when no more files)
+    page_seek = 0  # start at the first page b/c will delete from front of queue
     for num in count(1):
         logging.info(
-            f"Looking for more bad-rooted paths (Query #{num}, limit={PAGE_SIZE})..."
+            f"Looking for more bad-rooted paths "
+            f"(Query #{num}, limit={PAGE_SIZE}, page_seek={page_seek})..."
         )
 
         # Query
         body = {
-            "start": 0,  # always start at the first page b/c will delete from front of queue
+            "start": page_seek * PAGE_SIZE,
             "limit": PAGE_SIZE,
             "all-keys": True,
             "query": json.dumps({"logical_name": {"$regex": r"^\/mnt\/lfs.*"}}),
@@ -230,14 +232,18 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
             logging.warning(f"Asked for {PAGE_SIZE} files, received {len(fc_metas)}")
         check_paths(fc_metas)
         if set(f["uuid"] for f in fc_metas) == previous_uuids:
-            msg = "This page is the same as the previous page."
-            logging.critical(msg)
-            raise RuntimeError(msg)
+            logging.warning(
+                "This page is the same as the previous page "
+                "(front of queue was not cleared)."
+            )
+            page_seek += 1
+            logging.warning(f"Now seeking to page #{page_seek}...")
+            continue
         previous_uuids = set(f["uuid"] for f in fc_metas)
 
         # yield
         for fcm in fc_metas:
-            logging.info(f"Query #{num}")
+            logging.info(f"Query #{num} (Page-Seek {page_seek})")
             yield fcm
 
 

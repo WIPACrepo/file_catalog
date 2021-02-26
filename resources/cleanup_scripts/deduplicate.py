@@ -244,25 +244,29 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
 def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> int:
     """Delete each bad-rooted path FC entry (if each has a good twin)."""
     i = 0
-    for i, bad_fcm in enumerate(bad_fc_metadata(rc), start=1):
-        uuid = bad_fcm["uuid"]
-        logging.info(f"Bad path #{i}: {bad_fcm['logical_name']}")
+    with open("unmatched.paths", "a+") as unmatched_f:
+        for i, bad_fcm in enumerate(bad_fc_metadata(rc), start=1):
+            uuid = bad_fcm["uuid"]
+            logging.info(f"Bad path #{i}: {bad_fcm['logical_name']}")
 
-        if not has_good_twin(rc, bad_fcm):
-            logging.error("No good twin found.")
-            continue
-        # sanity check -- this is the point of no return
-        if uuid != bad_fcm["uuid"]:
-            raise Exception(f"uuid was changed ({uuid}) vs ({bad_fcm['uuid']}).")
+            if not has_good_twin(rc, bad_fcm):
+                logging.error(
+                    f"No good twin found -- appending logical name to {unmatched_f.name}"
+                )
+                print(bad_fcm["logical_name"], file=unmatched_f)
+                continue
+            # sanity check -- this is the point of no return
+            if uuid != bad_fcm["uuid"]:
+                raise Exception(f"uuid was changed ({uuid}) vs ({bad_fcm['uuid']}).")
 
-        # delete!
-        if dryrun:
-            logging.error(
-                f"Dry-Run Enabled: Not DELETE'ing File Catalog entry! i={i}  -- {uuid}"
-            )
-        else:
-            rc.request_seq("DELETE", f"/api/files/{uuid}")
-            logging.info(f"DELETED #{i} -- {uuid}")
+            # delete!
+            if dryrun:
+                logging.error(
+                    f"Dry-Run Enabled: Not DELETE'ing File Catalog entry! i={i}  -- {uuid}"
+                )
+            else:
+                rc.request_seq("DELETE", f"/api/files/{uuid}")
+                logging.info(f"DELETED #{i} -- {uuid}")
 
     return i
 

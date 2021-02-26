@@ -199,29 +199,21 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
     Search will be halted either by a REST error, manually by the user,
     or when the FC has been exhausted.
     """
+    previous_page: List[Dict[str, Any]] = []
 
     def check_paths(fc_metas: List[FCMetadata]) -> None:
         for fcm in fc_metas:
             if not fcm["logical_name"].startswith("/mnt/lfs"):
                 raise RuntimeError(f"Wrong path! (doesn't start with /mnt/lfs) {fcm}")
 
-    # previous_page: List[Dict[str, Any]] = []
-    # page = 0
-    # while True:
-
     # infinite querying (break when no more files)
     for num in count(1):
-        # logging.info(
-        #     f"Looking for more bad-rooted paths (page={page}, limit={PAGE_SIZE})..."
-        # )
         logging.info(
             f"Looking for more bad-rooted paths (Query #{num}, limit={PAGE_SIZE})..."
         )
 
         # Query
-        # body = {"start": page * PAGE_SIZE, "limit": PAGE_SIZE, "all-keys": True}
         body = {
-            # "start": page * PAGE_SIZE,
             "start": 0,  # always start at the first page b/c will delete from front of queue
             "limit": PAGE_SIZE,
             "all-keys": True,
@@ -237,29 +229,11 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
         if len(fc_metas) != PAGE_SIZE:
             logging.warning(f"Asked for {PAGE_SIZE} files, received {len(fc_metas)}")
         check_paths(fc_metas)
-
-        # # Case 0: nothing was deleted from the bad-paths yield last time -> get next page
-        # if fc_metas == previous_page:
-        #     logging.warning("This page is the same as the previous page.")
-        #     page += 1
-        #     continue
-
-        # previous_page = fc_metas
-        # bad_fc_metas = [
-        #     fcm for fcm in fc_metas if fcm["logical_name"].startswith("/mnt/lfs")
-        # ]
-
-        # Case 1a: there are no bad paths -> get next page
-        # if not bad_fc_metas:
-        #     # since there were no bad paths, we know nothing will be deleted
-        #     logging.info("No bad-rooted-path metadata found in page.")
-        #     page += 1
-        #     continue
-
-        # Case 1b: there *are* bad paths
-        # for fcm in bad_fc_metas:
-        #     logging.info(f"PAGE-{page}")
-        #     yield fcm
+        if fc_metas == previous_page:
+            msg = "This page is the same as the previous page."
+            logging.critical(msg)
+            raise RuntimeError(msg)
+        previous_page = fc_metas
 
         # yield
         for fcm in fc_metas:

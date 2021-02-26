@@ -207,14 +207,16 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
                 raise RuntimeError(f"Wrong path! (doesn't start with /mnt/lfs) {fcm}")
 
     # infinite querying (break when no more files)
+    page_seek = 0  # start at the first page b/c will delete from front of queue
     for num in count(1):
         logging.info(
-            f"Looking for more bad-rooted paths (Query #{num}, limit={PAGE_SIZE})..."
+            f"Looking for more bad-rooted paths "
+            f"(Query #{num}, limit={PAGE_SIZE}, page_seek={page_seek})..."
         )
 
         # Query
         body = {
-            "start": 0,  # always start at the first page b/c will delete from front of queue
+            "start": page_seek * PAGE_SIZE,
             "limit": PAGE_SIZE,
             "all-keys": True,
             "query": json.dumps({"logical_name": {"$regex": r"^\/mnt\/lfs.*"}}),
@@ -230,39 +232,47 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
             logging.warning(f"Asked for {PAGE_SIZE} files, received {len(fc_metas)}")
         check_paths(fc_metas)
         if set(f["uuid"] for f in fc_metas) == previous_uuids:
-            msg = "This page is the same as the previous page."
-            logging.critical(msg)
-            raise RuntimeError(msg)
+            logging.warning(
+                "This page is the same as the previous page "
+                "(that portion of the queue was not cleared)."
+            )
+            page_seek += 1
+            logging.warning(f"Now seeking to page #{page_seek}...")
+            continue
         previous_uuids = set(f["uuid"] for f in fc_metas)
 
         # yield
         for fcm in fc_metas:
-            logging.info(f"Query #{num}")
+            logging.info(f"Query #{num} (Page-Seek {page_seek})")
             yield fcm
 
 
 def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> int:
     """Delete each bad-rooted path FC entry (if each has a good twin)."""
     i = 0
-    for i, bad_fcm in enumerate(bad_fc_metadata(rc), start=1):
-        uuid = bad_fcm["uuid"]
-        logging.info(f"Bad path #{i}: {bad_fcm['logical_name']}")
+    with open("unmatched.paths", "a+") as unmatched_f:
+        for i, bad_fcm in enumerate(bad_fc_metadata(rc), start=1):
+            uuid = bad_fcm["uuid"]
+            logging.info(f"Bad path #{i}: {bad_fcm['logical_name']}")
 
-        if not has_good_twin(rc, bad_fcm):
-            logging.error("No good twin found.")
-            continue
-        # sanity check -- this is the point of no return
-        if uuid != bad_fcm["uuid"]:
-            raise Exception(f"uuid was changed ({uuid}) vs ({bad_fcm['uuid']}).")
+            if not has_good_twin(rc, bad_fcm):
+                logging.error(
+                    f"No good twin found -- appending logical name to {unmatched_f.name}"
+                )
+                print(bad_fcm["logical_name"], file=unmatched_f)
+                continue
+            # sanity check -- this is the point of no return
+            if uuid != bad_fcm["uuid"]:
+                raise Exception(f"uuid was changed ({uuid}) vs ({bad_fcm['uuid']}).")
 
-        # delete!
-        if dryrun:
-            logging.error(
-                f"Dry-Run Enabled: Not DELETE'ing File Catalog entry! i={i}  -- {uuid}"
-            )
-        else:
-            rc.request_seq("DELETE", f"/api/files/{uuid}")
-            logging.info(f"DELETED #{i} -- {uuid}")
+            # delete!
+            if dryrun:
+                logging.error(
+                    f"Dry-Run Enabled: Not DELETE'ing File Catalog entry! i={i}  -- {uuid}"
+                )
+            else:
+                rc.request_seq("DELETE", f"/api/files/{uuid}")
+                logging.info(f"DELETED #{i} -- {uuid}")
 
     return i
 

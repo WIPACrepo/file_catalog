@@ -1,11 +1,11 @@
-"""Test metadata_schema."""
+"""Test schema."""
 
 
 # local imports
-from file_catalog import metadata_schema
+from file_catalog import schema
 
 
-def test_00_types() -> None:
+def test_00_metadata_types() -> None:
     """Simply check imports."""
     type_dicts = [
         "Checksum",
@@ -21,4 +21,4 @@ def test_00_types() -> None:
         "Metadata",
     ]
     for type_dict_class in type_dicts:
-        assert type_dict_class in dir(metadata_schema.types)
+        assert type_dict_class in dir(schema.metadata_types)

@@ -22,3 +22,8 @@ def test_00_types() -> None:
     ]
     for type_dict_class in type_dicts:
         assert type_dict_class in dir(schema.types)
+
+
+def test_01_validation() -> None:
+    """Simply check imports."""
+    assert "Validation" in dir(schema.validation)

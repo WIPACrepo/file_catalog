@@ -1,1 +1,1 @@
-from . import metadata_types
+from . import types

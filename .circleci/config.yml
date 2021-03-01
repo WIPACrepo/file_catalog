@@ -26,6 +26,18 @@ jobs:
                 resources/enable_profiling.py &&
                 pytest -vvvvv --tb=short &&
                 resources/profile_queries.py
+    test_deploy:
+        docker:
+            - image: circleci/buildpack-deps:stretch
+              environment:
+                IMAGE_NAME: icecube/file-catalog
+        steps:
+            - checkout
+            - setup_remote_docker
+            - run: |
+                echo 'export TAG="${CIRCLE_TAG:=latest}"' >> $BASH_ENV
+            - run: |
+                docker build -t $IMAGE_NAME:$TAG .
     deploy:
         docker:
             - image: circleci/buildpack-deps:stretch
@@ -46,6 +58,11 @@ workflows:
     build_and_test:
         jobs:
             - test
+            - test_deploy:
+                context: docker
+                filters:
+                    branches:
+                        ignore: master
             - deploy:
                 context: docker
                 filters:

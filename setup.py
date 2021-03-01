@@ -39,7 +39,7 @@ setup(
     packages=['file_catalog', 'file_catalog.schema'],
     install_requires=install_requires,
     package_data={
-        'file_catalog':['data/www/*','data/www_templates/*'],
+        'file_catalog': ['data/www/*', 'data/www_templates/*', 'py.typed'],
     },
     entry_points={
         'console_scripts':[

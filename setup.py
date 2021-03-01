@@ -1,13 +1,22 @@
+"""Setup."""
+
+# fmt:off
+# pylint: skip-file
+
 import sys
-from setuptools import setup
 from os import path
 
+from setuptools import setup
+
+# local imports
 import file_catalog
 
 here = path.abspath(path.dirname(__file__))
 
 long_description = open(path.join(here, 'README.md')).read()
-install_requires = [l.strip() for l in open(path.join(here, 'requirements.txt'))]
+install_requires = [
+    m.strip().replace('==', '>=') for m in open(path.join(here, 'requirements.txt'))
+]
 
 setup(
     name='file_catalog',

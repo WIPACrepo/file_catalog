@@ -3,10 +3,9 @@
 # fmt:off
 # pylint: skip-file
 
-import sys
 from os import path
 
-from setuptools import setup
+from setuptools import setup  # type: ignore[import]
 
 # local imports
 import file_catalog

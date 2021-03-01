@@ -36,7 +36,7 @@ from rest_tools.server import Auth
 import file_catalog
 from file_catalog.mongo import Mongo
 from file_catalog import urlargparse, argbuilder
-from file_catalog.validation import Validation
+from file_catalog.schema.validation import Validation
 
 logger = logging.getLogger('server')
 

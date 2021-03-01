@@ -1,13 +1,21 @@
-import sys
-from setuptools import setup
+"""Setup."""
+
+# fmt:off
+# pylint: skip-file
+
 from os import path
 
+from setuptools import setup  # type: ignore[import]
+
+# local imports
 import file_catalog
 
 here = path.abspath(path.dirname(__file__))
 
 long_description = open(path.join(here, 'README.md')).read()
-install_requires = [l.strip() for l in open(path.join(here, 'requirements.txt'))]
+install_requires = [
+    m.strip().replace('==', '>=') for m in open(path.join(here, 'requirements.txt'))
+]
 
 setup(
     name='file_catalog',
@@ -28,10 +36,10 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
     keywords='file catalog',
-    packages=['file_catalog'],
+    packages=['file_catalog', 'file_catalog.schema'],
     install_requires=install_requires,
     package_data={
-        'file_catalog':['data/www/*','data/www_templates/*'],
+        'file_catalog': ['data/www/*', 'data/www_templates/*', 'py.typed'],
     },
     entry_points={
         'console_scripts':[

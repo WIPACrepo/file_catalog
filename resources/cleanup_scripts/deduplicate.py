@@ -138,9 +138,11 @@ def _resolve_wipac_location_filepath(fc_meta: FCMetadata) -> FCMetadata:
 
 
 def _resolve_season_value(fc_meta: FCMetadata) -> FCMetadata:
+    """Cast `"season"` value to an `int` if it's not `None`."""
     if "offline_processing_metadata" in fc_meta:
         season = fc_meta["offline_processing_metadata"]["season"]
-        fc_meta["offline_processing_metadata"]["season"] = int(season)
+        if fc_meta["offline_processing_metadata"]["season"] is not None:
+            fc_meta["offline_processing_metadata"]["season"] = int(season)
     return fc_meta
 
 

@@ -36,7 +36,7 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
     keywords='file catalog',
-    packages=['file_catalog'],
+    packages=['file_catalog', 'file_catalog.schema'],
     install_requires=install_requires,
     package_data={
         'file_catalog':['data/www/*','data/www_templates/*'],

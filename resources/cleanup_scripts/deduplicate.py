@@ -188,8 +188,8 @@ def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
             raise Exception(f"Fields don't match (disregarding: {ignored_fields})")
 
     except Exception:
-        logging.critical(f"evil_twin={evil_twin}")
-        logging.critical(f"good_twin={good_twin}")
+        logging.error(f"evil_twin={evil_twin}")
+        logging.error(f"good_twin={good_twin}")
         raise
 
     return True
@@ -249,20 +249,31 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
             yield fcm
 
 
+DEDUP = "dedup-errors.paths"
+UNMATCHED = "unmatched.paths"
+
+
 def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> int:
     """Delete each bad-rooted path FC entry (if each has a good twin)."""
     i = 0
-    with open("unmatched.paths", "a+") as unmatched_f:
+    with open(UNMATCHED, "a+") as unmatched_f, open(DEDUP, "a+") as errors_f:
         for i, bad_fcm in enumerate(bad_fc_metadata(rc), start=1):
             uuid = bad_fcm["uuid"]
             logging.info(f"Bad path #{i}: {bad_fcm['logical_name']}")
 
-            if not has_good_twin(rc, bad_fcm):
-                logging.error(
-                    f"No good twin found -- appending logical name to {unmatched_f.name}"
-                )
-                print(bad_fcm["logical_name"], file=unmatched_f)
+            # guard rails
+            try:
+                if not has_good_twin(rc, bad_fcm):
+                    logging.error(
+                        f"No good twin found -- appending logical name to {unmatched_f.name}"
+                    )
+                    print(bad_fcm["logical_name"], file=unmatched_f)
+                    continue
+            except Exception as e:  # pylint: disable=W0703
+                logging.error(f"`{e}` -- appending logical name to {errors_f.name}")
+                print(bad_fcm["logical_name"], file=errors_f)
                 continue
+
             # sanity check -- this is the point of no return
             if uuid != bad_fcm["uuid"]:
                 raise Exception(f"uuid was changed ({uuid}) vs ({bad_fcm['uuid']}).")

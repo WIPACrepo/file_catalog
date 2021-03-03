@@ -30,7 +30,7 @@ def build_start(kwargs: Dict[str, Any]) -> None:
             raise Exception("start is negative")
 
 
-def _resolve_path_args(kwargs: Dict[str, Any]) -> None:
+def _resolve_path_args(kwargs: Dict[str, Any]) -> Optional[Union[Dict[str, Any], str]]:
     """Resolve the path-type shortcut arguments by precedence.
 
     Pop each key from `kwargs`, even if it's not used.
@@ -55,8 +55,7 @@ def _resolve_path_args(kwargs: Dict[str, Any]) -> None:
             fname = r".*"
         arg = {"$regex": rf"^{dpath}((/)|(/.*/)){fname}$"}
 
-    if arg:
-        kwargs["logical_name"] = arg
+    return arg
 
 
 def build_files_query(kwargs: Dict[str, Any]) -> None:
@@ -77,7 +76,8 @@ def build_files_query(kwargs: Dict[str, Any]) -> None:
         query["locations.archive"] = None
 
     # shortcut query params
-    _resolve_path_args(kwargs)
+    if path := _resolve_path_args(kwargs):
+        query["logical_name"] = path
     if "run_number" in kwargs:
         query["run.run_number"] = kwargs.pop("run_number")
     if "dataset" in kwargs:

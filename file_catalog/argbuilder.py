@@ -41,23 +41,17 @@ def _handle_path_args(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     if "path-regex" in kwargs:
         arg = {"$regex": kwargs.pop("path-regex")}
 
-    # start & end
-    if "path-start" in kwargs:
-        arg = {"$regex": rf"^{kwargs.pop('path-start')}.*"}
-    if "path-end" in kwargs:
-        arg = {"$regex": rf"^.*{kwargs.pop('path-end')}$"}
-
     # normal path
     if "path" in kwargs:
         arg = kwargs.pop("path")
     if "logical_name" in kwargs:
         arg = kwargs.pop("logical_name")
 
-    # directory
-    if dpath := kwargs.pop("directory", None):
-        if not dpath.endswith("/"):
-            dpath += "/"
-        arg = {"$regex": rf"^{dpath}.*"}
+    # directory & filename
+    if "directory" in kwargs or "filename" in kwargs:
+        dpath = kwargs.pop("directory", "").rstrip("/")
+        fname = kwargs.pop("filename", "").lstrip("/")
+        arg = {"$regex": rf"^{dpath}((/)|(/.*/)){fname}.*"}
 
     return {"logical_name": arg}
 

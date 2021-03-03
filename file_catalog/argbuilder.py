@@ -51,7 +51,7 @@ def _handle_path_args(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     if "directory" in kwargs or "filename" in kwargs:
         dpath = kwargs.pop("directory", "").rstrip("/")
         fname = kwargs.pop("filename", "").lstrip("/")
-        arg = {"$regex": rf"^{dpath}((/)|(/.*/)){fname}.*"}
+        arg = {"$regex": rf"^{dpath}((/)|(/.*/)){fname}$"}
 
     return {"logical_name": arg}
 

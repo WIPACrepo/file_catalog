@@ -2,7 +2,7 @@ version: 2
 jobs:
     test:
         docker:
-            - image: circleci/python:3.7.2
+            - image: circleci/python:3.8
               environment:
                 # Both TEST_DATABASE_HOST and TEST_DATABASE_PORT must be defined.
                 # Things will break if host is defined and port isn't or vice-versa.

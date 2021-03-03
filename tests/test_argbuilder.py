@@ -3,7 +3,6 @@
 # pylint: disable=W0212
 
 import pprint
-from collections import OrderedDict
 from typing import Any, Dict, List, TypedDict
 
 from file_catalog import argbuilder

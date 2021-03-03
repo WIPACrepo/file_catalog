@@ -49,8 +49,10 @@ def _resolve_path_args(kwargs: Dict[str, Any]) -> None:
 
     # directory & filename
     if "directory" in kwargs or "filename" in kwargs:
-        dpath = kwargs.pop("directory", "").rstrip("/")
-        fname = kwargs.pop("filename", "").lstrip("/")
+        if not (dpath := kwargs.pop("directory", "").rstrip("/")):
+            dpath = r".*"
+        if not (fname := kwargs.pop("filename", "").lstrip("/")):
+            fname = r".*"
         arg = {"$regex": rf"^{dpath}((/)|(/.*/)){fname}$"}
 
     if arg:

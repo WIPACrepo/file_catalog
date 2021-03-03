@@ -1,22 +1,27 @@
+"""Test REST Server."""
+
+# fmt:off
+# pylint: skip-file
+
 from __future__ import absolute_import, division, print_function
 
+import hashlib
 import os
-import time
-import tempfile
-import shutil
 import random
+import shutil
 import subprocess
+import tempfile
+import time
+import unittest
 from functools import partial
 from threading import Thread
-import unittest
-import hashlib
 
-from tornado.escape import json_encode,json_decode
-from tornado.ioloop import IOLoop
 import requests
-from pymongo import MongoClient
-
 from file_catalog.urlargparse import encode as jquery_encode
+from pymongo import MongoClient
+from tornado.escape import json_decode, json_encode
+from tornado.ioloop import IOLoop
+
 
 class TestServerAPI(unittest.TestCase):
     def setUp(self):
@@ -35,7 +40,7 @@ class TestServerAPI(unittest.TestCase):
                                   '--logpath', dblog])
             self.addCleanup(partial(time.sleep, 0.3))
             self.addCleanup(m.terminate)
-        
+
     def clean_db(self, host, port):
         db = MongoClient(host=host, port=port).file_catalog
         colls = db.list_collection_names()

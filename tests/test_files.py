@@ -1,4 +1,7 @@
+"""Test /api/files."""
+
 # fmt:off
+# pylint: skip-file
 
 from __future__ import absolute_import, division, print_function
 
@@ -6,10 +9,8 @@ import hashlib
 import os
 import unittest
 
-from tornado.escape import json_decode, json_encode
-
-# local imports
 from rest_tools.client import RestClient
+from tornado.escape import json_decode, json_encode
 
 from .test_server import TestServerAPI
 

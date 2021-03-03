@@ -8,17 +8,20 @@ from __future__ import absolute_import, division, print_function
 import hashlib
 import os
 import unittest
+from typing import Any, Dict, List, Optional
 
-from rest_tools.client import RestClient
-from tornado.escape import json_decode, json_encode
+from rest_tools.client import RestClient  # type: ignore[import]
+from tornado.escape import json_encode
 
 from .test_server import TestServerAPI
 
 
-def hex(data):
+def hex(data: Any) -> str:
+    """Get sha512."""
     if isinstance(data, str):
-        data = data.encode('utf-8')
+        data = data.encode("utf-8")
     return hashlib.sha512(data).hexdigest()
+
 
 class TestFilesAPI(TestServerAPI):
     def test_10_files(self):
@@ -112,7 +115,7 @@ class TestFilesAPI(TestServerAPI):
             "locations",
             "extra",
             "supplemental",
-            "meta_modify_date"
+            "meta_modify_date",
         }
 
         # w/ all-keys = False
@@ -131,7 +134,7 @@ class TestFilesAPI(TestServerAPI):
             "locations",
             "extra",
             "supplemental",
-            "meta_modify_date"
+            "meta_modify_date",
         }
 
         # w/ all-keys = False & keys
@@ -143,6 +146,78 @@ class TestFilesAPI(TestServerAPI):
         args = {"keys": "checksum|file_size"}
         data = r.request_seq("GET", "/api/files", args)
         assert set(data["files"][0].keys()) == {"checksum", "file_size"}
+
+    def test_13_files_path_like_args(self):
+        """Test the path-like base/shortcut arguments.
+
+        "logical_name", "directory", "filename", "path", & "path-regex".
+        """
+        self.start_server()  # type: ignore[no-untyped-call]
+        token = self.get_token()  # type: ignore[no-untyped-call]
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        metadata_objs = [
+            {
+                "logical_name": "/foo/bar/baz/bat.txt",
+                "checksum": {"sha512": hex("1")},
+                "file_size": 1,
+                "locations": [{"site": "test", "path": "foo/bar/baz/bat.txt"}],
+            },
+            {
+                "logical_name": "/foo/bar/ham.txt",
+                "checksum": {"sha512": hex("2")},
+                "file_size": 2,
+                "locations": [{"site": "test", "path": "/foo/bar/ham.txt"}],
+            },
+            {
+                "logical_name": "/green/eggs/and/ham.txt",
+                "checksum": {"sha512": hex("3")},
+                "file_size": 3,
+                "locations": [{"site": "test", "path": "/green/eggs/and/ham.txt"}],
+            },
+            {
+                "logical_name": "/john/paul/george/ringo/ham.txt",
+                "checksum": {"sha512": hex("4")},
+                "file_size": 4,
+                "locations": [
+                    {"site": "test", "path": "/john/paul/george/ringo/ham.txt"}
+                ],
+            },
+        ]
+        for meta in metadata_objs:
+            r.request_seq("POST", "/api/files", meta)
+
+        def get_paths(args: Optional[Dict[str, str]] = None) -> List[str]:
+            if not args:
+                args = {}
+            ret = r.request_seq("GET", "/api/files", args)
+            print(ret)
+            return [f["logical_name"] for f in ret["files"]]
+
+        assert len(get_paths()) == 4
+        # logical_name
+        assert len(get_paths({"logical_name": "/foo/bar/ham.txt"})) == 1
+        # path
+        assert len(get_paths({"path": "/green/eggs/and/ham.txt"})) == 1
+        # directory
+        paths = get_paths({"directory": "/foo/bar"})
+        assert set(paths) == {"/foo/bar/ham.txt", "/foo/bar/baz/bat.txt"}
+        assert len(get_paths({"directory": "/fo"})) == 0
+        # filename
+        paths = get_paths({"filename": "ham.txt"})
+        assert set(paths) == {
+            "/foo/bar/ham.txt",
+            "/green/eggs/and/ham.txt",
+            "/john/paul/george/ringo/ham.txt",
+        }
+        assert len(get_paths({"filename": ".txt"})) == 0
+        # directory & filename
+        paths = get_paths({"directory": "/foo", "filename": "ham.txt"})
+        assert paths == ["/foo/bar/ham.txt"]
+        # path-regex
+        paths = get_paths({"path-regex": r".*george/ringo.*"})
+        assert paths == ["/john/paul/george/ringo/ham.txt"]
+        assert len(get_paths({"path-regex": r".*"})) == 4
 
     def test_15_files_auth(self):
         self.start_server(config_override={'SECRET':'secret'})

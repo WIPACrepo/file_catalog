@@ -1,11 +1,10 @@
 """Builder utility functions for arg/kwargs dicts."""
 
-from typing import Any, Dict
 
-from tornado.escape import json_decode
+from typing import Any, Dict, Optional, Union
 
-# local imports
 from file_catalog.mongo import AllKeys
+from tornado.escape import json_decode
 
 
 def build_limit(kwargs: Dict[str, Any], config: Dict[str, Any]) -> None:
@@ -31,6 +30,34 @@ def build_start(kwargs: Dict[str, Any]) -> None:
             raise Exception("start is negative")
 
 
+def _resolve_path_args(kwargs: Dict[str, Any]) -> Optional[Union[Dict[str, Any], str]]:
+    """Resolve the path-type shortcut arguments by precedence.
+
+    Pop each key from `kwargs`, even if it's not used.
+    """
+    arg: Optional[Union[Dict[str, Any], str]] = None
+
+    # regex
+    if "path-regex" in kwargs:
+        arg = {"$regex": kwargs.pop("path-regex")}
+
+    # normal path
+    if "path" in kwargs:
+        arg = kwargs.pop("path")
+    if "logical_name" in kwargs:
+        arg = kwargs.pop("logical_name")
+
+    # directory & filename
+    if "directory" in kwargs or "filename" in kwargs:
+        if not (dpath := kwargs.pop("directory", "").rstrip("/")):
+            dpath = r".*"
+        if not (fname := kwargs.pop("filename", "").lstrip("/")):
+            fname = r".*"
+        arg = {"$regex": rf"^{dpath}/(.*/)?{fname}$"}
+
+    return arg
+
+
 def build_files_query(kwargs: Dict[str, Any]) -> None:
     """Build `"query"` dict with formatted/fully-named arguments.
 
@@ -49,8 +76,8 @@ def build_files_query(kwargs: Dict[str, Any]) -> None:
         query["locations.archive"] = None
 
     # shortcut query params
-    if "logical_name" in kwargs:
-        query["logical_name"] = kwargs.pop("logical_name")
+    if path := _resolve_path_args(kwargs):
+        query["logical_name"] = path
     if "run_number" in kwargs:
         query["run.run_number"] = kwargs.pop("run_number")
     if "dataset" in kwargs:

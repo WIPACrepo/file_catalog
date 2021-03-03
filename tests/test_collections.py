@@ -1,3 +1,8 @@
+"""Test /api/collections."""
+
+# fmt:off
+# pylint: skip-file
+
 from __future__ import absolute_import, division, print_function
 
 import os
@@ -5,8 +10,9 @@ import unittest
 
 from rest_tools.client import RestClient
 
-from .test_server import TestServerAPI
 from .test_files import hex
+from .test_server import TestServerAPI
+
 
 class TestCollectionsAPI(TestServerAPI):
     def test_10_collections(self):
@@ -183,7 +189,7 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertIn('file', data)
         url = data['file']
         file_uid = url.split('/')[-1]
-        
+
         # old snapshot stays empty
         data = r.request_seq('GET', '/api/snapshots/{}/files'.format(snap_uid))
         self.assertEqual(data['files'], [])
@@ -201,7 +207,7 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertEqual(len(data['files']), 1)
         self.assertEqual(data['files'][0]['uuid'], file_uid)
         self.assertEqual(data['files'][0]['checksum'], metadata['checksum'])
-        
+
 
 if __name__ == '__main__':
     suite = unittest.TestLoader().loadTestsFromTestCase(TestStringMethods)

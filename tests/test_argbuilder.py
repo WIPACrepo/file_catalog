@@ -47,31 +47,31 @@ def test_00_path_args() -> None:
         {
             "kwargs_in": {"directory": "/path/to/dir/"},
             "kwargs_after": {},
-            "ret": {"$regex": r"^/path/to/dir((/)|(/.*/)).*$"},
+            "ret": {"$regex": r"^/path/to/dir/(.*/)?.*$"},
         },
         # only "directory" w/o trailing '/'
         {
             "kwargs_in": {"directory": "/path/to/dir"},
             "kwargs_after": {},
-            "ret": {"$regex": r"^/path/to/dir((/)|(/.*/)).*$"},
+            "ret": {"$regex": r"^/path/to/dir/(.*/)?.*$"},
         },
         # only "filename"
         {
             "kwargs_in": {"filename": "my-file"},
             "kwargs_after": {},
-            "ret": {"$regex": r"^.*((/)|(/.*/))my-file$"},
+            "ret": {"$regex": r"^.*/(.*/)?my-file$"},
         },
         # only "filename" w/ a sub-directory
         {
             "kwargs_in": {"filename": "/sub-dir/my-file"},
             "kwargs_after": {},
-            "ret": {"$regex": r"^.*((/)|(/.*/))sub-dir/my-file$"},
+            "ret": {"$regex": r"^.*/(.*/)?sub-dir/my-file$"},
         },
         # "directory" & "filename"
         {
             "kwargs_in": {"directory": "/path/to/dir/", "filename": "my-file"},
             "kwargs_after": {},
-            "ret": {"$regex": r"^/path/to/dir((/)|(/.*/))my-file$"},
+            "ret": {"$regex": r"^/path/to/dir/(.*/)?my-file$"},
         },
     ]
 
@@ -83,7 +83,7 @@ def test_00_path_args() -> None:
 
     # test multiple path-args (each loop pops the arg of the highest precedence)
     args = [  # list in decreasing order of precedence
-        ("directory", "/path/to/dir/", {"$regex": r"^/path/to/dir((/)|(/.*/)).*$"}),
+        ("directory", "/path/to/dir/", {"$regex": r"^/path/to/dir/(.*/)?.*$"}),
         # not testing "filename" b/c that is equal to "directory" in precedence
         ("logical_name", "LOGICAL_NAME", "LOGICAL_NAME"),
         ("path", "PATH", "PATH"),

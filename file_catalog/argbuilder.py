@@ -53,7 +53,7 @@ def _resolve_path_args(kwargs: Dict[str, Any]) -> Optional[Union[Dict[str, Any],
             dpath = r".*"
         if not (fname := kwargs.pop("filename", "").lstrip("/")):
             fname = r".*"
-        arg = {"$regex": rf"^{dpath}((/)|(/.*/)){fname}$"}
+        arg = {"$regex": rf"^{dpath}/(.*/)?{fname}$"}
 
     return arg
 

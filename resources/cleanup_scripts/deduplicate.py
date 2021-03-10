@@ -122,8 +122,8 @@ def _resolve_deprecated_fields(fc_meta: FCMetadata) -> FCMetadata:
 
 def _resolve_gcd_filepath(fc_meta: FCMetadata) -> FCMetadata:
     if "offline_processing_metadata" in fc_meta:
-        # L2_gcd_file could be ""
-        if gcd := fc_meta["offline_processing_metadata"]["L2_gcd_file"]:
+        gcd = fc_meta["offline_processing_metadata"]["L2_gcd_file"]
+        if gcd:  # L2_gcd_file could be ""
             fc_meta["offline_processing_metadata"]["L2_gcd_file"] = _get_good_path(gcd)
     return fc_meta
 

@@ -50,7 +50,7 @@ def _get_good_path(fpath: str) -> str:
         if fpath.startswith(bad_root):
             return good_root + remove_prefix(fpath, bad_root)
 
-    raise Exception(f"Unaccounted for prefix: {fpath}")
+    raise Exception(f'Unaccounted for prefix: "{fpath}"')
 
 
 def _compatible_locations_values(
@@ -122,8 +122,9 @@ def _resolve_deprecated_fields(fc_meta: FCMetadata) -> FCMetadata:
 
 def _resolve_gcd_filepath(fc_meta: FCMetadata) -> FCMetadata:
     if "offline_processing_metadata" in fc_meta:
-        path = _get_good_path(fc_meta["offline_processing_metadata"]["L2_gcd_file"])
-        fc_meta["offline_processing_metadata"]["L2_gcd_file"] = path
+        # L2_gcd_file could be ""
+        if gcd := fc_meta["offline_processing_metadata"]["L2_gcd_file"]:
+            fc_meta["offline_processing_metadata"]["L2_gcd_file"] = _get_good_path(gcd)
     return fc_meta
 
 

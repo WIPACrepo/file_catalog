@@ -4,11 +4,12 @@
 import os
 import re
 import sys
-from typing import List
+from typing import List, Tuple
 
 from setuptools import setup  # type: ignore[import]
 
 HERE = os.path.abspath(os.path.dirname(__file__))
+OLDEST_PY_VERSION = (3, 5)
 PY_VERSION = (3, 8)
 NAME = "file_catalog"
 REQUIREMENTS_PATH = os.path.join(HERE, "requirements.txt")
@@ -52,11 +53,37 @@ def _get_git_requirements() -> List[str]:
     return [m.replace("git+", "") for m in REQUIREMENTS if "git+" in m and valid(m)]
 
 
-def _python_3plus_classifiers() -> List[str]:
-    py33plus = [
-        f"Programming Language :: Python :: 3.{i}" for i in range(3, PY_VERSION[1] + 1)
+def _python_lang_classifiers() -> List[str]:
+    """NOTE: Will still work even after the '3.9 -> 4.0'-transition."""
+
+    def int_10x_it(py_version: Tuple[int, int]) -> int:
+        return int(f"{py_version[0]}{py_version[1]}")
+
+    return [
+        f"Programming Language :: Python :: {r/10}"
+        for r in range(int_10x_it(OLDEST_PY_VERSION), int_10x_it(PY_VERSION) + 1)
     ]
-    return py33plus + ["Programming Language :: Python :: 3"]
+
+
+def _development_status() -> str:
+    # "Development Status :: 1 - Planning",
+    # "Development Status :: 2 - Pre-Alpha",
+    # "Development Status :: 3 - Alpha",
+    # "Development Status :: 4 - Beta",
+    # "Development Status :: 5 - Production/Stable",
+    # "Development Status :: 6 - Mature",
+    # "Development Status :: 7 - Inactive",
+    version = _get_version()
+    if version.startswith("0.0.0"):
+        return "Development Status :: 2 - Pre-Alpha"
+    elif version.startswith("0.0."):
+        return "Development Status :: 3 - Alpha"
+    elif version.startswith("0."):
+        return "Development Status :: 4 - Beta"
+    elif int(version.split(".")[0]) >= 1:
+        return "Development Status :: 5 - Production/Stable"
+    else:
+        raise Exception(f"Could not figure Development Status for version: {version}")
 
 
 # Setup --------------------------------------------------------------------------------
@@ -70,13 +97,9 @@ setup(
     url="https://github.com/WIPACrepo/file_catalog",
     license="MIT",
     classifiers=sorted(
-        _python_3plus_classifiers()
-        + [
-            "Development Status :: 4 - Beta",
-            "License :: OSI Approved :: MIT License",
-            "Programming Language :: Python :: 2",
-            "Programming Language :: Python :: 2.7",
-        ]
+        _python_lang_classifiers()
+        + [_development_status()]
+        + ["License :: OSI Approved :: MIT License"]
     ),
     keywords="file catalog",
     packages=[NAME, f"{NAME}.schema"],

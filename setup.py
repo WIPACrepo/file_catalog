@@ -52,6 +52,13 @@ def _get_git_requirements() -> List[str]:
     return [m.replace("git+", "") for m in REQUIREMENTS if "git+" in m and valid(m)]
 
 
+def _python_3plus_classifiers() -> List[str]:
+    py33plus = [
+        f"Programming Language :: Python :: 3.{i}" for i in range(3, PY_VERSION[1] + 1)
+    ]
+    return py33plus + ["Programming Language :: Python :: 3"]
+
+
 # Setup --------------------------------------------------------------------------------
 
 setup(
@@ -62,19 +69,15 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/WIPACrepo/file_catalog",
     license="MIT",
-    classifiers=[
-        "Development Status :: 4 - Beta",
-        "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.7",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.3",
-        "Programming Language :: Python :: 3.4",
-        "Programming Language :: Python :: 3.5",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-    ],
+    classifiers=sorted(
+        _python_3plus_classifiers()
+        + [
+            "Development Status :: 4 - Beta",
+            "License :: OSI Approved :: MIT License",
+            "Programming Language :: Python :: 2",
+            "Programming Language :: Python :: 2.7",
+        ]
+    ),
     keywords="file catalog",
     packages=[NAME, f"{NAME}.schema"],
     install_requires=_get_pypi_requirements(),

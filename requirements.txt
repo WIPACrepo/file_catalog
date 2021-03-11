@@ -10,6 +10,7 @@ coloredlogs==14.0
 coverage==4.5.4
 cryptography==3.3.2
 docutils==0.15.2
+git+https://github.com/WIPACrepo/rest-tools@v1.0.7#egg=rest_tools
 idna==2.8
 imagesize==1.1.0
 Jinja2==2.10.3
@@ -31,7 +32,6 @@ requests-futures==1.0.0
 requests-mock==1.7.0
 requests-toolbelt==0.9.1
 requests==2.22.0
-rest_tools @ git+http://github.com/WIPACrepo/rest-tools
 six==1.12.0
 snowballstemmer==2.0.0
 Sphinx==2.2.0

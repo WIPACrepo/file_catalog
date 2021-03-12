@@ -170,7 +170,7 @@ def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
             raise Exception("Locations lists not compatible")
 
         # compare "software"-lists
-        if not _is_subset(evil_twin["software"], good_twin["software"]):
+        if not _is_subset(evil_twin.get("software", []), good_twin.get("software", [])):
             raise Exception("Software lists not compatible")
 
         # compare "meta_modify_date"-fields

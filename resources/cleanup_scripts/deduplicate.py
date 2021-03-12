@@ -80,8 +80,8 @@ def _compare_twins(
             continue
         if evil_twin[key] != good_twin[key]:
             logging.error(f"Field Mismatch: {key}")
-            logging.error(f" > evil_twin={evil_twin[key]}")
-            logging.error(f" > good_twin={good_twin[key]})")
+            logging.error(f"evil_twin.{key}:{evil_twin[key]}")
+            logging.error(f"good_twin.{key}:{good_twin[key]}")
             return False
 
     return True

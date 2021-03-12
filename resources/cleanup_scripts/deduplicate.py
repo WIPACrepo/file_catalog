@@ -54,17 +54,13 @@ def _get_good_path(fpath: str) -> str:
     raise Exception(f'Unaccounted for prefix: "{fpath}"')
 
 
-def _compatible_locations_values(
-    evil_twin_locations: List[Dict[str, str]], good_twin_locations: List[Dict[str, str]]
-) -> bool:
-    # are these the same?
-    if evil_twin_locations == good_twin_locations:
+def _is_subset(minor: List[Any], master: List[Any]) -> bool:
+    if minor == master:
         return True
 
-    # does the evil twin have any locations that the good twin does not?
-    # the good twin can have more locations--AKA it's been moved to NERSC
-    for evil_locus in evil_twin_locations:
-        if evil_locus not in good_twin_locations:
+    # does minor have any extra things that master does not?
+    for thing in minor:
+        if thing not in master:
             return False
 
     return True
@@ -168,11 +164,14 @@ def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
 
     # compare metadata
     try:
-        # compare "locations"-fields
-        if not _compatible_locations_values(
-            evil_twin["locations"], good_twin["locations"]
-        ):
-            raise Exception("Locations metadata not compatible")
+        # compare "locations"-lists
+        # the good twin can have more locations--AKA it's been moved to NERSC
+        if not _is_subset(evil_twin["locations"], good_twin["locations"]):
+            raise Exception("Locations lists not compatible")
+
+        # compare "software"-lists
+        if not _is_subset(evil_twin["software"], good_twin["software"]):
+            raise Exception("Software lists not compatible")
 
         # compare "meta_modify_date"-fields
         if _evil_twin_was_updated_later(evil_twin, good_twin):
@@ -184,6 +183,7 @@ def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
             "logical_name",
             "uuid",
             "locations",
+            "software",
             "meta_modify_date",
         ]
         if not _compare_twins(evil_twin, good_twin, ignored_fields):

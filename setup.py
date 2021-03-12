@@ -43,7 +43,7 @@ def _get_pypi_requirements() -> List[str]:
 
 def _get_git_requirements() -> List[str]:
     def valid(req: str) -> bool:
-        pat = r"^git\+https://github\.com/\w+/\w+@(v)?\d+\.\d+\.\d+#egg=\w+$"
+        pat = r"^git\+https://github\.com/[^/]+/[^/]+@(v)?\d+\.\d+\.\d+#egg=\w+$"
         if not re.match(pat, req):
             raise Exception(
                 f"from {REQUIREMENTS_PATH}: "

@@ -79,9 +79,9 @@ def _compare_twins(
         if key in ignored_fields:
             continue
         if evil_twin[key] != good_twin[key]:
-            logging.error(
-                f"Field Mismatch: {key} (evil_twin={evil_twin[key]}, good_twin={good_twin[key]})"
-            )
+            logging.error(f"Field Mismatch: {key}")
+            logging.error(f" > evil_twin={evil_twin[key]}")
+            logging.error(f" > good_twin={good_twin[key]})")
             return False
 
     return True

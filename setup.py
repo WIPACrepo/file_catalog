@@ -19,7 +19,8 @@ REQUIREMENTS = open(REQUIREMENTS_PATH).read().splitlines()
 # Check Python Version -----------------------------------------------------------------
 if sys.version_info < PY_VERSION:
     print(
-        f"ERROR: {NAME} requires at least Python {PY_VERSION[0]}.{PY_VERSION[1]}+ to run."
+        f"ERROR: {NAME} requires at least Python {PY_VERSION[0]}.{PY_VERSION[1]}+ to run "
+        f"( {sys.version_info} < {PY_VERSION} )"
     )
     sys.exit(1)
 

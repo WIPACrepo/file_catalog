@@ -7,8 +7,9 @@ where the duplicate is indexed under /mnt/lfs*/.
 import argparse
 import json
 import logging
+import os
 from itertools import count
-from typing import Any, cast, Dict, Generator, List, Set
+from typing import Any, Dict, Generator, List, Set, cast
 
 import coloredlogs  # type: ignore[import]
 import dateutil.parser
@@ -250,8 +251,13 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
             yield fcm
 
 
+def path_still_exists(fc_meta: FCMetadata) -> bool:
+    """Return whether the path still exists."""
+    return os.path.exists(fc_meta["logical_name"])
+
+
 DEDUP = "dedup-errors.paths"
-UNMATCHED = "unmatched.paths"
+UNMATCHED = "unmatched-missing.paths"
 
 
 def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> int:
@@ -265,11 +271,18 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
             # guard rails
             try:
                 if not has_good_twin(rc, bad_fcm):
-                    logging.error(
-                        f"No good twin found -- appending logical name to {unmatched_f.name}"
-                    )
-                    print(bad_fcm["logical_name"], file=unmatched_f)
-                    continue
+                    if path_still_exists(bad_fcm):  # pylint: disable=R1724
+                        logging.error(
+                            f"No good twin found (path still exists) "
+                            f"-- appending logical name to {unmatched_f.name}"
+                        )
+                        print(bad_fcm["logical_name"], file=unmatched_f)
+                        continue
+                    else:
+                        logging.warning(
+                            "No good twin found, but path no longer exists "
+                            "-- so deleting anyways"
+                        )
             except Exception as e:  # pylint: disable=W0703
                 logging.error(f"`{e}` -- appending logical name to {errors_f.name}")
                 print(bad_fcm["logical_name"], file=errors_f)

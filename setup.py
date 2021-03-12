@@ -9,7 +9,7 @@ from typing import List, Tuple
 from setuptools import setup  # type: ignore[import]
 
 HERE = os.path.abspath(os.path.dirname(__file__))
-OLDEST_PY_VERSION: Tuple[int, int] = (3, 5)
+OLDEST_PY_VERSION: Tuple[int, int] = (3, 6)
 PY_VERSION: Tuple[int, int] = (3, 8)
 NAME = "file_catalog"
 REQUIREMENTS_PATH = os.path.join(HERE, "requirements.txt")

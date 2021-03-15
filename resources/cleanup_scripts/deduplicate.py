@@ -272,33 +272,37 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
 
             # guard rails
             try:
-                if bad_fcm["logical_name"] in unmatched:
-                    logging.debug(
-                        f'{bad_fcm["logical_name"]} already in {unmatched_f.name}'
-                    )
-                    continue
-                unmatched.append(bad_fcm["logical_name"])
                 if not has_good_twin(rc, bad_fcm):
+                    # have we already seen it?
+                    if bad_fcm["logical_name"] in unmatched:
+                        logging.debug(
+                            f'{bad_fcm["logical_name"]} already in {UNMATCHED}'
+                        )
+                        continue
+                    unmatched.append(bad_fcm["logical_name"])
+                    # is the path still active?
                     if path_still_exists(bad_fcm):  # pylint: disable=R1724
+                        # write to file & skip
                         logging.error(
                             f"No good twin found (path still exists) "
-                            f"-- appending logical name to {unmatched_f.name}"
+                            f"-- appending logical name to {UNMATCHED}"
                         )
                         print(bad_fcm["logical_name"], file=unmatched_f)
                         continue
+                    # okay, we can delete it
                     else:
                         logging.warning(
                             "No good twin found, but path no longer exists "
                             "-- so deleting anyways"
                         )
             except Exception as e:  # pylint: disable=W0703
+                # have we already seen it?
                 if bad_fcm["logical_name"] in errors:
-                    logging.debug(
-                        f'{bad_fcm["logical_name"]} already in {errors_f.name}'
-                    )
+                    logging.debug(f'{bad_fcm["logical_name"]} already in {DEDUP}')
                     continue
                 errors.append(bad_fcm["logical_name"])
-                logging.error(f"`{e}` -- appending logical name to {errors_f.name}")
+                # write to file & skip
+                logging.error(f"`{e}` -- appending logical name to {DEDUP}")
                 print(bad_fcm["logical_name"], file=errors_f)
                 continue
 

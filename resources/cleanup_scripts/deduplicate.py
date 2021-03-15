@@ -261,6 +261,9 @@ UNMATCHED = "unmatched-missing.paths"
 
 def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> int:
     """Delete each bad-rooted path FC entry (if each has a good twin)."""
+    errors: List[str] = []
+    unmatched: List[str] = []
+
     i = 0
     with open(UNMATCHED, "a+") as unmatched_f, open(DEDUP, "a+") as errors_f:
         for i, bad_fcm in enumerate(bad_fc_metadata(rc), start=1):
@@ -269,6 +272,12 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
 
             # guard rails
             try:
+                if bad_fcm["logical_name"] in unmatched:
+                    logging.debug(
+                        f'{bad_fcm["logical_name"]} already in {unmatched_f.name}'
+                    )
+                    continue
+                unmatched.append(bad_fcm["logical_name"])
                 if not has_good_twin(rc, bad_fcm):
                     if path_still_exists(bad_fcm):  # pylint: disable=R1724
                         logging.error(
@@ -283,6 +292,12 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
                             "-- so deleting anyways"
                         )
             except Exception as e:  # pylint: disable=W0703
+                if bad_fcm["logical_name"] in errors:
+                    logging.debug(
+                        f'{bad_fcm["logical_name"]} already in {errors_f.name}'
+                    )
+                    continue
+                errors.append(bad_fcm["logical_name"])
                 logging.error(f"`{e}` -- appending logical name to {errors_f.name}")
                 print(bad_fcm["logical_name"], file=errors_f)
                 continue

@@ -12,7 +12,7 @@ from itertools import count
 from typing import Any, Dict, Generator, List, Set, cast
 
 import coloredlogs  # type: ignore[import]
-import dateutil.parser
+from dateutil.parser import isoparse
 from rest_tools.client import RestClient  # type: ignore[import]
 
 PAGE_SIZE = 10000
@@ -83,13 +83,6 @@ def _compare_twins(
     return True
 
 
-def _evil_twin_was_updated_later(evil_twin: FCMetadata, good_twin: FCMetadata) -> bool:
-    evil_twin_time = dateutil.parser.isoparse(evil_twin["meta_modify_date"])
-    good_twin_time = dateutil.parser.isoparse(good_twin["meta_modify_date"])
-
-    return evil_twin_time > good_twin_time
-
-
 def _resolve_deprecated_fields(fc_meta: FCMetadata) -> FCMetadata:
     deprecated_fields = [
         ("end_datetime", "end_datetime"),
@@ -154,6 +147,10 @@ def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
     except FileNotFoundError:
         return False
 
+    # if the good_twin was updated/fixed a bunch of fields won't match anyways
+    if isoparse(good_twin["create_date"]) > isoparse(evil_twin["create_date"]):
+        return True
+
     # resolve special fields
     evil_twin = _resolve_deprecated_fields(evil_twin)
     evil_twin = _resolve_gcd_filepath(evil_twin)
@@ -174,7 +171,9 @@ def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
             raise Exception("Software lists not compatible")
 
         # compare "meta_modify_date"-fields
-        if _evil_twin_was_updated_later(evil_twin, good_twin):
+        if isoparse(evil_twin["meta_modify_date"]) > isoparse(
+            good_twin["meta_modify_date"]
+        ):
             raise Exception("Evil twin was updated after the good twin")
 
         # compare basic fields

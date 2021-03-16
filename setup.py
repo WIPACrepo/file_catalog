@@ -55,14 +55,15 @@ def _get_git_requirements() -> List[str]:
 
 
 def _python_lang_classifiers() -> List[str]:
-    """NOTE: Will still work even after the '3.9 -> 4.0'-transition."""
-
-    def int_10x_it(py_version: Tuple[int, int]) -> int:
-        return int(f"{py_version[0]}{py_version[1]}")
+    """NOTE: Will not work after the '3.* -> 4.0'-transition."""
+    if OLDEST_PY_VERSION[0] < 3:
+        raise Exception("Python-classifier automation does not work for python <3.")
+    if PY_VERSION[0] >= 4:
+        raise Exception("Python-classifier automation does not work for python 4+.")
 
     return [
-        f"Programming Language :: Python :: {r/10}"
-        for r in range(int_10x_it(OLDEST_PY_VERSION), int_10x_it(PY_VERSION) + 1)
+        f"Programming Language :: Python :: 3.{r}"
+        for r in range(OLDEST_PY_VERSION[1], PY_VERSION[1] + 1)
     ]
 
 

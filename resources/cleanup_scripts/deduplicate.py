@@ -270,15 +270,17 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
             uuid = bad_fcm["uuid"]
             logging.info(f"Bad path #{i}: {bad_fcm['logical_name']}")
 
+            # have we already seen it?
+            if bad_fcm["logical_name"] in unmatched:
+                logging.debug(f'{bad_fcm["logical_name"]} already in {UNMATCHED}')
+                continue
+            if bad_fcm["logical_name"] in errors:
+                logging.debug(f'{bad_fcm["logical_name"]} already in {DEDUP}')
+                continue
+
             # guard rails
             try:
                 if not has_good_twin(rc, bad_fcm):
-                    # have we already seen it?
-                    if bad_fcm["logical_name"] in unmatched:
-                        logging.debug(
-                            f'{bad_fcm["logical_name"]} already in {UNMATCHED}'
-                        )
-                        continue
                     unmatched.append(bad_fcm["logical_name"])
                     # is the path still active?
                     if path_still_exists(bad_fcm):  # pylint: disable=R1724
@@ -296,10 +298,6 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
                             "-- so deleting anyways"
                         )
             except Exception as e:  # pylint: disable=W0703
-                # have we already seen it?
-                if bad_fcm["logical_name"] in errors:
-                    logging.debug(f'{bad_fcm["logical_name"]} already in {DEDUP}')
-                    continue
                 errors.append(bad_fcm["logical_name"])
                 # write to file & skip
                 logging.error(f"`{e}` -- appending logical name to {DEDUP}")

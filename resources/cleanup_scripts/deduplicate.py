@@ -329,6 +329,7 @@ def main() -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--token", required=True, help="file catalog token")
+    parser.add_argument("--timeout", type=int, default=60, help="REST-client timeout")
     parser.add_argument(
         "--dryrun",
         default=False,
@@ -341,7 +342,9 @@ def main() -> None:
     args = parser.parse_args()
 
     coloredlogs.install(level=args.log)
-    rc = RestClient("https://file-catalog.icecube.wisc.edu/", token=args.token)
+    rc = RestClient(
+        "https://file-catalog.icecube.wisc.edu/", token=args.token, timeout=args.timeout
+    )
 
     # Go
     total_deleted = delete_evil_twin_catalog_entries(rc, args.dryrun)

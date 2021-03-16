@@ -5,7 +5,7 @@ import argparse
 import json
 import logging
 from itertools import count
-from typing import Any, cast, Dict, Generator, List, Set, Tuple
+from typing import Any, Dict, Generator, List, Set, Tuple, cast
 
 import coloredlogs  # type: ignore[import]
 from rest_tools.client import RestClient  # type: ignore[import]
@@ -106,9 +106,7 @@ def main() -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--token", required=True, help="file catalog token")
-    parser.add_argument(
-        "--timeout", type=int, default=15, help="file catalog REST timeout"
-    )
+    parser.add_argument("--timeout", type=int, default=60, help="REST-client timeout")
     parser.add_argument(
         "--dryrun",
         default=False,

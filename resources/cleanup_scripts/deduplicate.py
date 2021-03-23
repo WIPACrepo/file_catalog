@@ -300,7 +300,9 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
             except Exception as e:  # pylint: disable=W0703
                 errors.append(bad_fcm["logical_name"])
                 # write to file & skip
-                logging.error(f"`{e}` -- appending logical name to {DEDUP}")
+                logging.error(
+                    f"`{type(e).__name__}:{e}` -- appending logical name to {DEDUP}"
+                )
                 print(bad_fcm["logical_name"], file=errors_f)
                 continue
 

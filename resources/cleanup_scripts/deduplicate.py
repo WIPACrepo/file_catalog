@@ -261,8 +261,14 @@ UNMATCHED = "unmatched-missing.paths"
 
 def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> int:
     """Delete each bad-rooted path FC entry (if each has a good twin)."""
-    errors: List[str] = []
-    unmatched: List[str] = []
+    try:
+        errors: List[str] = [ln.strip() for ln in open(DEDUP)]
+    except FileNotFoundError:
+        errors = []
+    try:
+        unmatched: List[str] = [ln.strip() for ln in open(UNMATCHED)]
+    except FileNotFoundError:
+        unmatched = []
 
     i = 0
     with open(UNMATCHED, "a+") as unmatched_f, open(DEDUP, "a+") as errors_f:

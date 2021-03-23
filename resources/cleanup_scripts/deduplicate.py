@@ -327,7 +327,8 @@ def main() -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--token", required=True, help="file catalog token")
-    parser.add_argument("--timeout", type=int, default=60, help="REST-client timeout")
+    parser.add_argument("--timeout", type=int, default=3600, help="REST-client timeout")
+    parser.add_argument("--retries", type=int, default=24, help="REST-client retries")
     parser.add_argument(
         "--dryrun",
         default=False,
@@ -341,7 +342,10 @@ def main() -> None:
 
     coloredlogs.install(level=args.log)
     rc = RestClient(
-        "https://file-catalog.icecube.wisc.edu/", token=args.token, timeout=args.timeout
+        "https://file-catalog.icecube.wisc.edu/",
+        token=args.token,
+        timeout=args.timeout,
+        retries=args.retries,
     )
 
     # Go

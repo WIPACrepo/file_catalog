@@ -278,10 +278,10 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
 
             # have we already seen it?
             if bad_fcm["logical_name"] in unmatched:
-                logging.debug(f'{bad_fcm["logical_name"]} already in {UNMATCHED}')
+                logging.info(f'{bad_fcm["logical_name"]} already in {UNMATCHED}')
                 continue
             if bad_fcm["logical_name"] in errors:
-                logging.debug(f'{bad_fcm["logical_name"]} already in {DEDUP}')
+                logging.info(f'{bad_fcm["logical_name"]} already in {DEDUP}')
                 continue
 
             # guard rails

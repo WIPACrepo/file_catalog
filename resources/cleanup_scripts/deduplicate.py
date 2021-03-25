@@ -45,6 +45,8 @@ def _get_good_path(fpath: str) -> str:
     replacement_roots = [
         ("/mnt/lfs6/exp/", "/data/exp/"),
         ("/mnt/lfs6/sim/", "/data/sim/"),
+        ("/mnt/lfs7/exp/", "/data/exp/"),
+        ("/mnt/lfs7/sim/", "/data/sim/"),
     ]
 
     for bad_root, good_root in replacement_roots:

@@ -272,7 +272,7 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
     except FileNotFoundError:
         unmatched = []
 
-    i = 0
+    total_deleted = 0
     with open(UNMATCHED, "a+") as unmatched_f, open(DEDUP, "a+") as errors_f:
         for i, bad_fcm in enumerate(bad_fc_metadata(rc), start=1):
             uuid = bad_fcm["uuid"]
@@ -325,9 +325,10 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
                 )
             else:
                 rc.request_seq("DELETE", f"/api/files/{uuid}")
-                logging.info(f"DELETED #{i} -- {uuid}")
+                total_deleted += 1
+                logging.info(f"DELETED #{i} (total deleted: {total_deleted}) -- {uuid}")
 
-    return i
+    return total_deleted
 
 
 def main() -> None:

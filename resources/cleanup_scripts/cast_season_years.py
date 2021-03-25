@@ -75,7 +75,7 @@ def patch_fc_entries_seasons(
     rc: RestClient, str_season: str, dryrun: bool = False
 ) -> int:
     """Patch each FC entry that has a str-typed season value."""
-    i = 0
+    total_patched = 0
     logging.info(f'Looking at offline_processing_metadata.season="{str_season}"')
 
     for i, (uuid, op_meta) in enumerate(
@@ -94,9 +94,12 @@ def patch_fc_entries_seasons(
             rc.request_seq(
                 "PATCH", f"/api/files/{uuid}", {"offline_processing_metadata": op_meta},
             )
-            logging.info(f"PATCHED #{i} -- {op_meta['season']} | {uuid}")
+            total_patched += 1
+            logging.info(
+                f"PATCHED #{i} (total patched: {total_patched}) -- {op_meta['season']} | {uuid}"
+            )
 
-    return i
+    return total_patched
 
 
 def main() -> None:

@@ -366,6 +366,8 @@ def main() -> None:
     else:
         logging.info(f"Total Deleted: {total_deleted}")
 
+    logging.info("Done.")
+
 
 if __name__ == "__main__":
     main()

@@ -149,9 +149,17 @@ def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
     except FileNotFoundError:
         return False
 
-    # if the good_twin was updated/fixed a bunch of fields won't match anyways
-    if isoparse(good_twin["create_date"]) > isoparse(evil_twin["create_date"]):
-        return True
+    # compare `create_date` fields
+    if "create_date" not in good_twin:
+        raise Exception('Good twin doesn\'t have "create_date" field')
+    if "create_date" in evil_twin:
+        if isoparse(good_twin["create_date"]) == isoparse(evil_twin["create_date"]):
+            pass
+        # if the good_twin was updated/fixed a bunch of fields won't match anyways
+        elif isoparse(good_twin["create_date"]) > isoparse(evil_twin["create_date"]):
+            return True
+        else:
+            raise Exception("Evil twin was created after good twin")
 
     # resolve special fields
     evil_twin = _resolve_deprecated_fields(evil_twin)
@@ -186,6 +194,7 @@ def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
             "locations",
             "software",
             "meta_modify_date",
+            "create_date",
         ]
         if not _compare_twins(evil_twin, good_twin, ignored_fields):
             raise Exception(f"Fields don't match (disregarding: {ignored_fields})")

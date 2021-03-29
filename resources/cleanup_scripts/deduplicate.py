@@ -151,7 +151,9 @@ def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
 
     # compare `create_date` fields
     if "create_date" not in good_twin:
-        raise Exception('Good twin doesn\'t have "create_date" field')
+        raise Exception(
+            f'Good twin doesn\'t have "create_date" field ({good_twin["logical_name"]})'
+        )
     if "create_date" in evil_twin:
         if isoparse(good_twin["create_date"]) == isoparse(evil_twin["create_date"]):
             pass

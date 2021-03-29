@@ -22,7 +22,7 @@ pluggy==0.13.0
 py==1.8.0
 pyasn1==0.4.7
 pycparser==2.19
-Pygments==2.4.2
+Pygments==2.7.4
 pymongo==3.9.0
 pyparsing==2.4.2
 pytest==5.2.1

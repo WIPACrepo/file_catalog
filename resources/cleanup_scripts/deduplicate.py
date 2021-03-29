@@ -277,6 +277,10 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
     except FileNotFoundError:
         errors = []
     try:
+        ignored: List[str] = [ln.strip() for ln in open("./mnt-nersc.paths")]
+    except FileNotFoundError:
+        ignored = []
+    try:
         unmatched: List[str] = [ln.strip() for ln in open(UNMATCHED)]
     except FileNotFoundError:
         unmatched = []
@@ -288,6 +292,9 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
             logging.info(f"Bad path #{i}: {bad_fcm['logical_name']}")
 
             # have we already seen it?
+            if bad_fcm["logical_name"] in ignored:
+                logging.info("file is in `ignored` list, skipping")
+                continue
             if bad_fcm["logical_name"] in unmatched:
                 logging.info(f"already in {UNMATCHED}")
                 continue

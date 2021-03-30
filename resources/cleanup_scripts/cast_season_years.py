@@ -5,7 +5,7 @@ import argparse
 import json
 import logging
 from itertools import count
-from typing import Any, cast, Dict, Generator, List, Set, Tuple
+from typing import Any, Dict, Generator, List, Set, Tuple, cast
 
 import coloredlogs  # type: ignore[import]
 from rest_tools.client import RestClient  # type: ignore[import]
@@ -75,7 +75,7 @@ def patch_fc_entries_seasons(
     rc: RestClient, str_season: str, dryrun: bool = False
 ) -> int:
     """Patch each FC entry that has a str-typed season value."""
-    i = 0
+    total_patched = 0
     logging.info(f'Looking at offline_processing_metadata.season="{str_season}"')
 
     for i, (uuid, op_meta) in enumerate(
@@ -94,9 +94,12 @@ def patch_fc_entries_seasons(
             rc.request_seq(
                 "PATCH", f"/api/files/{uuid}", {"offline_processing_metadata": op_meta},
             )
-            logging.info(f"PATCHED #{i} -- {op_meta['season']} | {uuid}")
+            total_patched += 1
+            logging.info(
+                f"PATCHED #{i} (total patched: {total_patched}) -- {op_meta['season']} | {uuid}"
+            )
 
-    return i
+    return total_patched
 
 
 def main() -> None:
@@ -106,9 +109,8 @@ def main() -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--token", required=True, help="file catalog token")
-    parser.add_argument(
-        "--timeout", type=int, default=15, help="file catalog REST timeout"
-    )
+    parser.add_argument("--timeout", type=int, default=3600, help="REST-client timeout")
+    parser.add_argument("--retries", type=int, default=24, help="REST-client retries")
     parser.add_argument(
         "--dryrun",
         default=False,
@@ -120,7 +122,10 @@ def main() -> None:
 
     coloredlogs.install(level=args.log)
     rc = RestClient(
-        "https://file-catalog.icecube.wisc.edu/", token=args.token, timeout=args.timeout
+        "https://file-catalog.icecube.wisc.edu/",
+        token=args.token,
+        timeout=args.timeout,
+        retries=args.retries,
     )
 
     # Find & Patch by Season
@@ -132,6 +137,8 @@ def main() -> None:
 
     logging.warning(f"Seasons Patched: {patch_totals}")
     logging.warning(f"Grand Total Patched: {sum(tot for tot in patch_totals.values())}")
+
+    logging.info("Done.")
 
 
 if __name__ == "__main__":

@@ -13,9 +13,6 @@ jobs:
     name: "Push Docker Image"
     runs-on: ubuntu-latest
     steps:
-    - name: Compute Docker Tag
-      run: echo "GITHUB_SHA_SHORT=$(echo $GITHUB_SHA | cut -c 1-12)" >> $GITHUB_ENV
-
     - name: Checkout Project
       uses: actions/checkout@v2
 
@@ -29,7 +26,7 @@ jobs:
         # add git short SHA as Docker tag
         tag-sha: true
         tag-semver: |
-            {{raw}}
+            {{major}}
             {{major}}.{{minor}}
             {{major}}.{{minor}}.{{patch}}
 

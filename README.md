@@ -77,10 +77,10 @@ Obtain list of files
 ##### REST-Query Parameters
   * [`limit`](#limit)
   * [`start`](#start)
-  * [`path` *or* `logical_name`](#path-shortcut-parameters)
-  * [`directory`](#path-shortcut-parameters)
-  * [`filename`](#path-shortcut-parameters)
-  * [`path-regex`](#path-shortcut-parameters)
+  * [`path` *or* `logical_name`](#path-shortcut-parameters-path-regex-path-logical_name-directory-filename)
+  * [`directory`](#path-shortcut-parameters-path-regex-path-logical_name-directory-filename)
+  * [`filename`](#path-shortcut-parameters-path-regex-path-logical_name-directory-filename)
+  * [`path-regex`](#path-shortcut-parameters-path-regex-path-logical_name-directory-filename)
   * [`run_number`](#shortcut-parameter-run_number)
   * [`dataset`](#shortcut-parameter-dataset)
   * [`event_id`](#shortcut-parameter-event_id)
@@ -203,8 +203,8 @@ Partially update/replace file metadata information
 ##### `query`
 - MongoDB query; use to specify file-entry fields/ranges; forwarded to MongoDB daemon
 
-##### Path-Shortcut Parameters
-***In decreasing order of precedence...***
+##### Path-Shortcut Parameters: `path-regex`, `path`, `logical_name`, `directory`, `filename`
+*In decreasing order of precedence...*
 - `path-regex`
   - query by regex pattern (at your own risk... performance-wise)
   - equivalent to: `query: {"logical_name": {"$regex": p}}`

@@ -77,7 +77,10 @@ Obtain list of files
 ##### REST-Query Parameters
   * [`limit`](#limit)
   * [`start`](#start)
-  * [`logical_name`](#shortcut-parameter-logical_name)
+  * [`path` *or* `logical_name`](#path-shortcut-parameters)
+  * [`directory`](#path-shortcut-parameters)
+  * [`filename`](#path-shortcut-parameters)
+  * [`path-regex`](#path-shortcut-parameters)
   * [`run_number`](#shortcut-parameter-run_number)
   * [`dataset`](#shortcut-parameter-dataset)
   * [`event_id`](#shortcut-parameter-event_id)
@@ -195,10 +198,31 @@ Partially update/replace file metadata information
 ##### `start`
 - non-negative integer; result at which to start at *(default: 0)*
 - **NOTE:** the server *SHOULD* honor the `start` parameter
-- **TIP:** increment `start` by `limit` to paginate results
+- **TIP:** increment `start` by `limit` to paginate many results
 
 ##### `query`
 - MongoDB query; use to specify file-entry fields/ranges; forwarded to MongoDB daemon
+
+##### Path-Shortcut Parameters
+***In decreasing order of precedence...***
+- `path-regex`
+  - query by regex pattern (at your own risk... performance-wise)
+  - equivalent to: `query: {"logical_name": {"$regex": p}}`
+
+- `path` *or* `logical_name`
+  - equivalent to: `query["logical_name"]`
+
+- `directory`
+  - query by absolute directory filepath
+  - equivalent to: `query: {"logical_name": {"$regex": "^/your/path/.*"}}`
+  - **NOTE:** a trailing-`/` will be inserted if you don't provide one
+  - **TIP:** use in conjunction with `filename` (ie: `/root/dirs/.../filename`)
+
+- `filename`
+  - query by filename (no parent-directory path needed)
+  - equivalent to: `query: {"logical_name": {"$regex": ".*/your-file$"}}`
+  - **NOTE:** a leading-`/` will be inserted if you don't provide one
+  - **TIP:** use in conjunction with `directory` (ie: `/root/dirs/.../filename`)
 
 ##### Shortcut Parameter: `run_number`
 - equivalent to: `query["run.run_number"]`

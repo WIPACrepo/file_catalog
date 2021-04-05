@@ -184,15 +184,12 @@ Partially update/replace file metadata information
 
 ##### `limit`
 - positive integer; number of results to provide *(default: 10k)*
+- **NOTE:** The server *MAY* honor the `limit` parameter. In cases where the server does not honor the *limit* parameter, it should do so by providing fewer resources (`limit` should be considered the client’s upper limit for the number of resources in the response).
 
 ##### `start`
 - non-negative integer; result at which to start at *(default: 0)*
-- *NOTE: increment `start` by `limit` to paginate results*
-    - The server SHOULD honor the *start* parameter. The server MAY honor the
-      *limit* parameter. In cases where the server does not honor the *limit*
-      parameter, it should do so by providing fewer resources (*limit* should
-      be considered the client’s upper limit for the number of resources in
-      the response).
+- **NOTE:** the server *SHOULD* honor the `start` parameter
+- **TIP:** increment `start` by `limit` to paginate results
 
 ##### `query`
 - MongoDB query; use to specify file-entry fields/ranges; forwarded to MongoDB daemon

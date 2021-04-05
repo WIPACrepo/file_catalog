@@ -40,7 +40,6 @@ class Mongo(object):
         self.client.files.create_index([('logical_name',pymongo.HASHED)], background=True)
         self.client.files.create_index('locations', unique=True, background=True)
         self.client.files.create_index([('locations.site',pymongo.DESCENDING),('locations.path',pymongo.DESCENDING)], background=True)
-        self.client.files.create_index('locations.archive', background=True)
         self.client.files.create_index('create_date', background=True)
 
         # all .i3 files

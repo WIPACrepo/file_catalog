@@ -43,29 +43,20 @@ Requests with urls of the form `/api/RESOURCE` can access the
 REST API. Responses are in [HAL](http://stateless.co/hal_specification.html)
 JSON format.
 
-### Files
+### File Fields
 
-Unique identifiers:
+#### File-Metadata Schema:
+See [types.py](https://github.com/WIPACrepo/file_catalog/blob/master/file_catalog/schema/types.py)
 
-* `mongo_id`
+#### Mandatory Fields:
 
-  The id that the mongodb generates.
+* `uuid` (provided by File Catalog)
+* `logical_name`
+* `locations` (with at least one non-empty URL)
+* `file_size`
+* `checksum.sha512`
 
-* `uid`
 
-  The `uid` is an unique identifier that can be chosen freely.
-
-Mandatory fields:
-
-*  `uid`
-
-*  `checksum`
-
-    Must be calculated with SHA512.
-
-*  `locations`
-
-    Is a list with at least one non-empty URL to a file location. Can contain more than one location.
 
 #### /api/files
 

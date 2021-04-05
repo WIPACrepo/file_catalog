@@ -197,29 +197,28 @@ Partially update/replace file metadata information
 - **NOTE:** the server *SHOULD* honor the `start` parameter
 - **TIP:** increment `start` by `limit` to paginate results
 
+##### `query`
+- MongoDB query; use to specify file-entry fields/ranges; forwarded to MongoDB daemon
 
-#### Shortcut Parameter: `run_number`
+##### Shortcut Parameter: `run_number`
 - equivalent to: `query["run.run_number"]`
 
 
-#### Shortcut Parameter: `dataset`
+##### Shortcut Parameter: `dataset`
 - equivalent to: `query["iceprod.dataset"]`
 
 
-#### Shortcut Parameter: `event_id`
+##### Shortcut Parameter: `event_id`
 - equivalent to: `query: {"run.first_event":{"$lte": e}, "run.last_event":{"$gte": e}}`
 
 
-#### Shortcut Parameter: `processing_level`
+##### Shortcut Parameter: `processing_level`
 - equivalent to: `query["processing_level"]`
 
 
-#### Shortcut Parameter: `season`
+##### Shortcut Parameter: `season`
 - equivalent to: `query["offline_processing_metadata.season"]`
 
-
-##### `query`
-- MongoDB query; use to specify file-entry fields/ranges; forwarded to MongoDB daemon
 
 
 ## Development

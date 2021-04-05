@@ -54,7 +54,7 @@ REST API. Responses are in [HAL](http://stateless.co/hal_specification.html)
 JSON format.
 
 
-### File Fields
+### File-Entry Fields
 
 #### File-Metadata Schema:
 * _See [types.py](https://github.com/WIPACrepo/file_catalog/blob/master/file_catalog/schema/types.py)_
@@ -75,15 +75,9 @@ Resource representing the collection of all files in the catalog.
 Obtain list of files
 
 ##### REST Query Parameters
-  * limit: (positive integer) number of results to provide
-  * start: (non-negative integer) result at which to start at
-  * query: (mongodb query) query specification
-
-  The server SHOULD honor the *start* parameter. The server MAY honor the
-  *limit* parameter. In cases where the server does not honor the *limit*
-  parameter, it should do so by providing fewer resources (*limit* should
-  be considered the client’s upper limit for the number of resources in
-  the response).
+  * [`limit`](#limit)
+  * [`start`](#start)
+  * [`query`](#query)
 
 ##### HTTP Response Status Codes
   * `200`: Response contains collection of file resources
@@ -185,6 +179,23 @@ Partially update/replace file metadata information
   * `500`: Unspecified server error
   * `503`: Service unavailable (maintenance, etc.)
 
+
+### More About REST Query Parameters
+
+##### `limit`
+- positive integer; number of results to provide *(default: 10k)*
+
+##### `start`
+- non-negative integer; result at which to start at *(default: 0)*
+- *NOTE: increment `start` by `limit` to paginate results*
+    - The server SHOULD honor the *start* parameter. The server MAY honor the
+      *limit* parameter. In cases where the server does not honor the *limit*
+      parameter, it should do so by providing fewer resources (*limit* should
+      be considered the client’s upper limit for the number of resources in
+      the response).
+
+##### `query`
+- MongoDB query; use to specify file-entry fields/ranges; forwarded to MongoDB daemon
 
 
 ## Development

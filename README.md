@@ -61,7 +61,8 @@ JSON format.
 
 Resource representing the collection of all files in the catalog.
 
-#### GET *-- Obtain list of files*
+#### Method: `GET`
+  Obtain list of files
 
   **Query Parameters**
 
@@ -83,7 +84,8 @@ Resource representing the collection of all files in the catalog.
   * 500: Unspecified server error
   * 503: Service unavailable (maintenance, etc.)
 
-#### POST *-- Create a new file or add a replica*
+#### Method: `POST`
+  Create a new file or add a replica
 
   If a file exists and the checksum is the same, a replica
   is added. If the checksum is different a conflict error is returned.
@@ -98,17 +100,21 @@ Resource representing the collection of all files in the catalog.
   * 500: Unspecified server error
   * 503: Service unavailable (maintenance, etc.)
 
-#### DELETE *-- Not supported*
+#### Method: `DELETE`
+*Not supported*
 
-#### PUT *-- Not supported*
+#### Method: `PUT`
+*Not supported*
 
-#### PATCH *-- Not supported*
+#### Method: `PATCH`
+*Not supported*
 
 ### Route: `/api/files/{uuid}`
 
 Resource representing the metadata for a file in the file catalog.
 
-#### GET *-- Obtain file metadata information*
+#### Method: `GET`
+Obtain file metadata information
 
   **Result Codes**
 
@@ -118,9 +124,11 @@ Resource representing the metadata for a file in the file catalog.
   * 500: Unspecified server error
   * 503: Service unavailable (maintenance, etc.)
 
-#### POST *-- Not supported*
+#### Method: `POST`
+*Not supported*
 
-#### DELETE *-- Delete the metadata for the file*
+#### Method: `DELETE`
+Delete the metadata for the file
 
   **Result Codes**
 
@@ -130,7 +138,8 @@ Resource representing the metadata for a file in the file catalog.
   * 500: Unspecified server error
   * 503: Service unavailable (maintenance, etc.)
 
-#### PUT *-- Fully update/replace file metadata information*
+#### Method: `PUT `
+Fully update/replace file metadata information
 
   **Result Codes**
 
@@ -141,7 +150,8 @@ Resource representing the metadata for a file in the file catalog.
   * 500: Unspecified server error
   * 503: Service unavailable (maintenance, etc.)
 
-#### PATCH *-- Partially update/replace file metadata information*
+#### Method: `PATCH`
+Partially update/replace file metadata information
 
   The JSON provided as body to PATCH need not contain all the
   keys, only the keys that need to be updated. If a key is

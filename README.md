@@ -207,6 +207,7 @@ Partially update/replace file metadata information
 
 ##### `keys`
 - a `|`-delimited string-list of keys; defines what fields to include in result(s)
+- ex: "foo|bar|baz"
 - different routes/methods define differing defaults
 - **NOTE:** there is no performance hit for including more fields
 - *see [`all-keys`](#shortcut-parameter-all-keys)*

@@ -131,7 +131,7 @@ Resource representing the metadata for a file in the file catalog.
 Obtain file metadata information
 
 ##### REST-Query Parameters
-  * `foo`
+  * *None*
 
 ##### HTTP Response Status Codes
   * `200`: Response contains metadata of file resource
@@ -147,7 +147,7 @@ Obtain file metadata information
 Delete the metadata for the file
 
 ##### REST-Query Parameters
-  * `foo`
+  * *None*
 
 ##### HTTP Response Status Codes
   * `204`: No Content (file resource is successfully deleted)

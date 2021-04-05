@@ -77,18 +77,18 @@ Obtain list of files
 ##### REST-Query Parameters
   * [`limit`](#limit)
   * [`start`](#start)
-  * [`path` *or* `logical_name`](#shortcut-parameters-path-regex-path-logical_name-directory-filename)
-  * [`directory`](#shortcut-parameters-path-regex-path-logical_name-directory-filename)
-  * [`filename`](#shortcut-parameters-path-regex-path-logical_name-directory-filename)
-  * [`path-regex`](#shortcut-parameters-path-regex-path-logical_name-directory-filename)
-  * [`run_number`](#shortcut-parameter-run_number)
-  * [`dataset`](#shortcut-parameter-dataset)
-  * [`event_id`](#shortcut-parameter-event_id)
-  * [`processing_level`](#shortcut-parameter-processing_level)
-  * [`season`](#shortcut-parameter-season)
+  * [`path` *or* `logical_name`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
+  * [`directory`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
+  * [`filename`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
+  * [`path-regex`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
+  * [`run_number`](#shortcut-parameter-run_number) *(shortcut parameter)*
+  * [`dataset`](#shortcut-parameter-dataset) *(shortcut parameter)*
+  * [`event_id`](#shortcut-parameter-event_id) *(shortcut parameter)*
+  * [`processing_level`](#shortcut-parameter-processing_level) *(shortcut parameter)*
+  * [`season`](#shortcut-parameter-season) *(shortcut parameter)*
   * [`query`](#query)
   * [`keys`](#keys)
-  * [`all-keys`](#shortcut-parameter-all-keys)
+  * [`all-keys`](#shortcut-parameter-all-keys) *(shortcut parameter)*
 
 ##### HTTP Response Status Codes
   * `200`: Response contains collection of file resources
@@ -207,7 +207,7 @@ Partially update/replace file metadata information
 
 ##### `keys`
 - a `|`-delimited string-list of keys; defines what fields to include in result(s)
-- ex: "foo|bar|baz"
+- ex: `"foo|bar|baz"`
 - different routes/methods define differing defaults
 - **NOTE:** there is no performance hit for including more fields
 - *see [`all-keys`](#shortcut-parameter-all-keys)*

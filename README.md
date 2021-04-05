@@ -190,19 +190,19 @@ Partially update/replace file metadata information
 ### More About REST-Query Parameters
 
 ##### `limit`
-- positive integer; number of results to provide *(default: 10k)*
-- **NOTE:** The server *MAY* honor the `limit` parameter. In cases where the server does not honor the *limit* parameter, it should do so by providing fewer resources (`limit` should be considered the client’s upper limit for the number of resources in the response).
+- *positive integer*; number of results to provide *(default: 10000)*
+- **NOTE:** The server *may* honor the `limit` parameter. In cases where the server does not honor the `limit` parameter, it should do so by providing fewer resources (`limit` should be considered the client’s upper limit for the number of resources in the response).
 
 ##### `start`
-- non-negative integer; result at which to start at *(default: 0)*
-- **NOTE:** the server *SHOULD* honor the `start` parameter
+- *non-negative integer*; result at which to start at *(default: 0)*
+- **NOTE:** the server *should* honor the `start` parameter
 - **TIP:** increment `start` by `limit` to paginate through many results
 
 ##### `query`
-- MongoDB query; use to specify file-entry fields/ranges; forwarded to MongoDB daemon
+- *MongoDB query*; use to specify file-entry fields/ranges; forwarded to MongoDB daemon
 
 ##### `keys`
-- a `|`-delimited string-list of keys; defines what fields to include in result(s)
+- *a `|`-delimited string-list of keys*; defines what fields to include in result(s)
 - ex: `"foo|bar|baz"`
 - different routes/methods define differing defaults
 - **NOTE:** there is no performance hit for including more fields
@@ -249,7 +249,7 @@ Partially update/replace file metadata information
 - equivalent to: `query["offline_processing_metadata.season"]`
 
 ##### Shortcut Parameter: `all-keys`
-- boolean (True/"True"/"true"/1); include *all fields* in result(s)
+- *boolean (`True`/`"True"`/`"true"`/`1`)*; include *all fields* in result(s)
 - **NOTE:** there is no performance hit for including more fields
 - **TIP:** this is preferred over querying `/api/files`, grabbing the uuid, then querying `/api/files/{uuid}`
 

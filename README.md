@@ -196,7 +196,7 @@ Partially update/replace file metadata information
 ##### `start`
 - non-negative integer; result at which to start at *(default: 0)*
 - **NOTE:** the server *SHOULD* honor the `start` parameter
-- **TIP:** increment `start` by `limit` to paginate many results
+- **TIP:** increment `start` by `limit` to paginate through many results
 
 ##### `query`
 - MongoDB query; use to specify file-entry fields/ranges; forwarded to MongoDB daemon

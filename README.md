@@ -74,9 +74,15 @@ Resource representing the collection of all files in the catalog.
 #### Method: `GET`
 Obtain list of files
 
-##### REST Query Parameters
+##### REST-Query Parameters
   * [`limit`](#limit)
   * [`start`](#start)
+  * [`logical_name`](#shortcut-parameter-logical_name)
+  * [`run_number`](#shortcut-parameter-run_number)
+  * [`dataset`](#shortcut-parameter-dataset)
+  * [`event_id`](#shortcut-parameter-event_id)
+  * [`processing_level`](#shortcut-parameter-processing_level)
+  * [`season`](#shortcut-parameter-season)
   * [`query`](#query)
 
 ##### HTTP Response Status Codes
@@ -92,7 +98,7 @@ Create a new file or add a replica
   If a file exists and the checksum is the same, a replica
   is added. If the checksum is different a conflict error is returned.
 
-##### REST Query Parameters
+##### REST-Query Parameters
   * `foo`
 
 ##### HTTP Response Status Codes
@@ -120,7 +126,7 @@ Resource representing the metadata for a file in the file catalog.
 #### Method: `GET`
 Obtain file metadata information
 
-##### REST Query Parameters
+##### REST-Query Parameters
   * `foo`
 
 ##### HTTP Response Status Codes
@@ -136,7 +142,7 @@ Obtain file metadata information
 #### Method: `DELETE`
 Delete the metadata for the file
 
-##### REST Query Parameters
+##### REST-Query Parameters
   * `foo`
 
 ##### HTTP Response Status Codes
@@ -149,7 +155,7 @@ Delete the metadata for the file
 #### Method: `PUT `
 Fully update/replace file metadata information
 
-##### REST Query Parameters
+##### REST-Query Parameters
   * `foo`
 
 ##### HTTP Response Status Codes
@@ -168,7 +174,7 @@ Partially update/replace file metadata information
   provided with a value null, then that key can be removed from
   the metadata.
 
-##### REST Query Parameters
+##### REST-Query Parameters
   * `foo`
 
 ##### HTTP Response Status Codes
@@ -180,7 +186,7 @@ Partially update/replace file metadata information
   * `503`: Service unavailable (maintenance, etc.)
 
 
-### More About REST Query Parameters
+### More About REST-Query Parameters
 
 ##### `limit`
 - positive integer; number of results to provide *(default: 10k)*
@@ -190,6 +196,27 @@ Partially update/replace file metadata information
 - non-negative integer; result at which to start at *(default: 0)*
 - **NOTE:** the server *SHOULD* honor the `start` parameter
 - **TIP:** increment `start` by `limit` to paginate results
+
+
+#### Shortcut Parameter: `run_number`
+- equivalent to: `query["run.run_number"]`
+
+
+#### Shortcut Parameter: `dataset`
+- equivalent to: `query["iceprod.dataset"]`
+
+
+#### Shortcut Parameter: `event_id`
+- equivalent to: `query: {"run.first_event":{"$lte": e}, "run.last_event":{"$gte": e}}`
+
+
+#### Shortcut Parameter: `processing_level`
+- equivalent to: `query["processing_level"]`
+
+
+#### Shortcut Parameter: `season`
+- equivalent to: `query["offline_processing_metadata.season"]`
+
 
 ##### `query`
 - MongoDB query; use to specify file-entry fields/ranges; forwarded to MongoDB daemon

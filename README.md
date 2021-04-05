@@ -100,11 +100,10 @@ Obtain list of files
 #### Method: `POST`
 Create a new file or add a replica
 
-  If a file exists and the checksum is the same, a replica
-  is added. If the checksum is different a conflict error is returned.
+*If a file exists and the checksum is the same, a replica is added. If the checksum is different a conflict error is returned.*
 
-##### REST-Query Parameters
-  * `foo`
+##### REST-Body
+  * *See [File-Entry Fields](#File-Entry-Fields)*
 
 ##### HTTP Response Status Codes
   * `200`: Replica has been added. Response contains link to file resource
@@ -160,8 +159,8 @@ Delete the metadata for the file
 #### Method: `PUT `
 Fully update/replace file metadata information
 
-##### REST-Query Parameters
-  * `foo`
+##### REST-Body
+  * *See [File-Entry Fields](#File-Entry-Fields)*
 
 ##### HTTP Response Status Codes
   * `200`: Response indicates metadata of file resource has been updated/replaced
@@ -174,13 +173,10 @@ Fully update/replace file metadata information
 #### Method: `PATCH`
 Partially update/replace file metadata information
 
-  The JSON provided as body to PATCH need not contain all the
-  keys, only the keys that need to be updated. If a key is
-  provided with a value null, then that key can be removed from
-  the metadata.
+*The JSON provided as body to PATCH need not contain all the keys, only the  need to be updated. If a key is provided with a value null, then that key can be removed from the metadata.*
 
-##### REST-Query Parameters
-  * `foo`
+##### REST-Body
+  * *See [File-Entry Fields](#File-Entry-Fields)*
 
 ##### HTTP Response Status Codes
   * `200`: Response indicates metadata of file resource has been updated/replaced

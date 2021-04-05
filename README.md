@@ -57,8 +57,7 @@ See [types.py](https://github.com/WIPACrepo/file_catalog/blob/master/file_catalo
 * `checksum.sha512`
 
 
-
-#### /api/files
+### Route: /api/files
 
 Resource representing the collection of all files in the catalog.
 
@@ -107,7 +106,7 @@ Operations:
 
 * PATCH: Not supported
 
-#### /api/files/{mongo_id}
+### Route: /api/files/{uuid}
 
 Resource representing the metadata for a file in the file catalog.
 
@@ -181,7 +180,7 @@ To use Vagrant to set up a VM to run a File Catalog:
     vagrant up
     vagrant ssh
     cd file_catalog
-    scl enable rh-python36 bash    
+    scl enable rh-python36 bash
     python -m venv ./env
     source env/bin/activate
     pip install --upgrade pip

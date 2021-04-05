@@ -77,16 +77,18 @@ Obtain list of files
 ##### REST-Query Parameters
   * [`limit`](#limit)
   * [`start`](#start)
-  * [`path` *or* `logical_name`](##shortcut-parameters-path-regex-path-logical_name-directory-filename)
-  * [`directory`](##shortcut-parameters-path-regex-path-logical_name-directory-filename)
-  * [`filename`](##shortcut-parameters-path-regex-path-logical_name-directory-filename)
-  * [`path-regex`](##shortcut-parameters-path-regex-path-logical_name-directory-filename)
+  * [`path` *or* `logical_name`](#shortcut-parameters-path-regex-path-logical_name-directory-filename)
+  * [`directory`](#shortcut-parameters-path-regex-path-logical_name-directory-filename)
+  * [`filename`](#shortcut-parameters-path-regex-path-logical_name-directory-filename)
+  * [`path-regex`](#shortcut-parameters-path-regex-path-logical_name-directory-filename)
   * [`run_number`](#shortcut-parameter-run_number)
   * [`dataset`](#shortcut-parameter-dataset)
   * [`event_id`](#shortcut-parameter-event_id)
   * [`processing_level`](#shortcut-parameter-processing_level)
   * [`season`](#shortcut-parameter-season)
   * [`query`](#query)
+  * [`keys`](#keys)
+  * [`all-keys`](#shortcut-parameter-all-keys)
 
 ##### HTTP Response Status Codes
   * `200`: Response contains collection of file resources
@@ -203,6 +205,12 @@ Partially update/replace file metadata information
 ##### `query`
 - MongoDB query; use to specify file-entry fields/ranges; forwarded to MongoDB daemon
 
+##### `keys`
+- a `|`-delimited string-list of keys; defines what fields to include in result(s)
+- different routes/methods define differing defaults
+- **NOTE:** there is no performance hit for including more fields
+- *see [`all-keys`](#shortcut-parameter-all-keys)*
+
 ##### Shortcut Parameters: `path-regex`, `path`, `logical_name`, `directory`, `filename`
 *In decreasing order of precedence...*
 - `path-regex`
@@ -242,6 +250,11 @@ Partially update/replace file metadata information
 
 ##### Shortcut Parameter: `season`
 - equivalent to: `query["offline_processing_metadata.season"]`
+
+##### Shortcut Parameter: `all-keys`
+- boolean (True/"True"/"true"/1); include *all fields* in result(s)
+- **NOTE:** there is no performance hit for including more fields
+- **TIP:** this is preferred over querying `/api/files`, grabbing the uuid, then querying `/api/files/{uuid}`
 
 
 

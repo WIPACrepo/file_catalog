@@ -46,7 +46,7 @@ JSON format.
 ### File Fields
 
 #### File-Metadata Schema:
-See [types.py](https://github.com/WIPACrepo/file_catalog/blob/master/file_catalog/schema/types.py)
+* _See [types.py](https://github.com/WIPACrepo/file_catalog/blob/master/file_catalog/schema/types.py)_
 
 #### Mandatory Fields:
 
@@ -57,7 +57,7 @@ See [types.py](https://github.com/WIPACrepo/file_catalog/blob/master/file_catalo
 * `checksum.sha512`
 
 
-### Route: /api/files
+### Route: `/api/files`
 
 Resource representing the collection of all files in the catalog.
 
@@ -106,7 +106,7 @@ Operations:
 
 * PATCH: Not supported
 
-### Route: /api/files/{uuid}
+### Route: `/api/files/{uuid}`
 
 Resource representing the metadata for a file in the file catalog.
 

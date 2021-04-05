@@ -3,15 +3,20 @@ Store file metadata information in a file catalog
 
 [![CircleCI](https://circleci.com/gh/WIPACrepo/file_catalog/tree/master.svg?style=shield)](https://circleci.com/gh/WIPACrepo/file_catalog/tree/master)
 
+
 ## Prerequisites
 To get the prerequisites necessary for the file catalog:
 
     pip install -r requirements.txt
 
+
+
 ## Running the server
 To start an instance of the server running:
 
     python -m file_catalog
+
+
 
 ## Running the unit tests
 To run the unit tests for the service, you need the
@@ -20,28 +25,34 @@ Then run it with:
 
     circleci local execute --job test
 
+
+
 ## Configuration
 All configuration is done using environment variables.
 To get the list of possible configuration parameters and their defaults, run
 
     python -m file_catalog --show-config-spec
 
-## Interface
 
+
+## Interface
 The primary interface is an HTTP server. TLS and other security
 hardening mechanisms are handled by a reverse proxy server as
 for normal web applications.
 
-## Browser
 
+
+## Browser
 Requests to the main url `/` are browsable like a standard website.
 They will use javascript to activate the REST API as necessary.
 
-## REST API
 
+
+## REST API
 Requests with urls of the form `/api/RESOURCE` can access the
 REST API. Responses are in [HAL](http://stateless.co/hal_specification.html)
 JSON format.
+
 
 ### File Fields
 
@@ -49,7 +60,6 @@ JSON format.
 * _See [types.py](https://github.com/WIPACrepo/file_catalog/blob/master/file_catalog/schema/types.py)_
 
 #### Mandatory Fields:
-
 * `uuid` (provided by File Catalog)
 * `logical_name`
 * `locations` (with at least one non-empty URL)
@@ -58,14 +68,13 @@ JSON format.
 
 
 ### Route: `/api/files`
-
 Resource representing the collection of all files in the catalog.
 
+
 #### Method: `GET`
-  Obtain list of files
+Obtain list of files
 
-  **Query Parameters**
-
+##### REST Query Parameters
   * limit: (positive integer) number of results to provide
   * start: (non-negative integer) result at which to start at
   * query: (mongodb query) query specification
@@ -76,8 +85,7 @@ Resource representing the collection of all files in the catalog.
   be considered the client’s upper limit for the number of resources in
   the response).
 
-##### Result Codes
-
+##### HTTP Response Status Codes
   * `200`: Response contains collection of file resources
   * `400`: Bad request (query parameters invalid)
   * `429`: Too many requests (if server is being hammered)
@@ -85,13 +93,15 @@ Resource representing the collection of all files in the catalog.
   * `503`: Service unavailable (maintenance, etc.)
 
 #### Method: `POST`
-  Create a new file or add a replica
+Create a new file or add a replica
 
   If a file exists and the checksum is the same, a replica
   is added. If the checksum is different a conflict error is returned.
 
-##### Result Codes
+##### REST Query Parameters
+  * `foo`
 
+##### HTTP Response Status Codes
   * `200`: Replica has been added. Response contains link to file resource
   * `201`: Response contains link to newly created file resource
   * `400`: Bad request (metadata failed validation)
@@ -109,15 +119,17 @@ Resource representing the collection of all files in the catalog.
 #### Method: `PATCH`
 *Not supported*
 
-### Route: `/api/files/{uuid}`
 
+### Route: `/api/files/{uuid}`
 Resource representing the metadata for a file in the file catalog.
 
 #### Method: `GET`
 Obtain file metadata information
 
-##### Result Codes
+##### REST Query Parameters
+  * `foo`
 
+##### HTTP Response Status Codes
   * `200`: Response contains metadata of file resource
   * `404`: Not Found (file resource does not exist)
   * `429`: Too many requests (if server is being hammered)
@@ -130,8 +142,10 @@ Obtain file metadata information
 #### Method: `DELETE`
 Delete the metadata for the file
 
-##### Result Codes
+##### REST Query Parameters
+  * `foo`
 
+##### HTTP Response Status Codes
   * `204`: No Content (file resource is successfully deleted)
   * `404`: Not Found (file resource does not exist)
   * `429`: Too many requests (if server is being hammered)
@@ -141,8 +155,10 @@ Delete the metadata for the file
 #### Method: `PUT `
 Fully update/replace file metadata information
 
-##### Result Codes
+##### REST Query Parameters
+  * `foo`
 
+##### HTTP Response Status Codes
   * `200`: Response indicates metadata of file resource has been updated/replaced
   * `404`: Not Found (file resource does not exist) + link to “files” resource for POST
   * `409`: Conflict (if updating an outdated resource - use ETAG hash to compare)
@@ -158,14 +174,17 @@ Partially update/replace file metadata information
   provided with a value null, then that key can be removed from
   the metadata.
 
-##### Result Codes
+##### REST Query Parameters
+  * `foo`
 
+##### HTTP Response Status Codes
   * `200`: Response indicates metadata of file resource has been updated/replaced
   * `404`: Not Found (file resource does not exist) + link to “files” resource for POST
   * `409`: Conflict (if updating an outdated resource - use ETAG hash to compare)
   * `429`: Too many requests (if server is being hammered)
   * `500`: Unspecified server error
   * `503`: Service unavailable (maintenance, etc.)
+
 
 
 ## Development

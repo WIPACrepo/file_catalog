@@ -29,7 +29,7 @@ for query in ret:
     try:
         if 'find' in query['command'] and query['command']['find'] == 'collections':
             continue
-        if 'filter' in query['command'] and query['command']['filter'] == {'locations.archive': None}:
+        if 'filter' in query['command'] and query['command']['filter'] == {'locations.archive': True}:
             continue # exclude unrealistic test query
         if 'planSummary' not in query:
             print(query)

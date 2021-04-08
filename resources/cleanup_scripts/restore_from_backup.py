@@ -34,7 +34,8 @@ async def restore(rc: RestClient, fc_entries: List[FCMetadata], dryrun: bool) ->
 
     PUT if FC entry already exists. Otherwise, POST with uuid.
     """
-    for fcm in fc_entries:
+    for i, fcm in enumerate(fc_entries):
+        print(f"{i}/{len(fc_entries)}")
         logging.debug(fcm)
         if dryrun:
             continue

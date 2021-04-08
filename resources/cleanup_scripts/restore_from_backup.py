@@ -85,6 +85,8 @@ def main() -> None:
     fc_entries = get_fc_entries(args.json)
     asyncio.get_event_loop().run_until_complete(restore(rc, fc_entries, args.dryrun))
 
+    logging.info("Done.")
+
 
 if __name__ == "__main__":
     main()

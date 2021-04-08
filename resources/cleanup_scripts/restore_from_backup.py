@@ -45,7 +45,7 @@ async def restore(rc: RestClient, fc_entries: List[FCMetadata], dryrun: bool) ->
             await rc.request("PUT", f'/api/files/{fcm["uuid"]}', fcm)
         else:
             logging.info(
-                f"Entry is not already in the FC ({fcm['uuid']}); Retrying (POST)..."
+                f"Entry is not already in the FC ({fcm['uuid']}); Posting (POST)..."
             )
             await rc.request("POST", "/api/files", fcm)
 

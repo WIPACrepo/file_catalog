@@ -17,31 +17,37 @@ FCMetadata = Dict[str, Any]
 POP_KEYS = ["meta_modify_date", "_id"]
 
 
+async def already_in_fc(rc: RestClient, uuid: str) -> bool:
+    """Return whether the uuid is already in the FC."""
+    try:
+        await rc.request("GET", "/api/files/" + uuid)
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            return False
+        else:
+            raise
+    return True
+
+
 async def restore(rc: RestClient, fc_entries: List[FCMetadata], dryrun: bool) -> None:
     """Send the fc_entries one-by-one to the FC.
 
-    First try to PUT with existing uuid. If that fails, then POST with
-    uuid.
+    PUT if FC entry already exists. Otherwise, POST with uuid.
     """
     for fcm in fc_entries:
+        logging.debug(fcm)
         if dryrun:
             continue
-        try:
-            logging.debug(fcm)
+        if await already_in_fc(rc, fcm["uuid"]):
             logging.info(
-                f"Assuming entry is already in the FC ({fcm['uuid']}); Replacing (PUT)..."
+                f"Entry is already in the FC ({fcm['uuid']}); Replacing (PUT)..."
             )
             await rc.request("PUT", f'/api/files/{fcm["uuid"]}', fcm)
-        except requests.exceptions.HTTPError as e:
-            logging.debug(e)
-            if e.response.status_code == 404:  # file not found
-                logging.info(
-                    f"Entry is not already in the FC ({fcm['uuid']}); Retrying (POST)..."
-                )
-                await rc.request("POST", "/api/files", fcm)
-            else:
-                logging.warning(e)
-                raise
+        else:
+            logging.info(
+                f"Entry is not already in the FC ({fcm['uuid']}); Retrying (POST)..."
+            )
+            await rc.request("POST", "/api/files", fcm)
 
 
 def get_fc_entries(file: str) -> List[FCMetadata]:

@@ -27,12 +27,16 @@ async def restore(rc: RestClient, fc_entries: List[FCMetadata], dryrun: bool) ->
         if dryrun:
             continue
         try:
-            logging.info("Assuming entry is already in the FC; Replacing (PUT)...")
+            logging.info(
+                f"Assuming entry is already in the FC ({fcm['uuid']}); Replacing (PUT)..."
+            )
             await rc.request("PUT", f'/api/files/{fcm["uuid"]}', fcm)
         except requests.exceptions.HTTPError as e:
             logging.debug(e)
             if e.response.status_code == 404:  # file not found
-                logging.info("Entry is not already in the FC; Retrying (POST)...")
+                logging.info(
+                    f"Entry is not already in the FC ({fcm['uuid']}); Retrying (POST)..."
+                )
                 await rc.request("POST", "/api/files", fcm)
             else:
                 logging.warning(e)

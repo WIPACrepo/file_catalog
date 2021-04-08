@@ -44,9 +44,10 @@ def get_fc_entries(file: str) -> List[FCMetadata]:
     def parse(line: str) -> FCMetadata:
         fc_meta = cast(FCMetadata, json.loads(line.strip()))
         for key in POP_KEYS:
-            fc_meta.pop(key)
+            fc_meta.pop(key, None)
         if "uuid" not in fc_meta:
             raise Exception(f"FC entry is missing a `uuid` field: {fc_meta}")
+        logging.debug(fc_meta)
         return fc_meta
 
     fc_entries = [parse(ln) for ln in open(file)]
@@ -75,6 +76,9 @@ def main() -> None:
     args = parser.parse_args()
 
     coloredlogs.install(level=args.log)
+    for arg, val in vars(args).items():
+        logging.warning(f"{arg}: {val}")
+
     rc = RestClient(
         "https://file-catalog.icecube.wisc.edu/",
         token=args.token,

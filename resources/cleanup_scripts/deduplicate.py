@@ -7,7 +7,6 @@ where the duplicate is indexed under /mnt/lfs*/.
 import argparse
 import json
 import logging
-import os
 from itertools import count
 from typing import Any, Dict, Generator, List, Set, cast
 

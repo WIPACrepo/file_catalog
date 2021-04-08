@@ -27,6 +27,7 @@ async def restore(rc: RestClient, fc_entries: List[FCMetadata], dryrun: bool) ->
         if dryrun:
             continue
         try:
+            logging.debug(fcm)
             logging.info(
                 f"Assuming entry is already in the FC ({fcm['uuid']}); Replacing (PUT)..."
             )

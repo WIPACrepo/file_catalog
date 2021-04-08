@@ -263,11 +263,6 @@ def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:
             yield fcm
 
 
-def path_still_exists(fc_meta: FCMetadata) -> bool:
-    """Return whether the path still exists."""
-    return os.path.exists(fc_meta["logical_name"])
-
-
 DEDUP = "dedup-errors.paths"
 UNMATCHED = "unmatched-missing.paths"
 
@@ -278,10 +273,6 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
         errors: List[str] = [ln.strip() for ln in open(DEDUP)]
     except FileNotFoundError:
         errors = []
-    try:
-        ignored: List[str] = [ln.strip() for ln in open("./mnt-nersc.paths")]
-    except FileNotFoundError:
-        ignored = []
     try:
         unmatched: List[str] = [ln.strip() for ln in open(UNMATCHED)]
     except FileNotFoundError:
@@ -294,9 +285,6 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
             logging.info(f"Bad path #{i}: {bad_fcm['logical_name']}")
 
             # have we already seen it?
-            if bad_fcm["logical_name"] in ignored:
-                logging.info("file is in `ignored` list, skipping")
-                continue
             if bad_fcm["logical_name"] in unmatched:
                 logging.info(f"already in {UNMATCHED}")
                 continue
@@ -308,21 +296,13 @@ def delete_evil_twin_catalog_entries(rc: RestClient, dryrun: bool = False) -> in
             try:
                 if not has_good_twin(rc, bad_fcm):
                     unmatched.append(bad_fcm["logical_name"])
-                    # is the path still active?
-                    if path_still_exists(bad_fcm):  # pylint: disable=R1724
-                        # write to file & skip
-                        logging.error(
-                            f"No good twin found (path still exists) "
-                            f"-- appending logical name to {UNMATCHED}"
-                        )
-                        print(bad_fcm["logical_name"], file=unmatched_f)
-                        continue
-                    # okay, we can delete it
-                    else:
-                        logging.warning(
-                            "No good twin found, but path no longer exists "
-                            "-- so deleting anyways"
-                        )
+                    # write to file & skip
+                    logging.error(
+                        f"No good twin found "
+                        f"-- appending logical name to {UNMATCHED}"
+                    )
+                    print(bad_fcm["logical_name"], file=unmatched_f)
+                    continue
             except Exception as e:  # pylint: disable=W0703
                 errors.append(bad_fcm["logical_name"])
                 # write to file & skip

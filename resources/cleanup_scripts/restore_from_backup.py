@@ -17,6 +17,10 @@ FCMetadata = Dict[str, Any]
 POP_KEYS = ["meta_modify_date", "_id"]
 
 
+class PathAlreadyExistsException(Exception):
+    """Raised when the path already exists in the FC."""
+
+
 async def already_in_fc(rc: RestClient, uuid: str, logical_name: str) -> bool:
     """Return whether the uuid is already in the FC."""
     try:
@@ -31,7 +35,9 @@ async def already_in_fc(rc: RestClient, uuid: str, logical_name: str) -> bool:
         "GET", "/api/files", {"logical_name": logical_name, "all-keys": True}
     )
     if resp["files"]:
-        raise Exception(f"FC Entry found with same logical_name: {resp['files']}")
+        raise PathAlreadyExistsException(
+            f"FC Entry found with same path: {resp['files']}"
+        )
 
     return False
 
@@ -45,22 +51,28 @@ async def restore(rc: RestClient, fc_entries: List[FCMetadata], dryrun: bool) ->
         print(f"{i}/{len(fc_entries)}")
         logging.debug(fcm)
 
-        if await already_in_fc(rc, fcm["uuid"], fcm["logical_name"]):
-            logging.info(
-                f"Entry is already in the FC ({fcm['uuid']}); Replacing (PUT)..."
-            )
-            if dryrun:
-                logging.warning("DRYRUN MODE ON: not sending PUT request")
+        try:
+            if await already_in_fc(rc, fcm["uuid"], fcm["logical_name"]):
+                logging.info(
+                    f"Entry is already in the FC ({fcm['uuid']}); Replacing (PUT)..."
+                )
+                if dryrun:
+                    logging.warning("DRYRUN MODE ON: not sending PUT request")
+                else:
+                    await rc.request("PUT", f'/api/files/{fcm["uuid"]}', fcm)
             else:
-                await rc.request("PUT", f'/api/files/{fcm["uuid"]}', fcm)
-        else:
-            logging.info(
-                f"Entry is not already in the FC ({fcm['uuid']}); Posting (POST)..."
-            )
-            if dryrun:
-                logging.warning("DRYRUN MODE ON: not sending POST request")
-            else:
-                await rc.request("POST", "/api/files", fcm)
+                logging.info(
+                    f"Entry is not already in the FC ({fcm['uuid']}); Posting (POST)..."
+                )
+                if dryrun:
+                    logging.warning("DRYRUN MODE ON: not sending POST request")
+                else:
+                    await rc.request("POST", "/api/files", fcm)
+
+        except PathAlreadyExistsException as e:
+            logging.error(e)
+            with open("./paths-already-exist.json", "a") as json_f:
+                print(json.dumps(fcm), file=json_f)
 
 
 def get_fc_entries(file: str) -> List[FCMetadata]:

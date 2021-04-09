@@ -129,15 +129,6 @@ def _resolve_wipac_location_filepath(fc_meta: FCMetadata) -> FCMetadata:
     return fc_meta
 
 
-def _resolve_season_value(fc_meta: FCMetadata) -> FCMetadata:
-    """Cast `"season"` value to an `int` if it's not `None`."""
-    if "offline_processing_metadata" in fc_meta:
-        season = fc_meta["offline_processing_metadata"]["season"]
-        if fc_meta["offline_processing_metadata"]["season"] is not None:
-            fc_meta["offline_processing_metadata"]["season"] = int(season)
-    return fc_meta
-
-
 def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
     """Return whether the `evil_twin` has a good twin.
 
@@ -166,9 +157,6 @@ def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
     evil_twin = _resolve_deprecated_fields(evil_twin)
     evil_twin = _resolve_gcd_filepath(evil_twin)
     evil_twin = _resolve_wipac_location_filepath(evil_twin)
-    #
-    evil_twin = _resolve_season_value(evil_twin)
-    good_twin = _resolve_season_value(good_twin)
 
     # compare metadata
     try:

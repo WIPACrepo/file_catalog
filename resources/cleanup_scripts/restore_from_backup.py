@@ -44,17 +44,22 @@ async def restore(rc: RestClient, fc_entries: List[FCMetadata], dryrun: bool) ->
     for i, fcm in enumerate(fc_entries):
         print(f"{i}/{len(fc_entries)}")
         logging.debug(fcm)
-        if dryrun:
-            continue
+
         if await already_in_fc(rc, fcm["uuid"], fcm["logical_name"]):
             logging.info(
                 f"Entry is already in the FC ({fcm['uuid']}); Replacing (PUT)..."
             )
+            if dryrun:
+                logging.warning("DEBUG MODE ON: not sending PUT request")
+                continue
             await rc.request("PUT", f'/api/files/{fcm["uuid"]}', fcm)
         else:
             logging.info(
                 f"Entry is not already in the FC ({fcm['uuid']}); Posting (POST)..."
             )
+            if dryrun:
+                logging.warning("DEBUG MODE ON: not sending POST request")
+                continue
             await rc.request("POST", "/api/files", fcm)
 
 

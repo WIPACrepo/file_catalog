@@ -129,16 +129,11 @@ def _resolve_wipac_location_filepath(fc_meta: FCMetadata) -> FCMetadata:
     return fc_meta
 
 
-def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
-    """Return whether the `evil_twin` has a good twin.
+def are_compatible_twins(evil_twin: FCMetadata, good_twin: FCMetadata) -> bool:
+    """Compare twins.
 
     If the two sets of metadata are not compatible, raise an Exception.
     """
-    try:
-        good_twin = _find_fc_metadata(rc, _get_good_path(evil_twin["logical_name"]))
-    except FileNotFoundError:
-        return False
-
     # compare `create_date` fields
     if "create_date" not in good_twin:
         raise Exception(
@@ -194,6 +189,16 @@ def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
         raise
 
     return True
+
+
+def has_good_twin(rc: RestClient, evil_twin: FCMetadata) -> bool:
+    """Return whether the `evil_twin` has a good twin."""
+    try:
+        good_twin = _find_fc_metadata(rc, _get_good_path(evil_twin["logical_name"]))
+    except FileNotFoundError:
+        return False
+
+    return are_compatible_twins(evil_twin, good_twin)
 
 
 def bad_fc_metadata(rc: RestClient) -> Generator[FCMetadata, None, None]:

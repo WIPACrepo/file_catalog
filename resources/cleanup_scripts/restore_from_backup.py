@@ -17,16 +17,23 @@ FCMetadata = Dict[str, Any]
 POP_KEYS = ["meta_modify_date", "_id"]
 
 
-async def already_in_fc(rc: RestClient, uuid: str) -> bool:
+async def already_in_fc(rc: RestClient, uuid: str, logical_name: str) -> bool:
     """Return whether the uuid is already in the FC."""
     try:
         await rc.request("GET", "/api/files/" + uuid)
+        return True
     except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 404:
-            return False
-        else:
+        if e.response.status_code != 404:
             raise
-    return True
+
+    # now sanity check that the logical_name isn't already in the FC
+    resp = await rc.request(
+        "GET", "/api/files", {"logical_name": logical_name, "all-keys": True}
+    )
+    if resp["files"]:
+        raise Exception(f"FC Entry found with same logical_name: {resp['files']}")
+
+    return False
 
 
 async def restore(rc: RestClient, fc_entries: List[FCMetadata], dryrun: bool) -> None:
@@ -39,7 +46,7 @@ async def restore(rc: RestClient, fc_entries: List[FCMetadata], dryrun: bool) ->
         logging.debug(fcm)
         if dryrun:
             continue
-        if await already_in_fc(rc, fcm["uuid"]):
+        if await already_in_fc(rc, fcm["uuid"], fcm["logical_name"]):
             logging.info(
                 f"Entry is already in the FC ({fcm['uuid']}); Replacing (PUT)..."
             )

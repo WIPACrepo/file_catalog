@@ -66,7 +66,7 @@ def tornado_logger(handler):
             handler._request_summary(), request_time)
 
 
-def sort_dict(dict_: Dict[str, Any]) -> OrderedDict[str, Any]:  # pylint: disable=E1136
+def sort_dict(dict_: Dict[str, Any]) -> 'OrderedDict[str, Any]':
     """Create an OrderedDict by taking `dict` (`dict_`) and orders its keys.
 
     If a key contains a `dict` it will call this function recursively.

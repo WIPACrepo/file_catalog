@@ -1,41 +1,32 @@
 """File Catalog REST Server Interface."""
 
 # fmt: off
-# isort:skip_file
 
 from __future__ import absolute_import, division, print_function
 
 import copy
-import sys
-import os
+import datetime
 import logging
+import os
 import random
+import sys
+import uuid
+from collections import OrderedDict
 from functools import wraps
 from pkgutil import get_loader
-from collections import OrderedDict
-import uuid
-import datetime
 
-try:
-    import urlparse
-    from urllib import urlencode
-except ImportError:
-    from urllib.parse import urlparse, urlencode
-
-import pymongo.errors
-
+import pymongo.errors  # type: ignore[import]
 import tornado.ioloop
 import tornado.web
-from tornado.httputil import url_concat
-from tornado.escape import json_encode,json_decode
+from rest_tools.server import Auth  # type: ignore[import]
+from tornado.escape import json_decode, json_encode
 from tornado.gen import coroutine
-from tornado.httpclient import HTTPError
-from rest_tools.server import Auth
+from tornado.httputil import url_concat
 
 # local imports
 import file_catalog
+from file_catalog import argbuilder, urlargparse
 from file_catalog.mongo import Mongo
-from file_catalog import urlargparse, argbuilder
 from file_catalog.schema.validation import Validation
 
 logger = logging.getLogger('server')

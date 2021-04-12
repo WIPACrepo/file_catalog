@@ -29,6 +29,8 @@ from file_catalog import argbuilder, urlargparse
 from file_catalog.mongo import Mongo
 from file_catalog.schema.validation import Validation
 
+from . import pathfinder
+
 logger = logging.getLogger('server')
 
 
@@ -547,35 +549,8 @@ class SingleFileHandler(APIHandler):
 
         if self.validation.has_forbidden_attributes_modification(self, metadata, ret):
             return
-
-        # if the user provided a logical_name
-        if 'logical_name' in metadata:
-            # try to load a file by that logical_name
-            check = yield self.db.get_file({'logical_name': metadata['logical_name']})
-            # if we got a file by that logical_name
-            if check:
-                # if the file we got isn't the one we're trying to update
-                if check['uuid'] != uuid:
-                    # then that logical_name belongs to another file (already exists)
-                    self.send_error(409, message='conflict with existing file (logical_name already exists)',
-                                    file=os.path.join(self.files_url, check['uuid']))
-                    return
-
-        # if the user provided locations
-        if 'locations' in metadata:
-            # for each location provided
-            for loc in metadata['locations']:
-                # try to load a file by that location
-                check = yield self.db.get_file({'locations': {'$elemMatch': loc}})
-                # if we got a file by that location
-                if check:
-                    # if the file we got isn't the one we're trying to update
-                    if check['uuid'] != uuid:
-                        # then that location belongs to another file (already exists)
-                        self.send_error(409, message='conflict with existing file (location already exists)',
-                                        file=os.path.join(self.files_url, check['uuid']),
-                                        location=loc)
-                        return
+        if pathfinder.has_conflicting_filepaths(self, uuid, metadata):
+            return
 
         set_last_modification_date(metadata)
 
@@ -609,35 +584,8 @@ class SingleFileHandler(APIHandler):
 
         if self.validation.has_forbidden_attributes_modification(self, metadata, ret):
             return
-
-        # if the user provided a logical_name
-        if 'logical_name' in metadata:
-            # try to load a file by that logical_name
-            check = yield self.db.get_file({'logical_name': metadata['logical_name']})
-            # if we got a file by that logical_name
-            if check:
-                # if the file we got isn't the one we're trying to update
-                if check['uuid'] != uuid:
-                    # then that logical_name belongs to another file (already exists)
-                    self.send_error(409, message='conflict with existing file (logical_name already exists)',
-                                    file=os.path.join(self.files_url, check['uuid']))
-                    return
-
-        # if the user provided locations
-        if 'locations' in metadata:
-            # for each location provided
-            for loc in metadata['locations']:
-                # try to load a file by that location
-                check = yield self.db.get_file({'locations': {'$elemMatch': loc}})
-                # if we got a file by that location
-                if check:
-                    # if the file we got isn't the one we're trying to update
-                    if check['uuid'] != uuid:
-                        # then that location belongs to another file (already exists)
-                        self.send_error(409, message='conflict with existing file (location already exists)',
-                                        file=os.path.join(self.files_url, check['uuid']),
-                                        location=loc)
-                        return
+        if pathfinder.has_conflicting_filepaths(self, uuid, metadata):
+            return
 
         metadata['uuid'] = uuid
         set_last_modification_date(metadata)

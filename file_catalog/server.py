@@ -408,27 +408,8 @@ class FilesHandler(APIHandler):
             return
 
         set_last_modification_date(metadata)
-
-        # try to find an existing document by this logical_name
-        ret = yield self.db.get_file({'logical_name': metadata['logical_name']})
-
-        if ret:
-            # the logical_name already exists
-            self.send_error(409, message='conflict with existing file (logical_name already exists)',
-                            file=os.path.join(self.files_url, ret['uuid']))
+        if pathfinder.contains_existing_filepaths(self, metadata):
             return
-
-        # for each provided location
-        for loc in metadata['locations']:
-            # try to find an existing document by this location
-            ret = yield self.db.get_file({'locations': {'$elemMatch': loc}})
-            # if we are able to find an existing document
-            if ret:
-                # the location already exists
-                self.send_error(409, message='conflict with existing file (location already exists)',
-                                file=os.path.join(self.files_url, ret['uuid']),
-                                location=loc)
-                return
 
         ret = yield self.db.get_file({'uuid':metadata['uuid']})
 
@@ -549,7 +530,7 @@ class SingleFileHandler(APIHandler):
 
         if self.validation.has_forbidden_attributes_modification(self, metadata, ret):
             return
-        if pathfinder.has_conflicting_filepaths(self, uuid, metadata):
+        if pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
             return
 
         set_last_modification_date(metadata)
@@ -584,7 +565,7 @@ class SingleFileHandler(APIHandler):
 
         if self.validation.has_forbidden_attributes_modification(self, metadata, ret):
             return
-        if pathfinder.has_conflicting_filepaths(self, uuid, metadata):
+        if pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
             return
 
         metadata['uuid'] = uuid

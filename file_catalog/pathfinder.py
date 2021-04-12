@@ -2,67 +2,81 @@
 
 import asyncio
 import os
-from typing import Any
+from typing import Any, Dict, Optional, cast
 
 from .schema.types import Metadata
 
 
-def _has_conflicting_logicalname(
-    apihandler: Any, uuid: str, metadata: Metadata
+def _is_conflict(uuid: Optional[str], file_found: Dict[str, Any]) -> bool:
+    # if no file was found, then no problem
+    if not file_found:
+        return False
+
+    # if no uuid was provided, then any match is a conflict
+    if not uuid:
+        return True
+
+    # if the file we got isn't the one we're trying to update, that's a conflict
+    return cast(bool, file_found["uuid"] == uuid)
+
+
+def _contains_existing_logicalname(
+    apihandler: Any, metadata: Metadata, uuid: Optional[str] = None
 ) -> bool:
     # if the user provided a logical_name
     if "logical_name" in metadata:
         # try to load a file by that logical_name
-        check = asyncio.get_event_loop().run_until_complete(
+        file_found = asyncio.get_event_loop().run_until_complete(
             apihandler.db.get_file({"logical_name": metadata["logical_name"]})
         )
         # if we got a file by that logical_name
-        if check:
-            # if the file we got isn't the one we're trying to update
-            if check["uuid"] != uuid:
-                # then that logical_name belongs to another file (already exists)
-                apihandler.send_error(
-                    409,
-                    message="conflict with existing file (logical_name already exists)",
-                    file=os.path.join(apihandler.files_url, check["uuid"]),
-                )
-                return True
+        if _is_conflict(uuid, file_found):
+            # then that logical_name belongs to another file (already exists)
+            apihandler.send_error(
+                409,
+                message="conflict with existing file (logical_name already exists)",
+                file=os.path.join(apihandler.files_url, file_found["uuid"]),
+            )
+            return True
     return False
 
 
-def _has_conflicting_locations(apihandler: Any, uuid: str, metadata: Metadata) -> bool:
+def _contains_existing_locations(
+    apihandler: Any, metadata: Metadata, uuid: Optional[str] = None
+) -> bool:
     # if the user provided locations
     if "locations" in metadata:
         # for each location provided
         for loc in metadata["locations"]:
             # try to load a file by that location
-            check = asyncio.get_event_loop().run_until_complete(
+            file_found = asyncio.get_event_loop().run_until_complete(
                 apihandler.db.get_file({"locations": {"$elemMatch": loc}})
             )
             # if we got a file by that location
-            if check:
-                # if the file we got isn't the one we're trying to update
-                if check["uuid"] != uuid:
-                    # then that location belongs to another file (already exists)
-                    apihandler.send_error(
-                        409,
-                        message="conflict with existing file (location already exists)",
-                        file=os.path.join(apihandler.files_url, check["uuid"]),
-                        location=loc,
-                    )
-                    return True
+            if _is_conflict(uuid, file_found):
+                # then that location belongs to another file (already exists)
+                apihandler.send_error(
+                    409,
+                    message="conflict with existing file (location already exists)",
+                    file=os.path.join(apihandler.files_url, file_found["uuid"]),
+                    location=loc,
+                )
+                return True
     return False
 
 
-def has_conflicting_filepaths(apihandler: Any, uuid: str, metadata: Metadata) -> bool:
+def contains_existing_filepaths(
+    apihandler: Any, metadata: Metadata, uuid: Optional[str] = None
+) -> bool:
     """Check if all filepaths in `metadata` are novel.
 
     If any are found to already be in the FC, send 409 error & return
-    True.
+    True. If any of the matches has the uuid given (`uuid`) (that is, if
+    one is provided), then no conflict is declared.
     """
-    if _has_conflicting_logicalname(apihandler, uuid, metadata):
+    if _contains_existing_logicalname(apihandler, metadata, uuid):
         return True
-    elif _has_conflicting_locations(apihandler, uuid, metadata):
+    elif _contains_existing_locations(apihandler, metadata, uuid):
         return True
     else:
         return False

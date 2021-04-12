@@ -1,6 +1,6 @@
 """Metadata schema type hints."""
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     from typing import TypedDict
@@ -159,6 +159,11 @@ class Metadata(TypedDict, total=False):
 
     https://docs.google.com/document/d/14SanUWiYEbgarElt0YXSn_2We-rwT-ePO5Fg7rrM9lw/view#heading=h.yq8ukujsb797
     """
+
+    # Database Fields
+    uuid: str
+    _links: Dict[str, Dict[str, Any]]
+    meta_modify_date: Date
 
     # Basic File:
     logical_name: str

@@ -10,10 +10,11 @@ import logging
 import os
 import random
 import sys
-import uuid
 from collections import OrderedDict
 from functools import wraps
 from pkgutil import get_loader
+from typing import Any, Dict, Union, cast
+from uuid import uuid1
 
 import pymongo.errors  # type: ignore[import]
 import tornado.ioloop
@@ -30,6 +31,7 @@ from file_catalog.mongo import Mongo
 from file_catalog.schema.validation import Validation
 
 from . import pathfinder
+from .schema import types
 
 logger = logging.getLogger('server')
 
@@ -64,24 +66,27 @@ def tornado_logger(handler):
             handler._request_summary(), request_time)
 
 
-def sort_dict(d):
-    """Creates an OrderedDict by taking `dict` named `d` and orders its keys.
+def sort_dict(dict_: Dict[str, Any]) -> OrderedDict[str, Any]:  # pylint: disable=E1136
+    """Create an OrderedDict by taking `dict` (`dict_`) and orders its keys.
 
     If a key contains a `dict` it will call this function recursively.
     """
-
-    od = OrderedDict(sorted(d.items()))
+    odict = OrderedDict(sorted(dict_.items()))
 
     # check for dicts in values
-    for key in od:
-        if isinstance(od[key], dict):
-            od[key] = sort_dict(od[key])
+    for key in odict:
+        if isinstance(odict[key], dict):
+            odict[key] = sort_dict(odict[key])
 
-    return od
+    return odict
 
 
-def set_last_modification_date(d):
-    d['meta_modify_date'] = str(datetime.datetime.utcnow())
+def set_last_modification_date(metadata: types.Metadata) -> None:
+    """Set the `"meta_modify_date"` field."""
+    metadata['meta_modify_date'] = str(datetime.datetime.utcnow())
+
+
+# --------------------------------------------------------------------------------------
 
 
 class Server(object):
@@ -155,6 +160,9 @@ class Server(object):
         tornado.ioloop.IOLoop.current().start()
 
 
+# --------------------------------------------------------------------------------------
+
+
 class MainHandler(tornado.web.RequestHandler):
     """Main HTML handler."""
     def initialize(self, base_url='/', debug=False, config=None):
@@ -172,7 +180,7 @@ class MainHandler(tornado.web.RequestHandler):
         self.address = config['FC_PUBLIC_URL']
 
     def get_template_namespace(self):
-        namespace = super(MainHandler,self).get_template_namespace()
+        namespace = super().get_template_namespace()
         namespace['version'] = file_catalog.__version__
         return namespace
 
@@ -208,6 +216,9 @@ class MainHandler(tornado.web.RequestHandler):
         if 'message' in kwargs:
             self.write('<br />'.join(kwargs['message'].split('\n')))
         self.finish()
+
+
+# --------------------------------------------------------------------------------------
 
 
 def catch_error(method):
@@ -246,6 +257,9 @@ class LoginHandler(MainHandler):
         self.redirect(redirect)
 
 
+# --------------------------------------------------------------------------------------
+
+
 class AccountHandler(MainHandler):
     """Account HTML handler."""
     @catch_error
@@ -261,6 +275,9 @@ class AccountHandler(MainHandler):
         access = self.get_argument('access')
         refresh = self.get_argument('refresh')
         self.render('account.html', authkey=refresh, tempkey=access)
+
+
+# --------------------------------------------------------------------------------------
 
 
 def validate_auth(method):
@@ -329,11 +346,14 @@ class APIHandler(tornado.web.RequestHandler):
         if self.rate_limit_data[ip] <= 0:
             del self.rate_limit_data[ip]
 
-    def write(self, chunk):
+    def write(self, chunk: Union[str, bytes, Dict[str, Any], types.Metadata]) -> None:
+        """Write chunk to output buffer."""
         # override write so we don't output a json header
         if isinstance(chunk, dict):
-            chunk = json_encode(sort_dict(chunk))
-        super(APIHandler, self).write(chunk)
+            chunk = cast(Dict[str, Any], chunk)  # unfortunately necessary, but a no-op
+            chunk = sort_dict(chunk)
+            chunk = json_encode(chunk)
+        super().write(chunk)
 
     def write_error(self,status_code=500,**kwargs):
         """Write out custom error page."""
@@ -346,9 +366,12 @@ class APIHandler(tornado.web.RequestHandler):
         self.finish()
 
 
+# --------------------------------------------------------------------------------------
+
+
 class HATEOASHandler(APIHandler):
     def initialize(self, **kwargs):
-        super(HATEOASHandler, self).initialize(**kwargs)
+        super().initialize(**kwargs)
 
         # response is known ahead of time, so pre-compute it
         self.data = {
@@ -363,9 +386,12 @@ class HATEOASHandler(APIHandler):
         self.write(self.data)
 
 
+# --------------------------------------------------------------------------------------
+
+
 class FilesHandler(APIHandler):
     def initialize(self, **kwargs):
-        super(FilesHandler, self).initialize(**kwargs)
+        super().initialize(**kwargs)
         self.files_url = os.path.join(self.base_url,'files')
         self.validation = Validation(self.config)
 
@@ -373,6 +399,7 @@ class FilesHandler(APIHandler):
     @catch_error
     @coroutine
     def get(self):
+        """Handle GET requests."""
         try:
             kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
@@ -380,7 +407,7 @@ class FilesHandler(APIHandler):
             argbuilder.build_files_query(kwargs)
             argbuilder.build_keys(kwargs)
         except:
-            logging.warn('query parameter error', exc_info=True)
+            logging.warning('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
 
@@ -398,11 +425,12 @@ class FilesHandler(APIHandler):
     @catch_error
     @coroutine
     def post(self):
-        metadata = json_decode(self.request.body)
+        """Handle POST request."""
+        metadata: types.Metadata = json_decode(self.request.body)
 
         # allow user-specified uuid, create if not found
         if 'uuid' not in metadata:
-            metadata['uuid'] = str(uuid.uuid1())
+            metadata['uuid'] = str(uuid1())
 
         if not self.validation.validate_metadata_creation(self, metadata):
             return
@@ -444,9 +472,12 @@ class FilesHandler(APIHandler):
         })
 
 
+# --------------------------------------------------------------------------------------
+
+
 class FilesCountHandler(APIHandler):
     def initialize(self, **kwargs):
-        super(FilesCountHandler, self).initialize(**kwargs)
+        super().initialize(**kwargs)
         self.files_url = os.path.join(self.base_url,'files')
         self.validation = Validation(self.config)
 
@@ -454,11 +485,12 @@ class FilesCountHandler(APIHandler):
     @catch_error
     @coroutine
     def get(self):
+        """Handle GET request."""
         try:
             kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_files_query(kwargs)
         except:
-            logging.warn('query parameter error', exc_info=True)
+            logging.warning('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
 
@@ -473,16 +505,20 @@ class FilesCountHandler(APIHandler):
         })
 
 
+# --------------------------------------------------------------------------------------
+
+
 class SingleFileHandler(APIHandler):
     def initialize(self, **kwargs):
-        super(SingleFileHandler, self).initialize(**kwargs)
+        super().initialize(**kwargs)
         self.files_url = os.path.join(self.base_url,'files')
         self.validation = Validation(self.config)
 
     @validate_auth
     @catch_error
     @coroutine
-    def get(self, uuid):
+    def get(self, uuid: str):
+        """Handle GET request."""
         try:
             ret = yield self.db.get_file({'uuid':uuid})
 
@@ -501,7 +537,8 @@ class SingleFileHandler(APIHandler):
     @validate_auth
     @catch_error
     @coroutine
-    def delete(self, uuid):
+    def delete(self, uuid: str):
+        """Handle DELETE request."""
         try:
             yield self.db.delete_file({'uuid':uuid})
         except pymongo.errors.InvalidId:
@@ -514,8 +551,9 @@ class SingleFileHandler(APIHandler):
     @validate_auth
     @catch_error
     @coroutine
-    def patch(self, uuid):
-        metadata = json_decode(self.request.body)
+    def patch(self, uuid: str):
+        """Handle PATCH request."""
+        metadata: types.Metadata = json_decode(self.request.body)
 
         links = {
             'self': {'href': os.path.join(self.files_url,uuid)},
@@ -549,8 +587,9 @@ class SingleFileHandler(APIHandler):
     @validate_auth
     @catch_error
     @coroutine
-    def put(self, uuid):
-        metadata = json_decode(self.request.body)
+    def put(self, uuid: str):
+        """Handle PUT request."""
+        metadata: types.Metadata = json_decode(self.request.body)
 
         links = {
             'self': {'href': os.path.join(self.files_url,uuid)},
@@ -581,20 +620,25 @@ class SingleFileHandler(APIHandler):
         else:
             self.send_error(404, message='not found')
 
+# --------------------------------------------------------------------------------------
+
 
 class SingleFileLocationsHandler(APIHandler):
     """Initialize a handler for adding new locations to an existing record."""
 
     def initialize(self, **kwargs):
         """Initialize a handler for adding new locations to existing record."""
-        super(SingleFileLocationsHandler, self).initialize(**kwargs)
+        super().initialize(**kwargs)
         self.files_url = os.path.join(self.base_url, 'files')
 
     @validate_auth
     @catch_error
     @coroutine
-    def post(self, uuid):
-        """Add location(s) to the record identified by the provided UUID."""
+    def post(self, uuid: str):
+        """Handle POST request.
+
+        Add location(s) to the record identified by the provided UUID.
+        """
         # try to load the record from the file catalog by UUID
         try:
             ret = yield self.db.get_file({'uuid': uuid})
@@ -608,7 +652,7 @@ class SingleFileLocationsHandler(APIHandler):
             return
 
         # decode the JSON provided in the POST body
-        metadata = json_decode(self.request.body)
+        metadata: types.Metadata = json_decode(self.request.body)
         locations = metadata.get("locations")
 
         # if the user didn't provide locations
@@ -657,13 +701,19 @@ class SingleFileLocationsHandler(APIHandler):
         }
         self.write(ret)
 
+
 ### Collections ###
+# --------------------------------------------------------------------------------------
+
 
 class CollectionBaseHandler(APIHandler):
     def initialize(self, **kwargs):
-        super(CollectionBaseHandler, self).initialize(**kwargs)
+        super().initialize(**kwargs)
         self.collections_url = os.path.join(self.base_url,'collections')
         self.snapshots_url = os.path.join(self.base_url,'snapshots')
+
+
+# --------------------------------------------------------------------------------------
 
 
 class CollectionsHandler(CollectionBaseHandler):
@@ -671,13 +721,14 @@ class CollectionsHandler(CollectionBaseHandler):
     @catch_error
     @coroutine
     def get(self):
+        """Handle GET request."""
         try:
             kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
             argbuilder.build_start(kwargs)
             argbuilder.build_keys(kwargs)
         except:
-            logging.warn('query parameter error', exc_info=True)
+            logging.warning('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
 
@@ -695,13 +746,14 @@ class CollectionsHandler(CollectionBaseHandler):
     @catch_error
     @coroutine
     def post(self):
+        """Handle POST request."""
         metadata = json_decode(self.request.body)
 
         try:
             argbuilder.build_files_query(metadata)
             metadata['query'] = json_encode(metadata['query'])
         except:
-            logging.warn('query parameter error', exc_info=True)
+            logging.warning('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
 
@@ -714,7 +766,7 @@ class CollectionsHandler(CollectionBaseHandler):
 
         # allow user-specified uuid, create if not found
         if 'uuid' not in metadata:
-            metadata['uuid'] = str(uuid.uuid1())
+            metadata['uuid'] = str(uuid1())
 
         set_last_modification_date(metadata)
         metadata['creation_date'] = metadata['meta_modify_date']
@@ -738,11 +790,15 @@ class CollectionsHandler(CollectionBaseHandler):
         })
 
 
+# --------------------------------------------------------------------------------------
+
+
 class SingleCollectionHandler(CollectionBaseHandler):
     @validate_auth
     @catch_error
     @coroutine
     def get(self, uid):
+        """Handle GET request."""
         ret = yield self.db.get_collection({'uuid':uid})
         if not ret:
             ret = yield self.db.get_collection({'collection_name':uid})
@@ -758,11 +814,15 @@ class SingleCollectionHandler(CollectionBaseHandler):
             self.send_error(404, message='collection not found')
 
 
+# --------------------------------------------------------------------------------------
+
+
 class SingleCollectionFilesHandler(CollectionBaseHandler):
     @validate_auth
     @catch_error
     @coroutine
     def get(self, uid):
+        """Handle GET request."""
         ret = yield self.db.get_collection({'uuid':uid})
         if not ret:
             ret = yield self.db.get_collection({'collection_name':uid})
@@ -775,7 +835,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
                 kwargs['query'] = json_decode(ret['query'])
                 argbuilder.build_keys(kwargs)
             except:
-                logging.warn('query parameter error', exc_info=True)
+                logging.warning('query parameter error', exc_info=True)
                 self.send_error(400, message='invalid query parameters')
                 return
 
@@ -792,11 +852,15 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
             self.send_error(404, message='collection not found')
 
 
+# --------------------------------------------------------------------------------------
+
+
 class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
     @validate_auth
     @catch_error
     @coroutine
     def get(self, uid):
+        """Handle GET request."""
         ret = yield self.db.get_collection({'uuid':uid})
         if not ret:
             ret = yield self.db.get_collection({'collection_name':uid})
@@ -811,7 +875,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             argbuilder.build_keys(kwargs)
             kwargs['query'] = {'collection_id': ret['uuid']}
         except:
-            logging.warn('query parameter error', exc_info=True)
+            logging.warning('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
 
@@ -829,6 +893,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
     @catch_error
     @coroutine
     def post(self, uid):
+        """Handle POST request."""
         ret = yield self.db.get_collection({'uuid':uid})
         if not ret:
             ret = yield self.db.get_collection({'collection_name':uid})
@@ -852,7 +917,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 
         # allow user-specified uuid, create if not found
         if 'uuid' not in metadata:
-            metadata['uuid'] = str(uuid.uuid1())
+            metadata['uuid'] = str(uuid1())
 
         set_last_modification_date(metadata)
         metadata['creation_date'] = metadata['meta_modify_date']
@@ -880,11 +945,15 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             })
 
 
+# --------------------------------------------------------------------------------------
+
+
 class SingleSnapshotHandler(CollectionBaseHandler):
     @validate_auth
     @catch_error
     @coroutine
     def get(self, uid):
+        """Handle GET request."""
         ret = yield self.db.get_snapshot({'uuid':uid})
 
         if ret:
@@ -898,11 +967,15 @@ class SingleSnapshotHandler(CollectionBaseHandler):
             self.send_error(404, message='snapshot not found')
 
 
+# --------------------------------------------------------------------------------------
+
+
 class SingleSnapshotFilesHandler(CollectionBaseHandler):
     @validate_auth
     @catch_error
     @coroutine
     def get(self, uid):
+        """Handle GET request."""
         ret = yield self.db.get_snapshot({'uuid':uid})
 
         if ret:
@@ -914,7 +987,7 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
                 logger.warning('getting files: %r', kwargs['query'])
                 argbuilder.build_keys(kwargs)
             except:
-                logging.warn('query parameter error', exc_info=True)
+                logging.warning('query parameter error', exc_info=True)
                 self.send_error(400, message='invalid query parameters')
                 return
 

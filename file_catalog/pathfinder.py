@@ -1,6 +1,5 @@
 """Utility functions for finding a given filepath in the FC."""
 
-import asyncio
 import os
 from typing import Any, Dict, Optional, cast
 
@@ -20,14 +19,14 @@ def _is_conflict(uuid: Optional[str], file_found: Dict[str, Any]) -> bool:
     return cast(bool, file_found["uuid"] == uuid)
 
 
-def _contains_existing_logicalname(
+async def _contains_existing_logicalname(
     apihandler: Any, metadata: Metadata, uuid: Optional[str] = None
 ) -> bool:
     # if the user provided a logical_name
     if "logical_name" in metadata:
         # try to load a file by that logical_name
-        file_found = asyncio.get_event_loop().run_until_complete(
-            apihandler.db.get_file({"logical_name": metadata["logical_name"]})
+        file_found = await apihandler.db.get_file(
+            {"logical_name": metadata["logical_name"]}
         )
         # if we got a file by that logical_name
         if _is_conflict(uuid, file_found):
@@ -41,7 +40,7 @@ def _contains_existing_logicalname(
     return False
 
 
-def _contains_existing_locations(
+async def _contains_existing_locations(
     apihandler: Any, metadata: Metadata, uuid: Optional[str] = None
 ) -> bool:
     # if the user provided locations
@@ -49,8 +48,8 @@ def _contains_existing_locations(
         # for each location provided
         for loc in metadata["locations"]:
             # try to load a file by that location
-            file_found = asyncio.get_event_loop().run_until_complete(
-                apihandler.db.get_file({"locations": {"$elemMatch": loc}})
+            file_found = await apihandler.db.get_file(
+                {"locations": {"$elemMatch": loc}}
             )
             # if we got a file by that location
             if _is_conflict(uuid, file_found):
@@ -65,7 +64,7 @@ def _contains_existing_locations(
     return False
 
 
-def contains_existing_filepaths(
+async def contains_existing_filepaths(
     apihandler: Any, metadata: Metadata, uuid: Optional[str] = None
 ) -> bool:
     """Check if all filepaths in `metadata` are novel.
@@ -74,9 +73,9 @@ def contains_existing_filepaths(
     True. If any of the matches has the uuid given (`uuid`) (that is, if
     one is provided), then no conflict is declared.
     """
-    if _contains_existing_logicalname(apihandler, metadata, uuid):
+    if await _contains_existing_logicalname(apihandler, metadata, uuid):
         return True
-    elif _contains_existing_locations(apihandler, metadata, uuid):
+    elif await _contains_existing_locations(apihandler, metadata, uuid):
         return True
     else:
         return False

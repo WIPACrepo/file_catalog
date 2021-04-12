@@ -424,7 +424,7 @@ class FilesHandler(APIHandler):
     @validate_auth
     @catch_error
     @coroutine
-    def post(self):
+    async def post(self):
         """Handle POST request."""
         metadata: types.Metadata = json_decode(self.request.body)
 
@@ -436,7 +436,7 @@ class FilesHandler(APIHandler):
             return
 
         set_last_modification_date(metadata)
-        if pathfinder.contains_existing_filepaths(self, metadata):
+        if await pathfinder.contains_existing_filepaths(self, metadata):
             return
 
         ret = yield self.db.get_file({'uuid':metadata['uuid']})
@@ -551,7 +551,7 @@ class SingleFileHandler(APIHandler):
     @validate_auth
     @catch_error
     @coroutine
-    def patch(self, uuid: str):
+    async def patch(self, uuid: str):
         """Handle PATCH request."""
         metadata: types.Metadata = json_decode(self.request.body)
 
@@ -567,7 +567,7 @@ class SingleFileHandler(APIHandler):
         # Validate Metadata
         if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
-        if pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
+        if await pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
             return
 
         # Add to Metadata
@@ -591,7 +591,7 @@ class SingleFileHandler(APIHandler):
     @validate_auth
     @catch_error
     @coroutine
-    def put(self, uuid: str):
+    async def put(self, uuid: str):
         """Handle PUT request."""
         metadata: types.Metadata = json_decode(self.request.body)
 
@@ -607,7 +607,7 @@ class SingleFileHandler(APIHandler):
         # Validate Metadata
         if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
-        if pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
+        if await pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
             return
         if not self.validation.validate_metadata_modification(self, metadata):
             return

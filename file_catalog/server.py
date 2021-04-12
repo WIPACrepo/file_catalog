@@ -555,34 +555,38 @@ class SingleFileHandler(APIHandler):
         """Handle PATCH request."""
         metadata: types.Metadata = json_decode(self.request.body)
 
-        links = {
-            'self': {'href': os.path.join(self.files_url,uuid)},
-            'parent': {'href': self.files_url},
-        }
-
+        # Find Matching File
         try:
-            ret = yield self.db.get_file({'uuid':uuid})
+            db_file = yield self.db.get_file({'uuid': uuid})
         except pymongo.errors.InvalidId:
             self.send_error(400, message='Not a valid uuid')
             return
+        if not db_file:
+            self.send_error(404, message='not found')
 
-        if self.validation.has_forbidden_attributes_modification(self, metadata, ret):
+        # Validate Metadata
+        if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
         if pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
             return
 
+        # Add to Metadata
         set_last_modification_date(metadata)
 
-        if ret:
-            ret.update(metadata)
-            if not self.validation.validate_metadata_modification(self, ret):
-                return
+        # Validate Updated Metadata
+        db_file.update(metadata)
+        # we have to validate `db_file` b/c `metadata` may not have all the required fields
+        if not self.validation.validate_metadata_modification(self, db_file):
+            return
 
-            yield self.db.update_file(uuid, metadata)
-            ret['_links'] = links
-            self.write(ret)
-        else:
-            self.send_error(404, message='not found')
+        # Insert into DB & Write Back
+        yield self.db.update_file(uuid, metadata)
+        db_file['_links'] = {
+            'self': {'href': os.path.join(self.files_url, uuid)},
+            'parent': {'href': self.files_url},
+        }
+        self.write(db_file)
+
 
     @validate_auth
     @catch_error
@@ -591,34 +595,35 @@ class SingleFileHandler(APIHandler):
         """Handle PUT request."""
         metadata: types.Metadata = json_decode(self.request.body)
 
-        links = {
-            'self': {'href': os.path.join(self.files_url,uuid)},
-            'parent': {'href': self.files_url},
-        }
-
+        # Find Matching File
         try:
-            ret = yield self.db.get_file({'uuid':uuid})
+            db_file = yield self.db.get_file({'uuid': uuid})
         except pymongo.errors.InvalidId:
             self.send_error(400, message='Not a valid uuid')
             return
+        if not db_file:
+            self.send_error(404, message='not found')
 
-        if self.validation.has_forbidden_attributes_modification(self, metadata, ret):
+        # Validate Metadata
+        if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
         if pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
             return
+        if not self.validation.validate_metadata_modification(self, metadata):
+            return
 
+        # Add to Metadata
         metadata['uuid'] = uuid
         set_last_modification_date(metadata)
 
-        if ret:
-            if not self.validation.validate_metadata_modification(self, metadata):
-                return
+        # Insert into DB & Write Back
+        yield self.db.replace_file(metadata.copy())
+        metadata['_links'] = {
+            'self': {'href': os.path.join(self.files_url, uuid)},
+            'parent': {'href': self.files_url},
+        }
+        self.write(metadata)
 
-            yield self.db.replace_file(metadata.copy())
-            metadata['_links'] = links
-            self.write(metadata)
-        else:
-            self.send_error(404, message='not found')
 
 # --------------------------------------------------------------------------------------
 

@@ -27,12 +27,11 @@ from tornado.httputil import url_concat
 
 # local imports
 import file_catalog
-from file_catalog import argbuilder, urlargparse
-from file_catalog.mongo import Mongo
-from file_catalog.schema.validation import Validation
 
-from . import pathfinder
+from . import argbuilder, pathfinder, urlargparse
+from .mongo import Mongo
 from .schema import types
+from .schema.validation import Validation
 
 logger = logging.getLogger('server')
 

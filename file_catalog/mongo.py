@@ -192,8 +192,8 @@ class Mongo:
         projection = Mongo._get_projection(
             keys, default={"uuid": True, "logical_name": True}
         )
-        cursor = await self.client.files.find(query, projection)
-        results = list(await Mongo._limit_result_list(cursor, limit, start))
+        cursor = self.client.files.find(query, projection)
+        results = await Mongo._limit_result_list(cursor, limit, start)
 
         return results
 
@@ -288,8 +288,8 @@ class Mongo:
             List of MongoDB collections
         """
         projection = Mongo._get_projection(keys)  # show all fields by default
-        cursor = await self.client.collections.find({}, projection)
-        results = list(await Mongo._limit_result_list(cursor, limit, start))
+        cursor = self.client.collections.find({}, projection)
+        results = await Mongo._limit_result_list(cursor, limit, start)
 
         return results
 
@@ -333,8 +333,8 @@ class Mongo:
             List of MongoDB snapshots
         """
         projection = Mongo._get_projection(keys)  # show all fields by default
-        cursor = await self.client.snapshots.find(query, projection)
-        results = list(await Mongo._limit_result_list(cursor, limit, start))
+        cursor = self.client.snapshots.find(query, projection)
+        results = await Mongo._limit_result_list(cursor, limit, start)
 
         return results
 

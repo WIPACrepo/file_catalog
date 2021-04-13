@@ -1,6 +1,7 @@
 """File Catalog REST Server Interface."""
 
 # fmt: off
+# pylint: disable=R0913,R0903
 
 from __future__ import absolute_import, division, print_function
 
@@ -64,7 +65,7 @@ def tornado_logger(handler: Any) -> None:
         log_method = logger.error
     request_time = 1000.0 * handler.request.request_time()
     log_method("%d %s %.2fms", handler.get_status(),
-            handler._request_summary(), request_time)
+               handler._request_summary(), request_time)
 
 
 def sort_dict(dict_: Dict[str, Any]) -> 'OrderedDict[str, Any]':
@@ -90,12 +91,21 @@ def set_last_modification_date(metadata: types.Metadata) -> None:
 # --------------------------------------------------------------------------------------
 
 
-class Server(object):
+class Server:
     """A file_catalog server instance."""
 
-    def __init__(self, config, port=8888, debug=False,
-                 db_host='localhost', db_port=27017,
-                 db_auth_source='admin', db_user=None, db_pass=None, db_uri=None) -> None:
+    def __init__(  # pylint: disable=R0914
+        self,
+        config: Dict[str, Any],
+        port: int = 8888,
+        debug: bool = False,
+        db_host: str = "localhost",
+        db_port: int = 27017,
+        db_auth_source: str = "admin",
+        db_user: Optional[str] = None,
+        db_pass: Optional[str] = None,
+        db_uri: Optional[str] = None,
+    ) -> None:
         static_path = get_pkgdata_filename('file_catalog', 'data/www')
         if static_path is None:
             raise Exception('bad static path')
@@ -129,9 +139,10 @@ class Server(object):
         if config['FC_COOKIE_SECRET'] is not None:
             cookie_secret = config['FC_COOKIE_SECRET']
         else:
-            cookie_secret = ''.join(chr(random.randint(0,128)) for _ in range(16))
+            cookie_secret = ''.join(chr(random.randint(0, 128)) for _ in range(16))
 
-        app = tornado.web.Application([
+        app = tornado.web.Application(
+            [
                 (r"/", MainHandler, main_args),
                 (r"/login", LoginHandler, main_args),
                 (r"/account", AccountHandler, main_args),
@@ -157,7 +168,7 @@ class Server(object):
         )
         app.listen(port)
 
-    def run(self) -> None:
+    def run(self) -> None:  # pylint: disable=R0201
         """Start IO loop."""
         tornado.ioloop.IOLoop.current().start()
 
@@ -167,21 +178,31 @@ class Server(object):
 
 class MainHandler(tornado.web.RequestHandler):
     """Main HTML handler."""
-    def initialize(self, base_url='/', debug=False, config=None) -> None:
+
+    def initialize(  # pylint: disable=C0116,W0201
+        self,
+        base_url: str = "/",
+        debug: bool = False,
+        config: Optional[Dict[str, Any]] = None,
+    ) -> None:  # noqa: D102
+        if config is None:
+            raise Exception('Invalid configuration: `config` is `None`')
+
         self.base_url = base_url
         self.debug = debug
         self.config = config
         if 'TOKEN_KEY' in self.config:
             self.auth = Auth(algorithm=self.config['TOKEN_ALGORITHM'],
-                                secret=self.config['TOKEN_KEY'],
-                                issuer=self.config['TOKEN_URL'])
+                             secret=self.config['TOKEN_KEY'],
+                             issuer=self.config['TOKEN_URL'])
             self.auth_key = None
         else:
             self.auth = None
         self.current_user_secure = None
         self.address = config['FC_PUBLIC_URL']
 
-    def get_template_namespace(self):
+    def get_template_namespace(self) -> Dict[str, Any]:
+        """Get the template namespace."""
         namespace = super().get_template_namespace()
         namespace['version'] = file_catalog.__version__
         return namespace
@@ -193,7 +214,7 @@ class MainHandler(tornado.web.RequestHandler):
             logger.info('token: %r', token)
             data = self.auth.validate(token, audience=['ANY'])
             self.auth_key = token
-            return data['sub']
+            return cast(str, data['sub'])
         except Exception:
             logger.warning('failed auth', exc_info=True)
         return None
@@ -232,7 +253,7 @@ def catch_error(method: Callable[..., Any]) -> Callable[..., Any]:
             return method(self, *args, **kwargs)
         except Exception as e:
             logger.warning('Error in api handler', exc_info=True)
-            kwargs = {'message':'Internal error in '+self.__class__.__name__}
+            kwargs = {'message': 'Internal error in ' + self.__class__.__name__}
             if self.debug:
                 kwargs['exception'] = str(e)
             self.send_error(**kwargs)
@@ -242,11 +263,12 @@ def catch_error(method: Callable[..., Any]) -> Callable[..., Any]:
 
 class LoginHandler(MainHandler):
     """Login HTML handler."""
+
     @catch_error
     def get(self) -> None:
         """Handle GET requests."""
         if not self.get_argument('access', False):
-            url = url_concat(self.config['TOKEN_URL']+'/token', {
+            url = url_concat(self.config['TOKEN_URL'] + '/token', {
                 'redirect': self.address + self.request.uri,
                 'state': self.get_argument('next', '/'),
                 'scope': 'file-catalog',
@@ -267,11 +289,12 @@ class LoginHandler(MainHandler):
 
 class AccountHandler(MainHandler):
     """Account HTML handler."""
+
     @catch_error
     def get(self) -> None:
         """Handle Handle GET requests."""
         if not self.get_argument('access', False):
-            url = url_concat(self.config['TOKEN_URL']+'/token', {
+            url = url_concat(self.config['TOKEN_URL'] + '/token', {
                 'redirect': self.address + self.request.uri,
                 'scope': 'file-catalog',
             })
@@ -290,10 +313,10 @@ def validate_auth(method: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator to check auth key on api handlers."""
     @wraps(method)
     def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-        if not self.auth: # skip auth if not present
+        if not self.auth:  # skip auth if not present
             return method(self, *args, **kwargs)
         try:
-            auth_key = self.request.headers['Authorization'].split(' ',1)
+            auth_key = self.request.headers['Authorization'].split(' ', 1)
             if not auth_key[0].lower() == 'bearer':
                 raise Exception('not a bearer token')
             # logger.info('validate_auth token: %r', auth_key[1])
@@ -301,7 +324,7 @@ def validate_auth(method: Callable[..., Any]) -> Callable[..., Any]:
             self.auth_key = auth_key[1]
         except Exception as e:
             logger.warning('auth error', exc_info=True)
-            kwargs = {'message':'Authorization error','status_code':403}
+            kwargs = {'message': 'Authorization error', 'status_code': 403}
             if self.debug:
                 kwargs['exception'] = str(e)
             self.send_error(**kwargs)
@@ -313,30 +336,38 @@ def validate_auth(method: Callable[..., Any]) -> Callable[..., Any]:
 
 class APIHandler(tornado.web.RequestHandler):
     """Base class for API handlers."""
-    def initialize(self, config, db=None, base_url='/', debug=False, rate_limit=10) -> None:
+
+    def initialize(  # pylint: disable=C0116,W0201
+        self,
+        config: Dict[str, Any],
+        db: Optional[str] = None,
+        base_url: str = "/",
+        debug: bool = False,
+        rate_limit: int = 10,
+    ) -> None:  # noqa: D102
         self.db = db
         self.base_url = base_url
         self.debug = debug
         self.config = config
         if 'TOKEN_KEY' in self.config:
             self.auth = Auth(algorithm=self.config['TOKEN_ALGORITHM'],
-                                secret=self.config['TOKEN_KEY'],
-                                issuer=self.config['TOKEN_URL'])
+                             secret=self.config['TOKEN_KEY'],
+                             issuer=self.config['TOKEN_URL'])
             self.auth_key = None
         else:
             self.auth = None
 
         # subtract 1 to test before current connection is added
-        self.rate_limit = rate_limit-1
+        self.rate_limit = rate_limit - 1
         self.rate_limit_data = {}
 
-    def check_xsrf_cookie(self) -> None:
+    def check_xsrf_cookie(self) -> None:  # noqa: D102
         pass
 
-    def set_default_headers(self) -> None:
+    def set_default_headers(self) -> None:  # noqa: D102
         self.set_header('Content-Type', 'application/hal+json; charset=UTF-8')
 
-    def prepare(self) -> None:
+    def prepare(self) -> None:  # noqa: D102
         # implement rate limiting
         ip = self.request.remote_ip
         if ip in self.rate_limit_data:
@@ -347,7 +378,7 @@ class APIHandler(tornado.web.RequestHandler):
         else:
             self.rate_limit_data[ip] = 1
 
-    def on_finish(self) -> None:
+    def on_finish(self) -> None:  # noqa: D102
         ip = self.request.remote_ip
         self.rate_limit_data[ip] -= 1
         if self.rate_limit_data[ip] <= 0:
@@ -365,9 +396,9 @@ class APIHandler(tornado.web.RequestHandler):
     def write_error(self, status_code: int = 500, **kwargs: Any) -> None:
         """Write out custom error page."""
         if 'reason' in kwargs:
-            logger.debug('%r',kwargs['reason'])
+            logger.debug('%r', kwargs['reason'])
         self.set_status(status_code)
-        kwargs.pop('exc_info',None)
+        kwargs.pop('exc_info', None)
         if kwargs:
             self.write(kwargs)
         self.finish()
@@ -377,19 +408,23 @@ class APIHandler(tornado.web.RequestHandler):
 
 
 class HATEOASHandler(APIHandler):
-    def initialize(self, **kwargs: Any) -> None:
+    """Initialize a new handler."""
+
+    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
+        # pylint: disable=W0201
         super().initialize(**kwargs)
 
         # response is known ahead of time, so pre-compute it
         self.data = {
-            '_links':{
+            '_links': {
                 'self': {'href': self.base_url},
             },
-            'files': {'href': os.path.join(self.base_url,'files')},
+            'files': {'href': os.path.join(self.base_url, 'files')},
         }
 
     @catch_error
     def get(self) -> None:
+        """Handle Handle GET requests."""
         self.write(self.data)
 
 
@@ -397,9 +432,12 @@ class HATEOASHandler(APIHandler):
 
 
 class FilesHandler(APIHandler):
-    def initialize(self, **kwargs: Any) -> None:
+    """Initialize a handler for requesting files without a known uuid."""
+
+    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
+        # pylint: disable=W0201
         super().initialize(**kwargs)
-        self.files_url = os.path.join(self.base_url,'files')
+        self.files_url = os.path.join(self.base_url, 'files')
         self.validation = Validation(self.config)
 
     @validate_auth
@@ -421,7 +459,7 @@ class FilesHandler(APIHandler):
         files = yield self.db.find_files(**kwargs)
 
         self.write({
-            '_links':{
+            '_links': {
                 'self': {'href': self.files_url},
                 'parent': {'href': self.base_url},
             },
@@ -446,19 +484,19 @@ class FilesHandler(APIHandler):
         if await pathfinder.contains_existing_filepaths(self, metadata):
             return
 
-        ret = yield self.db.get_file({'uuid':metadata['uuid']})
+        ret = yield self.db.get_file({'uuid': metadata['uuid']})
 
         if ret:
             # file uuid already exists, check checksum
             if ret['checksum'] != metadata['checksum']:
                 # the uuid already exists (no replica since checksum is different
                 self.send_error(409, message='conflict with existing file (uuid already exists)',
-                                file=os.path.join(self.files_url,ret['uuid']))
+                                file=os.path.join(self.files_url, ret['uuid']))
                 return
             elif any(f in ret['locations'] for f in metadata['locations']):
                 # replica has already been added
                 self.send_error(409, message='replica has already been added',
-                                file=os.path.join(self.files_url,ret['uuid']))
+                                file=os.path.join(self.files_url, ret['uuid']))
                 return
             else:
                 # add replica
@@ -471,7 +509,7 @@ class FilesHandler(APIHandler):
             ret = yield self.db.create_file(metadata)
             self.set_status(201)
         self.write({
-            '_links':{
+            '_links': {
                 'self': {'href': self.files_url},
                 'parent': {'href': self.base_url},
             },
@@ -483,9 +521,12 @@ class FilesHandler(APIHandler):
 
 
 class FilesCountHandler(APIHandler):
-    def initialize(self, **kwargs: Any) -> None:
+    """Initialize a handler for counting files."""
+
+    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
+        # pylint: disable=W0201
         super().initialize(**kwargs)
-        self.files_url = os.path.join(self.base_url,'files')
+        self.files_url = os.path.join(self.base_url, 'files')
         self.validation = Validation(self.config)
 
     @validate_auth
@@ -504,7 +545,7 @@ class FilesCountHandler(APIHandler):
         files = yield self.db.count_files(**kwargs)
 
         self.write({
-            '_links':{
+            '_links': {
                 'self': {'href': self.files_url},
                 'parent': {'href': self.base_url},
             },
@@ -516,9 +557,12 @@ class FilesCountHandler(APIHandler):
 
 
 class SingleFileHandler(APIHandler):
-    def initialize(self, **kwargs: Any) -> None:
+    """Initialize a handler for requesting single files via uuid."""
+
+    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
+        # pylint: disable=W0201
         super().initialize(**kwargs)
-        self.files_url = os.path.join(self.base_url,'files')
+        self.files_url = os.path.join(self.base_url, 'files')
         self.validation = Validation(self.config)
 
     @validate_auth
@@ -527,11 +571,11 @@ class SingleFileHandler(APIHandler):
     def get(self, uuid: str) -> None:
         """Handle GET request."""
         try:
-            ret = yield self.db.get_file({'uuid':uuid})
+            ret = yield self.db.get_file({'uuid': uuid})
 
             if ret:
                 ret['_links'] = {
-                    'self': {'href': os.path.join(self.files_url,uuid)},
+                    'self': {'href': os.path.join(self.files_url, uuid)},
                     'parent': {'href': self.files_url},
                 }
 
@@ -547,7 +591,7 @@ class SingleFileHandler(APIHandler):
     def delete(self, uuid: str) -> None:
         """Handle DELETE request."""
         try:
-            yield self.db.delete_file({'uuid':uuid})
+            yield self.db.delete_file({'uuid': uuid})
         except pymongo.errors.InvalidId:
             self.send_error(400, message='Not a valid uuid')
         except:
@@ -640,8 +684,8 @@ class SingleFileHandler(APIHandler):
 class SingleFileLocationsHandler(APIHandler):
     """Initialize a handler for adding new locations to an existing record."""
 
-    def initialize(self, **kwargs: Any) -> None:
-        """Initialize a handler for adding new locations to existing record."""
+    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
+        # pylint: disable=W0201
         super().initialize(**kwargs)
         self.files_url = os.path.join(self.base_url, 'files')
 
@@ -716,21 +760,26 @@ class SingleFileLocationsHandler(APIHandler):
         self.write(ret)
 
 
-### Collections ###
+# Collections #
 # --------------------------------------------------------------------------------------
 
 
 class CollectionBaseHandler(APIHandler):
-    def initialize(self, **kwargs) -> None:
+    """Initialize an abstract/base handler for collection-type requests."""
+
+    def initialize(self, **kwargs) -> None:  # noqa: D102  # pylint: disable=C0116
+        # pylint: disable=W0201
         super().initialize(**kwargs)
-        self.collections_url = os.path.join(self.base_url,'collections')
-        self.snapshots_url = os.path.join(self.base_url,'snapshots')
+        self.collections_url = os.path.join(self.base_url, 'collections')
+        self.snapshots_url = os.path.join(self.base_url, 'snapshots')
 
 
 # --------------------------------------------------------------------------------------
 
 
 class CollectionsHandler(CollectionBaseHandler):
+    """Initialize a handler for collection requests."""
+
     @validate_auth
     @catch_error
     @coroutine
@@ -785,18 +834,18 @@ class CollectionsHandler(CollectionBaseHandler):
         set_last_modification_date(metadata)
         metadata['creation_date'] = metadata['meta_modify_date']
 
-        ret = yield self.db.get_collection({'uuid':metadata['uuid']})
+        ret = yield self.db.get_collection({'uuid': metadata['uuid']})
 
         if ret:
             # collection uuid already exists
             self.send_error(409, message='conflict with existing file (uuid already exists)',
-                            file=os.path.join(self.files_url,ret['uuid']))
+                            file=os.path.join(self.files_url, ret['uuid']))
             return
         else:
             ret = yield self.db.create_collection(metadata)
             self.set_status(201)
         self.write({
-            '_links':{
+            '_links': {
                 'self': {'href': self.collections_url},
                 'parent': {'href': self.base_url},
             },
@@ -808,18 +857,20 @@ class CollectionsHandler(CollectionBaseHandler):
 
 
 class SingleCollectionHandler(CollectionBaseHandler):
+    """Initialize a handler for single collection requests."""
+
     @validate_auth
     @catch_error
     @coroutine
     def get(self, uid: str) -> None:
         """Handle GET request."""
-        ret = yield self.db.get_collection({'uuid':uid})
+        ret = yield self.db.get_collection({'uuid': uid})
         if not ret:
-            ret = yield self.db.get_collection({'collection_name':uid})
+            ret = yield self.db.get_collection({'collection_name': uid})
 
         if ret:
             ret['_links'] = {
-                'self': {'href': os.path.join(self.collections_url,uid)},
+                'self': {'href': os.path.join(self.collections_url, uid)},
                 'parent': {'href': self.collections_url},
             }
 
@@ -832,14 +883,16 @@ class SingleCollectionHandler(CollectionBaseHandler):
 
 
 class SingleCollectionFilesHandler(CollectionBaseHandler):
+    """Initialize a handler for requesting a single collection's files."""
+
     @validate_auth
     @catch_error
     @coroutine
     def get(self, uid: str) -> None:
         """Handle GET request."""
-        ret = yield self.db.get_collection({'uuid':uid})
+        ret = yield self.db.get_collection({'uuid': uid})
         if not ret:
-            ret = yield self.db.get_collection({'collection_name':uid})
+            ret = yield self.db.get_collection({'collection_name': uid})
 
         if ret:
             try:
@@ -856,9 +909,9 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
             files = yield self.db.find_files(**kwargs)
 
             self.write({
-                '_links':{
-                    'self': {'href': os.path.join(self.collections_url,uid,'files')},
-                    'parent': {'href': os.path.join(self.collections_url,uid)},
+                '_links': {
+                    'self': {'href': os.path.join(self.collections_url, uid, 'files')},
+                    'parent': {'href': os.path.join(self.collections_url, uid)},
                 },
                 'files': files,
             })
@@ -870,14 +923,16 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
 
 
 class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
+    """Initialize a handler for requesting a single collection's snapshots."""
+
     @validate_auth
     @catch_error
     @coroutine
     def get(self, uid: str) -> None:
         """Handle GET request."""
-        ret = yield self.db.get_collection({'uuid':uid})
+        ret = yield self.db.get_collection({'uuid': uid})
         if not ret:
-            ret = yield self.db.get_collection({'collection_name':uid})
+            ret = yield self.db.get_collection({'collection_name': uid})
         if not ret:
             self.send_error(400, message='cannot find collection')
             return
@@ -897,8 +952,8 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 
         self.write({
             '_links':{
-                'self': {'href': os.path.join(self.collections_url,uid,'snapshots')},
-                'parent': {'href': os.path.join(self.collections_url,uid)},
+                'self': {'href': os.path.join(self.collections_url, uid, 'snapshots')},
+                'parent': {'href': os.path.join(self.collections_url, uid)},
             },
             'snapshots': snapshots,
         })
@@ -908,9 +963,9 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
     @coroutine
     def post(self, uid: str) -> None:
         """Handle POST request."""
-        ret = yield self.db.get_collection({'uuid':uid})
+        ret = yield self.db.get_collection({'uuid': uid})
         if not ret:
-            ret = yield self.db.get_collection({'collection_name':uid})
+            ret = yield self.db.get_collection({'collection_name': uid})
         if not ret:
             self.send_error(400, message='cannot find collection')
             return
@@ -937,7 +992,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
         metadata['creation_date'] = metadata['meta_modify_date']
         del metadata['meta_modify_date']
 
-        ret = yield self.db.get_snapshot({'uuid':metadata['uuid']})
+        ret = yield self.db.get_snapshot({'uuid': metadata['uuid']})
 
         if ret:
             # snapshot uuid already exists
@@ -951,9 +1006,9 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             ret = yield self.db.create_snapshot(metadata)
             self.set_status(201)
             self.write({
-                '_links':{
-                    'self': {'href': os.path.join(self.collections_url,uid,'snapshots')},
-                    'parent': {'href': os.path.join(self.collections_url,uid)},
+                '_links': {
+                    'self': {'href': os.path.join(self.collections_url, uid, 'snapshots')},
+                    'parent': {'href': os.path.join(self.collections_url, uid)},
                 },
                 'snapshot': os.path.join(self.snapshots_url, ret),
             })
@@ -963,16 +1018,18 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 
 
 class SingleSnapshotHandler(CollectionBaseHandler):
+    """Initialize a handler for requesting single snapshots."""
+
     @validate_auth
     @catch_error
     @coroutine
     def get(self, uid: str) -> None:
         """Handle GET request."""
-        ret = yield self.db.get_snapshot({'uuid':uid})
+        ret = yield self.db.get_snapshot({'uuid': uid})
 
         if ret:
             ret['_links'] = {
-                'self': {'href': os.path.join(self.snapshots_url,uid)},
+                'self': {'href': os.path.join(self.snapshots_url, uid)},
                 'parent': {'href': self.collections_url},
             }
 
@@ -985,19 +1042,21 @@ class SingleSnapshotHandler(CollectionBaseHandler):
 
 
 class SingleSnapshotFilesHandler(CollectionBaseHandler):
+    """Initialize a handler for requesting a single snapshot's files."""
+
     @validate_auth
     @catch_error
     @coroutine
     def get(self, uid: str) -> None:
         """Handle GET request."""
-        ret = yield self.db.get_snapshot({'uuid':uid})
+        ret = yield self.db.get_snapshot({'uuid': uid})
 
         if ret:
             try:
                 kwargs = urlargparse.parse(self.request.query)
                 argbuilder.build_limit(kwargs, self.config)
                 argbuilder.build_start(kwargs)
-                kwargs['query'] = {'uuid':{'$in':ret['files']}}
+                kwargs['query'] = {'uuid': {'$in': ret['files']}}
                 logger.warning('getting files: %r', kwargs['query'])
                 argbuilder.build_keys(kwargs)
             except:
@@ -1008,9 +1067,9 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
             files = yield self.db.find_files(**kwargs)
 
             self.write({
-                '_links':{
-                    'self': {'href': os.path.join(self.snapshots_url,uid,'files')},
-                    'parent': {'href': os.path.join(self.snapshots_url,uid)},
+                '_links': {
+                    'self': {'href': os.path.join(self.snapshots_url, uid, 'files')},
+                    'parent': {'href': os.path.join(self.snapshots_url, uid)},
                 },
                 'files': files,
             })

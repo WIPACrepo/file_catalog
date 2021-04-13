@@ -1,4 +1,11 @@
+"""Utilities for parsing url args."""
+
+# fmt: off
+
+from typing import Any, Dict
+
 from tornado.escape import url_escape, url_unescape
+
 
 def get_type(val):
     try:
@@ -8,6 +15,7 @@ def get_type(val):
             return float(val)
         except:
             return val
+
 
 def parse_one(key, value, ret, sym='['):
     print('key',key,'value',value)
@@ -30,9 +38,10 @@ def parse_one(key, value, ret, sym='['):
             else:
                 parse_one(key[start+1:],value,ret[val],sym=']')
 
-def parse(data):
+
+def parse(data: str) -> Dict[str, Any]:
     """Parse url-encoded data from jQuery.param()"""
-    ret = {}
+    ret: Dict[str, Any] = {}
     for part in data.split('&'):
         if part:
             key, value = url_unescape(part).split('=',1)
@@ -42,7 +51,7 @@ def parse(data):
 
 
 def encode(args):
-    """Encode data using the jQuery.param() syntax"""
+    """Encode data using the jQuery.param() syntax."""
     ret = []
     def recurse(obj,prefix=''):
         if isinstance(obj,dict):

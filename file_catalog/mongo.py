@@ -3,14 +3,14 @@
 
 from __future__ import absolute_import, division, print_function
 
+import asyncio
 import datetime
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, cast, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import pymongo  # type: ignore[import]
-from pymongo import MongoClient
-from tornado.concurrent import run_on_executor
+from motor.motor_tornado import MotorClient  # type: ignore[import]
 
 logger = logging.getLogger("mongo")
 
@@ -19,57 +19,100 @@ class AllKeys:  # pylint: disable=R0903
     """Include all keys in MongoDB find*() methods."""
 
 
-class Mongo(object):
+class Mongo:
     """A ThreadPoolExecutor-based MongoDB client."""
 
-    # fmt:off
-    def __init__(self, host=None, port=None, authSource=None, username=None, password=None, uri=None):
+    def __init__(  # pylint: disable=R0913
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        authSource: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        uri: Optional[str] = None,
+    ) -> None:
 
         if uri:
             logger.info(f"MongoClient args: uri={uri}")
-            self.client = MongoClient(uri, authSource=authSource).file_catalog
+            self.client = MotorClient(uri, authSource=authSource).file_catalog
         else:
-            logger.info('MongoClient args: host=%s, port=%s, username=%s', host, port, username)
-            self.client = MongoClient(host=host, port=port,
-                                      authSource=authSource,
-                                      username=username, password=password).file_catalog
+            logger.info(
+                "MongoClient args: host=%s, port=%s, username=%s", host, port, username
+            )
+            self.client = MotorClient(
+                host=host,
+                port=port,
+                authSource=authSource,
+                username=username,
+                password=password,
+            ).file_catalog
 
-        # all files
-        self.client.files.create_index('uuid', unique=True, background=True)
-        self.client.files.create_index('logical_name', unique=True, background=True)
-        self.client.files.create_index([('logical_name',pymongo.HASHED)], background=True)
-        self.client.files.create_index('locations', unique=True, background=True)
-        self.client.files.create_index([('locations.site',pymongo.DESCENDING),('locations.path',pymongo.DESCENDING)], background=True)
-        self.client.files.create_index('locations.archive', background=True)
-        self.client.files.create_index('create_date', background=True)
+        asyncio.get_event_loop().run_until_complete(self.create_indexes())
+        self.executor = ThreadPoolExecutor(max_workers=10)
+        logger.info("done setting up Mongo")
+
+    async def create_indexes(self) -> None:
+        """Create indexes for all databases."""
+        # all files (a.k.a. required fields)
+        await self.client.files.create_index("uuid", unique=True, background=True)
+        await self.client.files.create_index(
+            "logical_name", unique=True, background=True
+        )
+        await self.client.files.create_index(
+            [("logical_name", pymongo.HASHED)], background=True
+        )
+        await self.client.files.create_index("locations", unique=True, background=True)
+        await self.client.files.create_index(
+            [
+                ("locations.site", pymongo.DESCENDING),
+                ("locations.path", pymongo.DESCENDING),
+            ],
+            background=True,
+        )
+        await self.client.files.create_index("locations.archive", background=True)
+        await self.client.files.create_index("create_date", background=True)
 
         # all .i3 files
-        self.client.files.create_index('content_status', sparse=True, background=True)
-        self.client.files.create_index('processing_level', sparse=True, background=True)
-        self.client.files.create_index('data_type', sparse=True, background=True)
+        await self.client.files.create_index(
+            "content_status", sparse=True, background=True
+        )
+        await self.client.files.create_index(
+            "processing_level", sparse=True, background=True
+        )
+        await self.client.files.create_index("data_type", sparse=True, background=True)
 
         # data_type=real files
-        self.client.files.create_index('run_number', sparse=True, background=True)
-        self.client.files.create_index('start_datetime', sparse=True, background=True)
-        self.client.files.create_index('end_datetime', sparse=True, background=True)
-        self.client.files.create_index('offline_processing_metadata.first_event', sparse=True, background=True)
-        self.client.files.create_index('offline_processing_metadata.last_event', sparse=True, background=True)
-        self.client.files.create_index('offline_processing_metadata.season', sparse=True, background=True)
+        await self.client.files.create_index("run_number", sparse=True, background=True)
+        await self.client.files.create_index(
+            "start_datetime", sparse=True, background=True
+        )
+        await self.client.files.create_index(
+            "end_datetime", sparse=True, background=True
+        )
+        await self.client.files.create_index(
+            "offline_processing_metadata.first_event", sparse=True, background=True
+        )
+        await self.client.files.create_index(
+            "offline_processing_metadata.last_event", sparse=True, background=True
+        )
+        await self.client.files.create_index(
+            "offline_processing_metadata.season", sparse=True, background=True
+        )
 
         # data_type=simulation files
-        self.client.files.create_index('iceprod.dataset', sparse=True, background=True)
+        await self.client.files.create_index(
+            "iceprod.dataset", sparse=True, background=True
+        )
 
-        self.client.collections.create_index('uuid', unique=True, background=True)
-        self.client.collections.create_index('collection_name', background=True)
-        self.client.collections.create_index('owner', background=True)
+        # # Collections
+        await self.client.collections.create_index("uuid", unique=True, background=True)
+        await self.client.collections.create_index("collection_name", background=True)
+        await self.client.collections.create_index("owner", background=True)
 
-        self.client.snapshots.create_index('uuid', unique=True, background=True)
-        self.client.snapshots.create_index('collection_id', background=True)
-        self.client.snapshots.create_index('owner', background=True)
-
-        self.executor = ThreadPoolExecutor(max_workers=10)
-        logger.info('done setting up Mongo')
-    # fmt:on
+        # # Snapshots
+        await self.client.snapshots.create_index("uuid", unique=True, background=True)
+        await self.client.snapshots.create_index("collection_id", background=True)
+        await self.client.snapshots.create_index("owner", background=True)
 
     @staticmethod
     def _get_projection(
@@ -114,8 +157,7 @@ class Mongo(object):
 
         return ret
 
-    @run_on_executor
-    def find_files(
+    async def find_files(
         self,
         query: Optional[Dict[str, Any]] = None,
         keys: Optional[Union[List[str], AllKeys]] = None,
@@ -141,30 +183,28 @@ class Mongo(object):
         projection = Mongo._get_projection(
             keys, default={"uuid": True, "logical_name": True}
         )
-        result = self.client.files.find(query, projection)
+        result = await self.client.files.find(query, projection)
         ret = Mongo._limit_result_list(result, limit, start)
 
         return ret
 
-    @run_on_executor
-    def count_files(  # pylint: disable=W0613
+    async def count_files(  # pylint: disable=W0613
         self, query: Optional[Dict[str, Any]] = None, **kwargs: Any,
     ) -> int:
         """Get count of files matching query."""
         if not query:
             query = {}
 
-        ret = self.client.files.count_documents(query)
+        ret = await self.client.files.count_documents(query)
 
         return cast(int, ret)
 
-    @run_on_executor
-    def create_file(self, metadata: Dict[str, Any]) -> str:
+    async def create_file(self, metadata: Dict[str, Any]) -> str:
         """Insert file metadata.
 
         Return uuid.
         """
-        result = self.client.files.insert_one(metadata)
+        result = await self.client.files.insert_one(metadata)
 
         if (not result) or (not result.inserted_id):
             msg = "did not insert new file"
@@ -173,16 +213,14 @@ class Mongo(object):
 
         return cast(str, metadata["uuid"])
 
-    @run_on_executor
-    def get_file(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+    async def get_file(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         """Get file matching filters."""
-        file = self.client.files.find_one(filters, {"_id": False})
+        file = await self.client.files.find_one(filters, {"_id": False})
         return cast(Dict[str, Any], file)
 
-    @run_on_executor
-    def update_file(self, uuid: str, metadata: Dict[str, Any]) -> None:
+    async def update_file(self, uuid: str, metadata: Dict[str, Any]) -> None:
         """Update file."""
-        result = self.client.files.update_one({"uuid": uuid}, {"$set": metadata})
+        result = await self.client.files.update_one({"uuid": uuid}, {"$set": metadata})
 
         if result.modified_count is None:
             logger.warning(
@@ -194,15 +232,14 @@ class Mongo(object):
             logger.warning(msg)
             raise Exception(msg)
 
-    @run_on_executor
-    def replace_file(self, metadata: Dict[str, Any]) -> None:
+    async def replace_file(self, metadata: Dict[str, Any]) -> None:
         """Replace file.
 
         Metadata must include 'uuid'.
         """
         uuid = metadata["uuid"]
 
-        result = self.client.files.replace_one({"uuid": uuid}, metadata)
+        result = await self.client.files.replace_one({"uuid": uuid}, metadata)
 
         if result.modified_count is None:
             logger.warning(
@@ -214,18 +251,16 @@ class Mongo(object):
             logger.warning(msg)
             raise Exception(msg)
 
-    @run_on_executor
-    def delete_file(self, filters: Dict[str, Any]) -> None:
+    async def delete_file(self, filters: Dict[str, Any]) -> None:
         """Delete file matching filters."""
-        result = self.client.files.delete_one(filters)
+        result = await self.client.files.delete_one(filters)
 
         if result.deleted_count != 1:
             msg = f"deleted {result.deleted_count} files with filter {filters}"
             logger.warning(msg)
             raise Exception(msg)
 
-    @run_on_executor
-    def find_collections(
+    async def find_collections(
         self,
         keys: Optional[Union[List[str], AllKeys]] = None,
         limit: Optional[int] = None,
@@ -234,9 +269,6 @@ class Mongo(object):
         """Find all collections.
 
         Optionally, apply keyword arguments. "_id" is always excluded.
-
-        Decorators:
-            run_on_executor
 
         Keyword Arguments:
             keys -- fields to include in MongoDB projection
@@ -247,18 +279,17 @@ class Mongo(object):
             List of MongoDB collections
         """
         projection = Mongo._get_projection(keys)  # show all fields by default
-        result = self.client.collections.find({}, projection)
+        result = await self.client.collections.find({}, projection)
         ret = Mongo._limit_result_list(result, limit, start)
 
         return ret
 
-    @run_on_executor
-    def create_collection(self, metadata: Dict[str, Any]) -> str:
+    async def create_collection(self, metadata: Dict[str, Any]) -> str:
         """Create collection, insert metadata.
 
         Return uuid.
         """
-        result = self.client.collections.insert_one(metadata)
+        result = await self.client.collections.insert_one(metadata)
 
         if (not result) or (not result.inserted_id):
             msg = "did not insert new collection"
@@ -267,14 +298,12 @@ class Mongo(object):
 
         return cast(str, metadata["uuid"])
 
-    @run_on_executor
-    def get_collection(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+    async def get_collection(self, filters: Dict[str, Any]) -> Dict[str, Any]:
         """Get collection matching filters."""
-        collection = self.client.collections.find_one(filters, {"_id": False})
+        collection = await self.client.collections.find_one(filters, {"_id": False})
         return cast(Dict[str, Any], collection)
 
-    @run_on_executor
-    def find_snapshots(
+    async def find_snapshots(
         self,
         query: Optional[Dict[str, Any]] = None,
         keys: Optional[Union[List[str], AllKeys]] = None,
@@ -284,9 +313,6 @@ class Mongo(object):
         """Find snapshots.
 
         Optionally, apply keyword arguments. "_id" is always excluded.
-
-        Decorators:
-            run_on_executor
 
         Keyword Arguments:
             query -- MongoDB query
@@ -298,15 +324,14 @@ class Mongo(object):
             List of MongoDB snapshots
         """
         projection = Mongo._get_projection(keys)  # show all fields by default
-        result = self.client.snapshots.find(query, projection)
+        result = await self.client.snapshots.find(query, projection)
         ret = Mongo._limit_result_list(result, limit, start)
 
         return ret
 
-    @run_on_executor
-    def create_snapshot(self, metadata: Dict[str, Any]) -> str:
+    async def create_snapshot(self, metadata: Dict[str, Any]) -> str:
         """Insert metadata into 'snapshots' collection."""
-        result = self.client.snapshots.insert_one(metadata)
+        result = await self.client.snapshots.insert_one(metadata)
 
         if (not result) or (not result.inserted_id):
             msg = "did not insert new snapshot"
@@ -315,14 +340,12 @@ class Mongo(object):
 
         return cast(str, metadata["uuid"])
 
-    @run_on_executor
-    def get_snapshot(self, filters: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    async def get_snapshot(self, filters: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Find snapshot, optionally filtered."""
-        snapshot = self.client.snapshots.find_one(filters, {"_id": False})
+        snapshot = await self.client.snapshots.find_one(filters, {"_id": False})
         return cast(Dict[str, Any], snapshot)
 
-    @run_on_executor
-    def append_distinct_elements_to_file(
+    async def append_distinct_elements_to_file(
         self, uuid: str, metadata: Dict[str, Any]
     ) -> None:
         """Append distinct elements to arrays within a file document."""
@@ -336,7 +359,7 @@ class Mongo(object):
 
         # update the file document
         update_query["$set"] = {"meta_modify_date": str(datetime.datetime.utcnow())}
-        result = self.client.files.update_one({"uuid": uuid}, update_query)
+        result = await self.client.files.update_one({"uuid": uuid}, update_query)
 
         # log and/or throw if the update results are surprising
         if result.modified_count is None:

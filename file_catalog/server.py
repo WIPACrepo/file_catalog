@@ -396,7 +396,7 @@ class APIHandler(tornado.web.RequestHandler):
     def write_error(self, status_code: int = 500, **kwargs: Any) -> None:
         """Write out custom error page."""
         if 'reason' in kwargs:
-            logger.debug('%r', kwargs['reason'])
+            logger.debug(f"{status_code} ERROR: {kwargs['reason']}")
         self.set_status(status_code)
         kwargs.pop('exc_info', None)
         if kwargs:

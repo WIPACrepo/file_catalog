@@ -23,7 +23,6 @@ import tornado.ioloop
 import tornado.web
 from rest_tools.server import Auth  # type: ignore[import]
 from tornado.escape import json_decode, json_encode
-from tornado.gen import coroutine
 from tornado.httputil import url_concat
 
 # local imports
@@ -215,7 +214,7 @@ class MainHandler(tornado.web.RequestHandler):
             data = self.auth.validate(token, audience=['ANY'])
             self.auth_key = token
             return cast(str, data['sub'])
-        except Exception:
+        except Exception:  # pylint: disable=W0703
             logger.warning('failed auth', exc_info=True)
         return None
 
@@ -223,7 +222,7 @@ class MainHandler(tornado.web.RequestHandler):
         """Handle GET requests."""
         try:
             self.render('index.html')
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0703
             logger.warning('Error in main handler', exc_info=True)
             message = 'Error generating page.'
             if self.debug:
@@ -246,12 +245,12 @@ class MainHandler(tornado.web.RequestHandler):
 
 
 def catch_error(method: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorator to catch and handle errors on api handlers."""
+    """Decorate to catch and handle errors on api handlers."""
     @wraps(method)
     def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
         try:
             return method(self, *args, **kwargs)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0703
             logger.warning('Error in api handler', exc_info=True)
             kwargs = {'message': 'Internal error in ' + self.__class__.__name__}
             if self.debug:
@@ -310,7 +309,7 @@ class AccountHandler(MainHandler):
 
 
 def validate_auth(method: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorator to check auth key on api handlers."""
+    """Decorate to check auth key on api handlers."""
     @wraps(method)
     def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
         if not self.auth:  # skip auth if not present
@@ -322,7 +321,7 @@ def validate_auth(method: Callable[..., Any]) -> Callable[..., Any]:
             # logger.info('validate_auth token: %r', auth_key[1])
             self.auth.validate(auth_key[1], audience=['ANY'])
             self.auth_key = auth_key[1]
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0703
             logger.warning('auth error', exc_info=True)
             kwargs = {'message': 'Authorization error', 'status_code': 403}
             if self.debug:
@@ -340,11 +339,13 @@ class APIHandler(tornado.web.RequestHandler):
     def initialize(  # pylint: disable=C0116,W0201
         self,
         config: Dict[str, Any],
-        db: Optional[str] = None,
+        db: Optional[Mongo] = None,
         base_url: str = "/",
         debug: bool = False,
         rate_limit: int = 10,
     ) -> None:  # noqa: D102
+        if db is None:
+            raise Exception('Mongo instance is None: `db`')
         self.db = db
         self.base_url = base_url
         self.debug = debug
@@ -442,8 +443,7 @@ class FilesHandler(APIHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def get(self) -> None:
+    async def get(self) -> None:
         """Handle GET requests."""
         try:
             kwargs = urlargparse.parse(self.request.query)
@@ -451,12 +451,12 @@ class FilesHandler(APIHandler):
             argbuilder.build_start(kwargs)
             argbuilder.build_files_query(kwargs)
             argbuilder.build_keys(kwargs)
-        except:
+        except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
 
-        files = yield self.db.find_files(**kwargs)
+        files = await self.db.find_files(**kwargs)
 
         self.write({
             '_links': {
@@ -468,7 +468,6 @@ class FilesHandler(APIHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
     async def post(self) -> None:
         """Handle POST request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -484,36 +483,36 @@ class FilesHandler(APIHandler):
         if await pathfinder.contains_existing_filepaths(self, metadata):
             return
 
-        ret = yield self.db.get_file({'uuid': metadata['uuid']})
+        db_file = await self.db.get_file({'uuid': metadata['uuid']})
 
-        if ret:
+        if db_file:
             # file uuid already exists, check checksum
-            if ret['checksum'] != metadata['checksum']:
+            if db_file['checksum'] != metadata['checksum']:
                 # the uuid already exists (no replica since checksum is different
                 self.send_error(409, message='conflict with existing file (uuid already exists)',
-                                file=os.path.join(self.files_url, ret['uuid']))
+                                file=os.path.join(self.files_url, db_file['uuid']))
                 return
-            elif any(f in ret['locations'] for f in metadata['locations']):
+            elif any(f in db_file['locations'] for f in metadata['locations']):
                 # replica has already been added
                 self.send_error(409, message='replica has already been added',
-                                file=os.path.join(self.files_url, ret['uuid']))
+                                file=os.path.join(self.files_url, db_file['uuid']))
                 return
             else:
                 # add replica
-                ret['locations'].extend(metadata['locations'])
+                db_file['locations'].extend(metadata['locations'])
 
-                yield self.db.update_file(ret['uuid'], {'locations': ret['locations']})
+                await self.db.update_file(db_file['uuid'], {'locations': db_file['locations']})
                 self.set_status(200)
-                ret = ret['uuid']
+                uuid = db_file['uuid']
         else:
-            ret = yield self.db.create_file(metadata)
+            uuid = await self.db.create_file(metadata)
             self.set_status(201)
         self.write({
             '_links': {
                 'self': {'href': self.files_url},
                 'parent': {'href': self.base_url},
             },
-            'file': os.path.join(self.files_url, ret),
+            'file': os.path.join(self.files_url, uuid),
         })
 
 
@@ -531,18 +530,17 @@ class FilesCountHandler(APIHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def get(self) -> None:
+    async def get(self) -> None:
         """Handle GET request."""
         try:
             kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_files_query(kwargs)
-        except:
+        except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
 
-        files = yield self.db.count_files(**kwargs)
+        files = await self.db.count_files(**kwargs)
 
         self.write({
             '_links': {
@@ -567,19 +565,18 @@ class SingleFileHandler(APIHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def get(self, uuid: str) -> None:
+    async def get(self, uuid: str) -> None:
         """Handle GET request."""
         try:
-            ret = yield self.db.get_file({'uuid': uuid})
+            db_file = await self.db.get_file({'uuid': uuid})
 
-            if ret:
-                ret['_links'] = {
+            if db_file:
+                db_file['_links'] = {
                     'self': {'href': os.path.join(self.files_url, uuid)},
                     'parent': {'href': self.files_url},
                 }
 
-                self.write(ret)
+                self.write(db_file)
             else:
                 self.send_error(404, message='not found')
         except pymongo.errors.InvalidId:
@@ -587,28 +584,26 @@ class SingleFileHandler(APIHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def delete(self, uuid: str) -> None:
+    async def delete(self, uuid: str) -> None:
         """Handle DELETE request."""
         try:
-            yield self.db.delete_file({'uuid': uuid})
+            await self.db.delete_file({'uuid': uuid})
         except pymongo.errors.InvalidId:
             self.send_error(400, message='Not a valid uuid')
-        except:
+        except Exception:  # pylint: disable=W0703
             self.send_error(404, message='not found')
         else:
             self.set_status(204)
 
     @validate_auth
     @catch_error
-    @coroutine
     async def patch(self, uuid: str) -> None:
         """Handle PATCH request."""
         metadata: types.Metadata = json_decode(self.request.body)
 
         # Find Matching File
         try:
-            db_file = yield self.db.get_file({'uuid': uuid})
+            db_file = await self.db.get_file({'uuid': uuid})
         except pymongo.errors.InvalidId:
             self.send_error(400, message='Not a valid uuid')
             return
@@ -632,24 +627,22 @@ class SingleFileHandler(APIHandler):
             return
 
         # Insert into DB & Write Back
-        yield self.db.update_file(uuid, metadata)
+        await self.db.update_file(uuid, metadata)
         db_file['_links'] = {
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},
         }
         self.write(db_file)
 
-
     @validate_auth
     @catch_error
-    @coroutine
     async def put(self, uuid: str) -> None:
         """Handle PUT request."""
         metadata: types.Metadata = json_decode(self.request.body)
 
         # Find Matching File
         try:
-            db_file = yield self.db.get_file({'uuid': uuid})
+            db_file = await self.db.get_file({'uuid': uuid})
         except pymongo.errors.InvalidId:
             self.send_error(400, message='Not a valid uuid')
             return
@@ -670,7 +663,7 @@ class SingleFileHandler(APIHandler):
         set_last_modification_date(metadata)
 
         # Insert into DB & Write Back
-        yield self.db.replace_file(metadata.copy())
+        await self.db.replace_file(metadata.copy())
         metadata['_links'] = {
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},
@@ -691,21 +684,20 @@ class SingleFileLocationsHandler(APIHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def post(self, uuid: str) -> None:
+    async def post(self, uuid: str) -> None:
         """Handle POST request.
 
         Add location(s) to the record identified by the provided UUID.
         """
         # try to load the record from the file catalog by UUID
         try:
-            ret = yield self.db.get_file({'uuid': uuid})
+            db_file = await self.db.get_file({'uuid': uuid})
         except pymongo.errors.InvalidId:
             self.send_error(400, message='invalid uuid in POST url')
             return
 
         # if we didn't get a record
-        if not ret:
+        if not db_file:
             self.send_error(404, message='record not found in file catalog')
             return
 
@@ -727,7 +719,7 @@ class SingleFileLocationsHandler(APIHandler):
         new_locations = []
         for loc in locations:
             # try to load a file by that location
-            check = yield self.db.get_file({'locations': {'$elemMatch': loc}})
+            check = await self.db.get_file({'locations': {'$elemMatch': loc}})
             # if we got a file by that location
             if check:
                 # if the file we got isn't the one we're trying to update
@@ -748,16 +740,16 @@ class SingleFileLocationsHandler(APIHandler):
         # if there are new locations to append
         if new_locations:
             # update the file in the database
-            yield self.db.append_distinct_elements_to_file(uuid, {'locations': new_locations})
+            await self.db.append_distinct_elements_to_file(uuid, {'locations': new_locations})
             # re-read the updated file from the database
-            ret = yield self.db.get_file({'uuid': uuid})
+            db_file = await self.db.get_file({'uuid': uuid})
 
         # send the record back to the caller
-        ret['_links'] = {
+        db_file['_links'] = {
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},
         }
-        self.write(ret)
+        self.write(db_file)
 
 
 # Collections #
@@ -767,7 +759,7 @@ class SingleFileLocationsHandler(APIHandler):
 class CollectionBaseHandler(APIHandler):
     """Initialize an abstract/base handler for collection-type requests."""
 
-    def initialize(self, **kwargs) -> None:  # noqa: D102  # pylint: disable=C0116
+    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
         # pylint: disable=W0201
         super().initialize(**kwargs)
         self.collections_url = os.path.join(self.base_url, 'collections')
@@ -782,23 +774,22 @@ class CollectionsHandler(CollectionBaseHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def get(self) -> None:
+    async def get(self) -> None:
         """Handle GET request."""
         try:
             kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
             argbuilder.build_start(kwargs)
             argbuilder.build_keys(kwargs)
-        except:
+        except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
 
-        collections = yield self.db.find_collections(**kwargs)
+        collections = await self.db.find_collections(**kwargs)
 
         self.write({
-            '_links':{
+            '_links': {
                 'self': {'href': self.collections_url},
                 'parent': {'href': self.base_url},
             },
@@ -807,15 +798,14 @@ class CollectionsHandler(CollectionBaseHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def post(self) -> None:
+    async def post(self) -> None:
         """Handle POST request."""
         metadata = json_decode(self.request.body)
 
         try:
             argbuilder.build_files_query(metadata)
             metadata['query'] = json_encode(metadata['query'])
-        except:
+        except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
@@ -834,7 +824,7 @@ class CollectionsHandler(CollectionBaseHandler):
         set_last_modification_date(metadata)
         metadata['creation_date'] = metadata['meta_modify_date']
 
-        ret = yield self.db.get_collection({'uuid': metadata['uuid']})
+        ret = await self.db.get_collection({'uuid': metadata['uuid']})
 
         if ret:
             # collection uuid already exists
@@ -842,14 +832,14 @@ class CollectionsHandler(CollectionBaseHandler):
                             file=os.path.join(self.files_url, ret['uuid']))
             return
         else:
-            ret = yield self.db.create_collection(metadata)
+            uuid = await self.db.create_collection(metadata)
             self.set_status(201)
         self.write({
             '_links': {
                 'self': {'href': self.collections_url},
                 'parent': {'href': self.base_url},
             },
-            'collection': os.path.join(self.collections_url, ret),
+            'collection': os.path.join(self.collections_url, uuid),
         })
 
 
@@ -861,12 +851,11 @@ class SingleCollectionHandler(CollectionBaseHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def get(self, uid: str) -> None:
+    async def get(self, uid: str) -> None:
         """Handle GET request."""
-        ret = yield self.db.get_collection({'uuid': uid})
+        ret = await self.db.get_collection({'uuid': uid})
         if not ret:
-            ret = yield self.db.get_collection({'collection_name': uid})
+            ret = await self.db.get_collection({'collection_name': uid})
 
         if ret:
             ret['_links'] = {
@@ -887,12 +876,11 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def get(self, uid: str) -> None:
+    async def get(self, uid: str) -> None:
         """Handle GET request."""
-        ret = yield self.db.get_collection({'uuid': uid})
+        ret = await self.db.get_collection({'uuid': uid})
         if not ret:
-            ret = yield self.db.get_collection({'collection_name': uid})
+            ret = await self.db.get_collection({'collection_name': uid})
 
         if ret:
             try:
@@ -901,12 +889,12 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
                 argbuilder.build_start(kwargs)
                 kwargs['query'] = json_decode(ret['query'])
                 argbuilder.build_keys(kwargs)
-            except:
+            except Exception:  # pylint: disable=W0703
                 logging.warning('query parameter error', exc_info=True)
                 self.send_error(400, message='invalid query parameters')
                 return
 
-            files = yield self.db.find_files(**kwargs)
+            files = await self.db.find_files(**kwargs)
 
             self.write({
                 '_links': {
@@ -927,12 +915,11 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def get(self, uid: str) -> None:
+    async def get(self, uid: str) -> None:
         """Handle GET request."""
-        ret = yield self.db.get_collection({'uuid': uid})
+        ret = await self.db.get_collection({'uuid': uid})
         if not ret:
-            ret = yield self.db.get_collection({'collection_name': uid})
+            ret = await self.db.get_collection({'collection_name': uid})
         if not ret:
             self.send_error(400, message='cannot find collection')
             return
@@ -943,15 +930,15 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             argbuilder.build_start(kwargs)
             argbuilder.build_keys(kwargs)
             kwargs['query'] = {'collection_id': ret['uuid']}
-        except:
+        except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
             self.send_error(400, message='invalid query parameters')
             return
 
-        snapshots = yield self.db.find_snapshots(**kwargs)
+        snapshots = await self.db.find_snapshots(**kwargs)
 
         self.write({
-            '_links':{
+            '_links': {
                 'self': {'href': os.path.join(self.collections_url, uid, 'snapshots')},
                 'parent': {'href': os.path.join(self.collections_url, uid)},
             },
@@ -960,12 +947,11 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def post(self, uid: str) -> None:
+    async def post(self, uid: str) -> None:
         """Handle POST request."""
-        ret = yield self.db.get_collection({'uuid': uid})
+        ret = await self.db.get_collection({'uuid': uid})
         if not ret:
-            ret = yield self.db.get_collection({'collection_name': uid})
+            ret = await self.db.get_collection({'collection_name': uid})
         if not ret:
             self.send_error(400, message='cannot find collection')
             return
@@ -992,25 +978,25 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
         metadata['creation_date'] = metadata['meta_modify_date']
         del metadata['meta_modify_date']
 
-        ret = yield self.db.get_snapshot({'uuid': metadata['uuid']})
+        snapshot = await self.db.get_snapshot({'uuid': metadata['uuid']})
 
-        if ret:
+        if snapshot:
             # snapshot uuid already exists
             self.send_error(409, message='conflict with existing snapshot (uuid already exists)')
         else:
             # find the list of files
-            files = yield self.db.find_files(**files_kwargs)
+            files = await self.db.find_files(**files_kwargs)
             metadata['files'] = [row['uuid'] for row in files]
             logger.warning('creating snapshot %s with files %r', metadata['uuid'], metadata['files'])
             # create the snapshot
-            ret = yield self.db.create_snapshot(metadata)
+            uuid = await self.db.create_snapshot(metadata)
             self.set_status(201)
             self.write({
                 '_links': {
                     'self': {'href': os.path.join(self.collections_url, uid, 'snapshots')},
                     'parent': {'href': os.path.join(self.collections_url, uid)},
                 },
-                'snapshot': os.path.join(self.snapshots_url, ret),
+                'snapshot': os.path.join(self.snapshots_url, uuid),
             })
 
 
@@ -1022,10 +1008,9 @@ class SingleSnapshotHandler(CollectionBaseHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def get(self, uid: str) -> None:
+    async def get(self, uid: str) -> None:
         """Handle GET request."""
-        ret = yield self.db.get_snapshot({'uuid': uid})
+        ret = await self.db.get_snapshot({'uuid': uid})
 
         if ret:
             ret['_links'] = {
@@ -1046,10 +1031,9 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
 
     @validate_auth
     @catch_error
-    @coroutine
-    def get(self, uid: str) -> None:
+    async def get(self, uid: str) -> None:
         """Handle GET request."""
-        ret = yield self.db.get_snapshot({'uuid': uid})
+        ret = await self.db.get_snapshot({'uuid': uid})
 
         if ret:
             try:
@@ -1059,12 +1043,12 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
                 kwargs['query'] = {'uuid': {'$in': ret['files']}}
                 logger.warning('getting files: %r', kwargs['query'])
                 argbuilder.build_keys(kwargs)
-            except:
+            except Exception:  # pylint: disable=W0703
                 logging.warning('query parameter error', exc_info=True)
                 self.send_error(400, message='invalid query parameters')
                 return
 
-            files = yield self.db.find_files(**kwargs)
+            files = await self.db.find_files(**kwargs)
 
             self.write({
                 '_links': {

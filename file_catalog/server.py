@@ -373,7 +373,7 @@ class APIHandler(tornado.web.RequestHandler):
         ip = self.request.remote_ip
         if ip in self.rate_limit_data:
             if self.rate_limit_data[ip] > self.rate_limit:
-                self.send_error(429, 'rate limit exceeded for IP address')
+                self.send_error(429, message='rate limit exceeded for IP address')
             else:
                 self.rate_limit_data[ip] += 1
         else:

@@ -7,7 +7,7 @@ import asyncio
 import datetime
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Generator, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 import pymongo  # type: ignore[import]
 from motor.motor_tornado import MotorClient  # type: ignore[import]
@@ -139,9 +139,9 @@ class Mongo:
         return projection
 
     @staticmethod
-    def _limit_results(
+    async def _limit_result_list(
         cursor: MotorCursor, limit: Optional[int] = None, start: int = 0,
-    ) -> Generator[Dict[str, Any], None, None]:
+    ) -> List[Dict[str, Any]]:
         """Get sublist of results from `cursor` using `limit` and `start`.
 
          `limit` and `skip` are ignored by __getitem__:
@@ -149,7 +149,9 @@ class Mongo:
 
         Therefore, implement it manually.
         """
+        results = []
         end = None
+
         if limit is not None:
             end = start + limit
 
@@ -157,10 +159,12 @@ class Mongo:
         async for row in cursor:
             if i < start:
                 continue
-            yield row
+            results.append(row)
             if end and i >= end:
-                return
+                break
             i += 1
+
+        return results
 
     async def find_files(
         self,
@@ -189,7 +193,7 @@ class Mongo:
             keys, default={"uuid": True, "logical_name": True}
         )
         cursor = await self.client.files.find(query, projection)
-        results = list(Mongo._limit_results(cursor, limit, start))
+        results = list(await Mongo._limit_result_list(cursor, limit, start))
 
         return results
 
@@ -285,7 +289,7 @@ class Mongo:
         """
         projection = Mongo._get_projection(keys)  # show all fields by default
         cursor = await self.client.collections.find({}, projection)
-        results = list(Mongo._limit_results(cursor, limit, start))
+        results = list(await Mongo._limit_result_list(cursor, limit, start))
 
         return results
 
@@ -330,7 +334,7 @@ class Mongo:
         """
         projection = Mongo._get_projection(keys)  # show all fields by default
         cursor = await self.client.snapshots.find(query, projection)
-        results = list(Mongo._limit_results(cursor, limit, start))
+        results = list(await Mongo._limit_result_list(cursor, limit, start))
 
         return results
 

@@ -1,12 +1,12 @@
 """Utility functions for finding a given filepath in the FC."""
 
 import os
-from typing import Any, Dict, Optional, cast
+from typing import Any, Optional
 
 from .schema.types import Metadata
 
 
-def _is_conflict(uuid: Optional[str], file_found: Dict[str, Any]) -> bool:
+def _is_conflict(uuid: Optional[str], file_found: Metadata) -> bool:
     # if no file was found, then no problem
     if not file_found:
         return False
@@ -16,7 +16,7 @@ def _is_conflict(uuid: Optional[str], file_found: Dict[str, Any]) -> bool:
         return True
 
     # if the file we got isn't the one we're trying to update, that's a conflict
-    return cast(bool, file_found["uuid"] == uuid)
+    return file_found["uuid"] != uuid
 
 
 async def _contains_existing_logicalname(

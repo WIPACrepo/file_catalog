@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Optional, Union, cast
 import pymongo  # type: ignore[import]
 from motor.motor_tornado import MotorClient  # type: ignore[import]
 
+from .schema import types
+
 logger = logging.getLogger("mongo")
 
 
@@ -199,7 +201,7 @@ class Mongo:
 
         return cast(int, ret)
 
-    async def create_file(self, metadata: Dict[str, Any]) -> str:
+    async def create_file(self, metadata: types.Metadata) -> str:
         """Insert file metadata.
 
         Return uuid.
@@ -211,14 +213,14 @@ class Mongo:
             logger.warning(msg)
             raise Exception(msg)
 
-        return cast(str, metadata["uuid"])
+        return metadata["uuid"]
 
-    async def get_file(self, filters: Dict[str, Any]) -> Dict[str, Any]:
+    async def get_file(self, filters: Dict[str, Any]) -> types.Metadata:
         """Get file matching filters."""
         file = await self.client.files.find_one(filters, {"_id": False})
-        return cast(Dict[str, Any], file)
+        return cast(types.Metadata, file)
 
-    async def update_file(self, uuid: str, metadata: Dict[str, Any]) -> None:
+    async def update_file(self, uuid: str, metadata: types.Metadata) -> None:
         """Update file."""
         result = await self.client.files.update_one({"uuid": uuid}, {"$set": metadata})
 
@@ -232,7 +234,7 @@ class Mongo:
             logger.warning(msg)
             raise Exception(msg)
 
-    async def replace_file(self, metadata: Dict[str, Any]) -> None:
+    async def replace_file(self, metadata: types.Metadata) -> None:
         """Replace file.
 
         Metadata must include 'uuid'.
@@ -330,7 +332,10 @@ class Mongo:
         return ret
 
     async def create_snapshot(self, metadata: Dict[str, Any]) -> str:
-        """Insert metadata into 'snapshots' collection."""
+        """Insert metadata into 'snapshots' collection.
+
+        Return uuid.
+        """
         result = await self.client.snapshots.insert_one(metadata)
 
         if (not result) or (not result.inserted_id):

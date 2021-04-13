@@ -7,10 +7,11 @@ import asyncio
 import datetime
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, Generator, List, Optional, Union, cast
 
 import pymongo  # type: ignore[import]
 from motor.motor_tornado import MotorClient  # type: ignore[import]
+from motor.motor_tornado import MotorCursor
 
 from .schema import types
 
@@ -54,7 +55,7 @@ class Mongo:
         logger.info("done setting up Mongo")
 
     async def create_indexes(self) -> None:
-        """Create indexes for all databases."""
+        """Create indexes for all file-catalog mongo collections."""
         # all files (a.k.a. required fields)
         await self.client.files.create_index("uuid", unique=True, background=True)
         await self.client.files.create_index(
@@ -138,26 +139,28 @@ class Mongo:
         return projection
 
     @staticmethod
-    def _limit_result_list(
-        result: List[Dict[str, Any]], limit: Optional[int] = None, start: int = 0,
-    ) -> List[Dict[str, Any]]:
-        """Get sublist of `results` using `limit` and `start`.
+    def _limit_results(
+        cursor: MotorCursor, limit: Optional[int] = None, start: int = 0,
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Get sublist of results from `cursor` using `limit` and `start`.
 
          `limit` and `skip` are ignored by __getitem__:
          http://api.mongodb.com/python/current/api/pymongo/cursor.html#pymongo.cursor.Cursor.__getitem__
 
         Therefore, implement it manually.
         """
-        ret = []
         end = None
-
         if limit is not None:
             end = start + limit
 
-        for row in result[start:end]:
-            ret.append(row)
-
-        return ret
+        i = 0
+        async for row in cursor:
+            if i < start:
+                continue
+            yield row
+            if end and i >= end:
+                return
+            i += 1
 
     async def find_files(
         self,
@@ -185,10 +188,10 @@ class Mongo:
         projection = Mongo._get_projection(
             keys, default={"uuid": True, "logical_name": True}
         )
-        result = await self.client.files.find(query, projection)
-        ret = Mongo._limit_result_list(result, limit, start)
+        cursor = await self.client.files.find(query, projection)
+        results = list(Mongo._limit_results(cursor, limit, start))
 
-        return ret
+        return results
 
     async def count_files(  # pylint: disable=W0613
         self, query: Optional[Dict[str, Any]] = None, **kwargs: Any,
@@ -281,10 +284,10 @@ class Mongo:
             List of MongoDB collections
         """
         projection = Mongo._get_projection(keys)  # show all fields by default
-        result = await self.client.collections.find({}, projection)
-        ret = Mongo._limit_result_list(result, limit, start)
+        cursor = await self.client.collections.find({}, projection)
+        results = list(Mongo._limit_results(cursor, limit, start))
 
-        return ret
+        return results
 
     async def create_collection(self, metadata: Dict[str, Any]) -> str:
         """Create collection, insert metadata.
@@ -326,10 +329,10 @@ class Mongo:
             List of MongoDB snapshots
         """
         projection = Mongo._get_projection(keys)  # show all fields by default
-        result = await self.client.snapshots.find(query, projection)
-        ret = Mongo._limit_result_list(result, limit, start)
+        cursor = await self.client.snapshots.find(query, projection)
+        results = list(Mongo._limit_results(cursor, limit, start))
 
-        return ret
+        return results
 
     async def create_snapshot(self, metadata: Dict[str, Any]) -> str:
         """Insert metadata into 'snapshots' collection.

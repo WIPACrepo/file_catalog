@@ -3,9 +3,26 @@
 # fmt:off
 
 import re
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from . import types
+
+
+def _find_missing_mandatory_field(metadata: types.Metadata, fields: List[str]) -> Optional[str]:
+    """Return the first field found to be missing, or `None`."""
+    for field in fields:
+        try:
+            if "." in field:  # compound field; ex: "checksum.sha512"
+                parent, child = field.split(".", maxsplit=1)  # ex: "checksum" & "sha512"
+                if _find_missing_mandatory_field(metadata[parent], [child]):  # type: ignore[misc]
+                    return field
+            else:
+                # just try to access the field
+                _ = metadata[field]  # type: ignore[misc]
+        except KeyError:
+            return field
+
+    return None
 
 
 class Validation:
@@ -45,7 +62,7 @@ class Validation:
     def validate_metadata_creation(self, apihandler: Any, metadata: types.Metadata) -> bool:
         """Validate metadata for creation.
 
-        Utilizes `send_error` and returnes `False` if validation failed.
+        Utilizes `send_error` and returns `False` if validation failed.
         If validation was successful, `True` is returned.
         """
         if self.has_forbidden_attributes_creation(apihandler, metadata, {}):
@@ -55,31 +72,19 @@ class Validation:
     def validate_metadata_modification(self, apihandler: Any, metadata: types.Metadata) -> bool:
         """Validate metadata for modification.
 
-        Utilizes `send_error` and returnes `False` if validation failed.
+        Utilizes `send_error` and returns `False` if validation failed.
         If validation was successful, `True` is returned.
         """
-        for field in self.config['META_MANDATORY_FIELDS']:
-            # check metadata for mandatory fields
-            if '.' in field:
-                m = metadata
-                for p in field.split('.'):
-                    if p not in m:
-                        apihandler.send_error(
-                            400,
-                            reason='mandatory metadata missing (mandatory fields: %s)'
-                            % ', '.join(self.config['META_MANDATORY_FIELDS']),
-                            file=apihandler.files_url
-                        )
-                        return False
-                    m = m[p]  # type: ignore[misc]
-            elif field not in metadata:
-                apihandler.send_error(
-                    400,
-                    reason='mandatory metadata missing (mandatory fields: %s)'
-                    % ', '.join(self.config['META_MANDATORY_FIELDS']),
-                    file=apihandler.files_url
-                )
-                return False
+        missing = _find_missing_mandatory_field(metadata, self.config['META_MANDATORY_FIELDS'])
+        if missing:
+            apihandler.send_error(
+                400,
+                reason=f"mandatory metadata missing `{missing}` "
+                       f"(mandatory fields: {', '.join(self.config['META_MANDATORY_FIELDS'])}",
+                file=apihandler.files_url
+            )
+            return False
+
         if ((not isinstance(metadata['checksum'], dict)) or 'sha512' not in metadata['checksum']):
             # checksum needs to be a dict with an sha512
             apihandler.send_error(

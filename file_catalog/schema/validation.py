@@ -79,8 +79,8 @@ class Validation:
         if missing:
             apihandler.send_error(
                 400,
-                reason=f"mandatory metadata missing `{missing}` "
-                       f"(mandatory fields: {', '.join(self.config['META_MANDATORY_FIELDS'])}",
+                reason=f"metadata missing mandatory field `{missing}` "
+                       f"(mandatory fields: {', '.join(self.config['META_MANDATORY_FIELDS'])})",
                 file=apihandler.files_url
             )
             return False

@@ -610,16 +610,14 @@ class SingleFileHandler(APIHandler):
             self.send_error(404, message='not found')
             return
 
-        # Validate Metadata
+        # Validate Incoming Metadata
         if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
         if await pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
             return
 
-        # Add to Metadata
+        # Modify Metadata & Verify
         set_last_modification_date(metadata)
-
-        # Validate Updated Metadata
         db_file.update(metadata)
         # we have to validate `db_file` b/c `metadata` may not have all the required fields
         if not self.validation.validate_metadata_modification(self, db_file):
@@ -649,17 +647,17 @@ class SingleFileHandler(APIHandler):
             self.send_error(404, message='not found')
             return
 
-        # Validate Metadata
+        # Validate Incoming Metadata
         if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
         if await pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
             return
-        if not self.validation.validate_metadata_modification(self, metadata):
-            return
 
-        # Add to Metadata
+        # Modify Metadata & Verify
         metadata['uuid'] = uuid
         set_last_modification_date(metadata)
+        if not self.validation.validate_metadata_modification(self, metadata):
+            return
 
         # Insert into DB & Write Back
         await self.db.replace_file(metadata.copy())

@@ -355,6 +355,41 @@ class TestFilesAPI(TestServerAPI):
             data = r.request_seq('POST', url)
         _assert_httperror(cm.exception, 405, "Method Not Allowed")
 
+    def test_21_file_404(self) -> None:
+        """Test 404 (File Not Found) cases for GET, PUT, PATCH, and DELETE."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # Start by putting something in the FC
+        metadata = {
+            u'logical_name': u'blah',
+            u'checksum': {u'sha512': hex('foo bar')},
+            u'file_size': 1,
+            u'locations': [{u'site': u'test', u'path': u'blah.dat'}]
+        }
+        r.request_seq('POST', '/api/files', metadata)
+
+        # GET
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('GET', '/api/files/n0t-a-R3al-Uu1d')
+        _assert_httperror(cm.exception, 404, "Not Found")
+
+        # PUT
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PUT', '/api/files/n0t-a-R3al-Uu1d', {})
+        _assert_httperror(cm.exception, 404, "Not Found")
+
+        # PATCH
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PATCH', '/api/files/n0t-a-R3al-Uu1d', {})
+        _assert_httperror(cm.exception, 404, "Not Found")
+
+        # DELETE
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('DELETE', '/api/files/n0t-a-R3al-Uu1d')
+        _assert_httperror(cm.exception, 404, "Not Found")
+
     def test_30_archive(self) -> None:
         """Test GET w/ query arg: `locations.archive`."""
         self.start_server()

@@ -33,7 +33,7 @@ async def _contains_existing_logicalname(
             # then that logical_name belongs to another file (already exists)
             apihandler.send_error(
                 409,
-                reason=f"Conflict with existing file (logical_name already exists: `{metadata['logical_name']}`)",
+                reason=f"Conflict with existing file (logical_name already exists `{metadata['logical_name']}`)",
                 file=os.path.join(apihandler.files_url, file_found["uuid"]),
             )
             return True

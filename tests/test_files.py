@@ -26,12 +26,12 @@ def hex(data: Any) -> str:
     return hashlib.sha512(data).hexdigest()
 
 
-def _assert_httperror(exception: Exception, code: int, reason_substr: str) -> None:
+def _assert_httperror(exception: Exception, code: int, reason: str) -> None:
     """Assert that this is the expected HTTPError."""
     print(exception)
     assert isinstance(exception, requests.exceptions.HTTPError)
     assert exception.response.status_code == code
-    assert reason_substr in exception.response.reason
+    assert exception.response.reason == reason
 
 
 class TestFilesAPI(TestServerAPI):
@@ -319,7 +319,7 @@ class TestFilesAPI(TestServerAPI):
         metadata_cpy['uuid'] = 'something else'
         with self.assertRaises(Exception) as cm:
             data = r.request_seq('PUT', url, metadata_cpy)
-        _assert_httperror(cm.exception, 400, "Bad Request")
+        _assert_httperror(cm.exception, 400, "Validation Error: forbidden attribute update `uuid`")
 
         data = r.request_seq('PUT', url, metadata)
         data.pop('_links')
@@ -351,7 +351,7 @@ class TestFilesAPI(TestServerAPI):
         # second delete should raise error
         with self.assertRaises(Exception) as cm:
             data = r.request_seq('DELETE', url)
-        _assert_httperror(cm.exception, 404, "Not Found")
+        _assert_httperror(cm.exception, 404, "File uuid not found")
 
         with self.assertRaises(Exception) as cm:
             data = r.request_seq('POST', url)
@@ -378,22 +378,22 @@ class TestFilesAPI(TestServerAPI):
         # GET
         with self.assertRaises(Exception) as cm:
             r.request_seq('GET', '/api/files/' + metadata_404['uuid'])
-        _assert_httperror(cm.exception, 404, "Not Found")
+        _assert_httperror(cm.exception, 404, "File uuid not found")
 
         # PUT
         with self.assertRaises(Exception) as cm:
             r.request_seq('PUT', '/api/files/' + metadata_404['uuid'], metadata_404)
-        _assert_httperror(cm.exception, 404, "Not Found")
+        _assert_httperror(cm.exception, 404, "File uuid not found")
 
         # PATCH
         with self.assertRaises(Exception) as cm:
             r.request_seq('PATCH', '/api/files/' + metadata_404['uuid'], metadata_404)
-        _assert_httperror(cm.exception, 404, "Not Found")
+        _assert_httperror(cm.exception, 404, "File uuid not found")
 
         # DELETE
         with self.assertRaises(Exception) as cm:
             r.request_seq('DELETE', '/api/files/' + metadata_404['uuid'])
-        _assert_httperror(cm.exception, 404, "Not Found")
+        _assert_httperror(cm.exception, 404, "File uuid not found")
 
     def test_30_archive(self) -> None:
         """Test GET w/ query arg: `locations.archive`."""
@@ -576,7 +576,11 @@ class TestFilesAPI(TestServerAPI):
         # create the file the second time; should NOT be OK
         with self.assertRaises(Exception) as cm:
             data = r.request_seq('POST', '/api/files', metadata)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            f"Conflict with existing file (logical_name already exists `{metadata['logical_name']}`)"
+        )
 
         # check that the second file was not created
         data = r.request_seq('GET', '/api/files')
@@ -623,7 +627,11 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with a copy of the second; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('PUT', '/api/files/' + uuid, metadata2)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            f"Conflict with existing file (logical_name already exists `{metadata2['logical_name']}`)"
+        )
 
     def test_52_put_files_uuid_replace_logical_name(self) -> None:
         """Test that a file can replace with the same logical_name."""
@@ -704,7 +712,11 @@ class TestFilesAPI(TestServerAPI):
         # try to update the first file with a patch; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('PATCH', '/api/files/' + uuid, patch1)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            f"Conflict with existing file (logical_name already exists `{metadata2['logical_name']}`)"
+        )
 
     def test_54_patch_files_uuid_replace_logical_name(self) -> None:
         """Test that a file can be updated with the same logical_name."""
@@ -781,7 +793,11 @@ class TestFilesAPI(TestServerAPI):
         # create the second file; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('POST', '/api/files', metadata2)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            f"Conflict with existing file (location already exists `{metadata['logical_name']}`)"
+        )
 
     def test_56_put_files_uuid_unique_locations(self) -> None:
         """Test that locations is unique when replacing a file."""
@@ -826,7 +842,11 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with a location collision with the second; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('PUT', '/api/files/' + uuid, replace1)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            f"Conflict with existing file (location already exists `{metadata2['logical_name']}`)"
+        )
 
     def test_57_put_files_uuid_replace_locations(self) -> None:
         """Test that a file can replace with the same location."""
@@ -907,7 +927,11 @@ class TestFilesAPI(TestServerAPI):
         # try to update the first file with a patch; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('PATCH', '/api/files/' + uuid, patch1)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            f"Conflict with existing file (location already exists `{metadata2['logical_name']}`)"
+        )
 
     def test_59_patch_files_uuid_replace_locations(self) -> None:
         """Test that a file can be updated with the same location."""
@@ -994,7 +1018,11 @@ class TestFilesAPI(TestServerAPI):
         # create the second file; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('POST', '/api/files', metadata2)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
+        )
 
     def test_61_post_files_locations_Nx1(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
@@ -1047,7 +1075,11 @@ class TestFilesAPI(TestServerAPI):
         # create the second file; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('POST', '/api/files', metadata2)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
+        )
 
     def test_62_post_files_locations_NxN(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
@@ -1100,7 +1132,11 @@ class TestFilesAPI(TestServerAPI):
         # create the second file; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('POST', '/api/files', metadata2)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
+        )
 
     def test_63_put_files_uuid_locations_1xN(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
@@ -1154,7 +1190,11 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with a location collision with the second; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('PUT', '/api/files/' + uuid, replace1)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
+        )
 
     def test_64_put_files_uuid_locations_Nx1(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
@@ -1208,7 +1248,11 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with a location collision with the second; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('PUT', '/api/files/' + uuid, replace1)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
+        )
 
     def test_65_put_files_uuid_locations_NxN(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
@@ -1262,7 +1306,11 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with a location collision with the second; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('PUT', '/api/files/' + uuid, replace1)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
+        )
 
     def test_66_patch_files_uuid_locations_1xN(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
@@ -1318,7 +1366,11 @@ class TestFilesAPI(TestServerAPI):
         # try to update the first file with a patch; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('PATCH', '/api/files/' + uuid, patch1)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
+        )
 
     def test_67_patch_files_uuid_locations_Nx1(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
@@ -1374,7 +1426,11 @@ class TestFilesAPI(TestServerAPI):
         # try to update the first file with a patch; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('PATCH', '/api/files/' + uuid, patch1)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
+        )
 
     def test_68_patch_files_uuid_locations_NxN(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
@@ -1430,7 +1486,11 @@ class TestFilesAPI(TestServerAPI):
         # try to update the first file with a patch; should NOT be OK
         with self.assertRaises(Exception) as cm:
             r.request_seq('PATCH', '/api/files/' + uuid, patch1)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
+        )
 
     def test_70_abuse_post_files_locations(self) -> None:
         """Abuse the POST /api/files/UUID/locations route to test error
@@ -1450,12 +1510,12 @@ class TestFilesAPI(TestServerAPI):
         valid_post_body = {"locations": locations}
         with self.assertRaises(Exception) as cm:
             r.request_seq('POST', '/api/files/bobsyeruncle/locations', valid_post_body)
-        _assert_httperror(cm.exception, 404, "Not Found")
+        _assert_httperror(cm.exception, 404, "File uuid not found")
 
         # try to POST to an non-existant UUID
         with self.assertRaises(Exception) as cm:
             r.request_seq('POST', '/api/files/6e4ec06d-8e22-4a2b-a392-f4492fb25eb1/locations', valid_post_body)
-        _assert_httperror(cm.exception, 404, "Not Found")
+        _assert_httperror(cm.exception, 404, "File uuid not found")
 
         # define a file to be created
         metadata = {
@@ -1476,12 +1536,12 @@ class TestFilesAPI(TestServerAPI):
         # try to POST to the file without a post body
         with self.assertRaises(Exception) as cm:
             r.request_seq('POST', '/api/files/' + uuid + '/locations', {})
-        _assert_httperror(cm.exception, 400, "Bad Request")
+        _assert_httperror(cm.exception, 400, "POST body requires 'locations' field")
 
         # try to POST to the file with a non-array locations
         with self.assertRaises(Exception) as cm:
             r.request_seq('POST', '/api/files/' + uuid + '/locations', {"locations": "bobsyeruncle"})
-        _assert_httperror(cm.exception, 400, "Bad Request")
+        _assert_httperror(cm.exception, 400, f"Field 'locations' must be a list (not `{type('bobsyeruncle')}`)")
 
     def test_71_post_files_locations_duplicate(self) -> None:
         """Test that POST /api/files/UUID/locations is a no-op for non-distinct
@@ -1579,7 +1639,11 @@ class TestFilesAPI(TestServerAPI):
         with self.assertRaises(Exception) as cm:
             conflicting_locations = {"locations": [loc1d]}
             rec2 = r.request_seq('POST', '/api/files/' + uuid + '/locations', conflicting_locations)
-        _assert_httperror(cm.exception, 409, "Conflict")
+        _assert_httperror(
+            cm.exception,
+            409,
+            "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
+        )
 
     def test_73_post_files_locations(self) -> None:
         """Test that POST /api/files/UUID/locations can add distinct non-

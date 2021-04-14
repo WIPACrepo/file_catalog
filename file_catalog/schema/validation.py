@@ -44,7 +44,7 @@ class Validation:
         for key in set(self.config['META_FORBIDDEN_FIELDS_CREATION']).intersection(metadata):
             if key not in old_metadata or metadata[key] != old_metadata[key]:  # type: ignore[misc]
                 # forbidden fields
-                apihandler.send_error(400, reason=f'Validation Error: forbidden attribute creation: `{key}`',
+                apihandler.send_error(400, reason=f'Validation Error: forbidden attribute creation `{key}`',
                                       file=apihandler.files_url)
                 return True
         return False
@@ -54,7 +54,7 @@ class Validation:
         for key in set(self.config['META_FORBIDDEN_FIELDS_UPDATE']).intersection(metadata):
             if key not in old_metadata or metadata[key] != old_metadata[key]:  # type: ignore[misc]
                 # forbidden fields
-                apihandler.send_error(400, reason=f'Validation Error: forbidden attribute update: `{key}`',
+                apihandler.send_error(400, reason=f'Validation Error: forbidden attribute update `{key}`',
                                       file=apihandler.files_url)
                 return True
         return False

@@ -36,6 +36,7 @@ class TestFilesAPI(TestServerAPI):
     """Test /api/files/*."""
 
     def test_10_files(self) -> None:
+        """Test POST then GET."""
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -233,6 +234,10 @@ class TestFilesAPI(TestServerAPI):
         assert len(get_paths({"path-regex": r".*"})) == 4
 
     def test_15_files_auth(self) -> None:
+        """Test auth/token; good and bad (403) cases.
+
+        Override/set the `SECRET` environment variable.
+        """
         self.start_server(config_override={'SECRET':'secret'})
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -255,6 +260,10 @@ class TestFilesAPI(TestServerAPI):
         url = data['file']
 
     def test_16_files_uri(self) -> None:
+        """Test changing the MongoDB URI.
+
+        Override/set the `MONGODB_URI` environment variable.
+        """
         host = os.environ['TEST_DATABASE_HOST']
         port = os.environ['TEST_DATABASE_PORT']
         uri = f"mongodb://{host}:{port}"
@@ -281,6 +290,7 @@ class TestFilesAPI(TestServerAPI):
         url = data['file']
 
     def test_20_file(self) -> None:
+        """Test POST, GET, PUT, PATCH, and DELETE."""
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -346,6 +356,7 @@ class TestFilesAPI(TestServerAPI):
         _assert_httperror(cm.exception, 405, "Method Not Allowed")
 
     def test_30_archive(self) -> None:
+        """Test GET w/ query arg: `locations.archive`."""
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -386,6 +397,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertTrue(any(uuid2 == f['uuid'] for f in data['files']))
 
     def test_40_simple_query(self) -> None:
+        """Test GET w/ shortcut-metadata query args."""
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)

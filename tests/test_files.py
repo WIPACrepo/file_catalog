@@ -5,12 +5,14 @@
 
 from __future__ import absolute_import, division, print_function
 
+import copy
 import hashlib
 import os
 import unittest
 from typing import Any, Dict, List, Optional
 
 import requests
+from file_catalog.schema import types
 from rest_tools.client import RestClient  # type: ignore[import]
 from tornado.escape import json_encode
 
@@ -313,7 +315,7 @@ class TestFilesAPI(TestServerAPI):
 
         metadata['test'] = 100
 
-        metadata_cpy = metadata.copy()
+        metadata_cpy = copy.deepcopy(metadata)
         metadata_cpy['uuid'] = 'something else'
         with self.assertRaises(Exception) as cm:
             data = r.request_seq('PUT', url, metadata_cpy)
@@ -332,7 +334,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertDictEqual(metadata, data)
 
         metadata['test2'] = 200
-        data = r.request_seq('PATCH', url, {'test2':200})
+        data = r.request_seq('PATCH', url, {'test2': 200})
         data.pop('_links')
         data.pop('meta_modify_date')
         data.pop('uuid')
@@ -362,7 +364,7 @@ class TestFilesAPI(TestServerAPI):
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         # Start by putting something in the FC
-        metadata = {
+        metadata: types.Metadata = {
             u'logical_name': u'blah',
             u'checksum': {u'sha512': hex('foo bar')},
             u'file_size': 1,
@@ -370,24 +372,27 @@ class TestFilesAPI(TestServerAPI):
         }
         r.request_seq('POST', '/api/files', metadata)
 
+        metadata_404 = copy.deepcopy(metadata)
+        metadata_404['uuid'] = 'n0t-a-R3al-Uu1d'
+
         # GET
         with self.assertRaises(Exception) as cm:
-            r.request_seq('GET', '/api/files/n0t-a-R3al-Uu1d')
+            r.request_seq('GET', '/api/files/' + metadata_404['uuid'])
         _assert_httperror(cm.exception, 404, "Not Found")
 
         # PUT
         with self.assertRaises(Exception) as cm:
-            r.request_seq('PUT', '/api/files/n0t-a-R3al-Uu1d', {})
+            r.request_seq('PUT', '/api/files/' + metadata_404['uuid'], metadata_404)
         _assert_httperror(cm.exception, 404, "Not Found")
 
         # PATCH
         with self.assertRaises(Exception) as cm:
-            r.request_seq('PATCH', '/api/files/n0t-a-R3al-Uu1d', {})
+            r.request_seq('PATCH', '/api/files/' + metadata_404['uuid'], metadata_404)
         _assert_httperror(cm.exception, 404, "Not Found")
 
         # DELETE
         with self.assertRaises(Exception) as cm:
-            r.request_seq('DELETE', '/api/files/n0t-a-R3al-Uu1d')
+            r.request_seq('DELETE', '/api/files/' + metadata_404['uuid'])
         _assert_httperror(cm.exception, 404, "Not Found")
 
     def test_30_archive(self) -> None:

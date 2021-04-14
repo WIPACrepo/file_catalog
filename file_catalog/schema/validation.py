@@ -44,7 +44,7 @@ class Validation:
         for key in set(self.config['META_FORBIDDEN_FIELDS_CREATION']).intersection(metadata):
             if key not in old_metadata or metadata[key] != old_metadata[key]:  # type: ignore[misc]
                 # forbidden fields
-                apihandler.send_error(400, reason='forbidden attributes',
+                apihandler.send_error(400, reason=f'Validation Error: forbidden attribute creation: `{key}`',
                                       file=apihandler.files_url)
                 return True
         return False
@@ -54,7 +54,7 @@ class Validation:
         for key in set(self.config['META_FORBIDDEN_FIELDS_UPDATE']).intersection(metadata):
             if key not in old_metadata or metadata[key] != old_metadata[key]:  # type: ignore[misc]
                 # forbidden fields
-                apihandler.send_error(400, reason='forbidden attributes',
+                apihandler.send_error(400, reason=f'Validation Error: forbidden attribute update: `{key}`',
                                       file=apihandler.files_url)
                 return True
         return False
@@ -79,7 +79,7 @@ class Validation:
         if missing:
             apihandler.send_error(
                 400,
-                reason=f"metadata missing mandatory field `{missing}` "
+                reason=f"Validation Error: metadata missing mandatory field `{missing}` "
                        f"(mandatory fields: {', '.join(self.config['META_MANDATORY_FIELDS'])})",
                 file=apihandler.files_url
             )
@@ -89,7 +89,7 @@ class Validation:
             # checksum needs to be a dict with an sha512
             apihandler.send_error(
                 400,
-                reason='member `checksum` must be a dict with a sha512 hash',
+                reason='Validation Error: member `checksum` must be a dict with a sha512 hash',
                 file=apihandler.files_url
             )
             return False
@@ -98,7 +98,7 @@ class Validation:
             # force to use SHA512
             apihandler.send_error(
                 400,
-                reason='`checksum[sha512]` needs to be a SHA512 hash',
+                reason='Validation Error: `checksum[sha512]` needs to be a SHA512 hash',
                 file=apihandler.files_url
             )
             return False
@@ -109,7 +109,7 @@ class Validation:
             # locations needs to be a non-empty list
             apihandler.send_error(
                 400,
-                reason='member `locations` must be a list with at least one entry',
+                reason='Validation Error: member `locations` must be a list with at least one entry',
                 file=apihandler.files_url
             )
             return False

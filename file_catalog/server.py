@@ -226,7 +226,7 @@ class MainHandler(tornado.web.RequestHandler):
             message = 'Error generating page.'
             if self.debug:
                 message += '\n' + str(e)
-            self.send_error(message=message)
+            self.send_error(reason=message)
 
     def write_error(self, status_code: int = 500, **kwargs: Any) -> None:
         """Write out custom error page."""
@@ -372,7 +372,7 @@ class APIHandler(tornado.web.RequestHandler):
         ip = self.request.remote_ip
         if ip in self.rate_limit_data:
             if self.rate_limit_data[ip] > self.rate_limit:
-                self.send_error(429, message='rate limit exceeded for IP address')
+                self.send_error(429, reason='Rate limit exceeded for IP address')
             else:
                 self.rate_limit_data[ip] += 1
         else:
@@ -393,11 +393,9 @@ class APIHandler(tornado.web.RequestHandler):
             chunk = json_encode(chunk)
         super().write(chunk)
 
-    def write_error(self, status_code: int = 500, **kwargs: Any) -> None:
+    def write_error(self, status_code: int, **kwargs: Any) -> None:
         """Write out custom error page."""
-        if 'reason' in kwargs:
-            logger.debug(f"{status_code} ERROR: {kwargs['reason']}")
-        self.set_status(status_code)
+        logger.debug(f"{status_code}-ERROR: kwargs={kwargs}")
         kwargs.pop('exc_info', None)
         if kwargs:
             self.write(kwargs)
@@ -452,7 +450,7 @@ class FilesHandler(APIHandler):
             argbuilder.build_keys(kwargs)
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
-            self.send_error(400, message='invalid query parameters')
+            self.send_error(400, reason='Invalid query parameter(s)')
             return
 
         files = await self.db.find_files(**kwargs)
@@ -488,12 +486,12 @@ class FilesHandler(APIHandler):
             # file uuid already exists, check checksum
             if db_file['checksum'] != metadata['checksum']:
                 # the uuid already exists (no replica since checksum is different
-                self.send_error(409, message='conflict with existing file (uuid already exists)',
+                self.send_error(409, reason='Conflict with existing file (uuid already exists)',
                                 file=os.path.join(self.files_url, db_file['uuid']))
                 return
             elif any(f in db_file['locations'] for f in metadata['locations']):
                 # replica has already been added
-                self.send_error(409, message='replica has already been added',
+                self.send_error(409, reason='Replica has already been added',
                                 file=os.path.join(self.files_url, db_file['uuid']))
                 return
             else:
@@ -536,7 +534,7 @@ class FilesCountHandler(APIHandler):
             argbuilder.build_files_query(kwargs)
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
-            self.send_error(400, message='invalid query parameters')
+            self.send_error(400, reason='Invalid query parameter(s)')
             return
 
         files = await self.db.count_files(**kwargs)
@@ -577,9 +575,9 @@ class SingleFileHandler(APIHandler):
 
                 self.write(db_file)
             else:
-                self.send_error(404, message='not found')
+                self.send_error(404, reason='File uuid not found')
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='Not a valid uuid')
+            self.send_error(400, reason='Not a valid uuid')
 
     @validate_auth
     @catch_error
@@ -588,9 +586,9 @@ class SingleFileHandler(APIHandler):
         try:
             await self.db.delete_file({'uuid': uuid})
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='Not a valid uuid')
+            self.send_error(400, reason='Not a valid uuid')
         except Exception:  # pylint: disable=W0703
-            self.send_error(404, message='not found')
+            self.send_error(404, reason='File uuid not found')
         else:
             self.set_status(204)
 
@@ -604,10 +602,10 @@ class SingleFileHandler(APIHandler):
         try:
             db_file = await self.db.get_file({'uuid': uuid})
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='Not a valid uuid')
+            self.send_error(400, reason='Not a valid uuid')
             return
         if not db_file:
-            self.send_error(404, message='not found')
+            self.send_error(404, reason='File uuid not found')
             return
 
         # Validate Incoming Metadata
@@ -641,10 +639,10 @@ class SingleFileHandler(APIHandler):
         try:
             db_file = await self.db.get_file({'uuid': uuid})
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='Not a valid uuid')
+            self.send_error(400, reason='Not a valid uuid')
             return
         if not db_file:
-            self.send_error(404, message='not found')
+            self.send_error(404, reason='File uuid not found')
             return
 
         # Validate Incoming Metadata
@@ -690,12 +688,12 @@ class SingleFileLocationsHandler(APIHandler):
         try:
             db_file = await self.db.get_file({'uuid': uuid})
         except pymongo.errors.InvalidId:
-            self.send_error(400, message='invalid uuid in POST url')
+            self.send_error(400, reason='Not a valid uuid')
             return
 
         # if we didn't get a record
         if not db_file:
-            self.send_error(404, message='record not found in file catalog')
+            self.send_error(404, reason='File uuid not found')
             return
 
         # decode the JSON provided in the POST body
@@ -704,12 +702,12 @@ class SingleFileLocationsHandler(APIHandler):
 
         # if the user didn't provide locations
         if locations is None:
-            self.send_error(400, message="POST body requires 'locations' field")
+            self.send_error(400, reason="POST body requires 'locations' field")
             return
 
         # if locations isn't a list
         if not isinstance(locations, list):
-            self.send_error(400, message="field 'locations' must be an array")
+            self.send_error(400, reason=f"Field 'locations' must be a list (not `{type(locations)}`)")
             return
 
         # for each location provided
@@ -722,7 +720,7 @@ class SingleFileLocationsHandler(APIHandler):
                 # if the file we got isn't the one we're trying to update
                 if check['uuid'] != uuid:
                     # then that location belongs to another file (already exists)
-                    self.send_error(409, message='conflict with existing file (location already exists)',
+                    self.send_error(409, reason=f'Conflict with existing file (location already exists: `{loc}`)',
                                     file=os.path.join(self.files_url, check['uuid']),
                                     location=loc)
                     return
@@ -780,7 +778,7 @@ class CollectionsHandler(CollectionBaseHandler):
             argbuilder.build_keys(kwargs)
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
-            self.send_error(400, message='invalid query parameters')
+            self.send_error(400, reason='Invalid query parameter(s)')
             return
 
         collections = await self.db.find_collections(**kwargs)
@@ -804,14 +802,14 @@ class CollectionsHandler(CollectionBaseHandler):
             metadata['query'] = json_encode(metadata['query'])
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
-            self.send_error(400, message='invalid query parameters')
+            self.send_error(400, reason='Invalid query parameter(s)')
             return
 
         if 'collection_name' not in metadata:
-            self.send_error(400, message='missing collection_name')
+            self.send_error(400, reason='Missing collection_name')
             return
         if 'owner' not in metadata:
-            self.send_error(400, message='missing owner')
+            self.send_error(400, reason='Missing owner')
             return
 
         # allow user-specified uuid, create if not found
@@ -825,7 +823,7 @@ class CollectionsHandler(CollectionBaseHandler):
 
         if ret:
             # collection uuid already exists
-            self.send_error(409, message='conflict with existing file (uuid already exists)',
+            self.send_error(409, reason='Conflict with existing file (uuid already exists)',
                             file=os.path.join(self.files_url, ret['uuid']))
             return
         else:
@@ -862,7 +860,7 @@ class SingleCollectionHandler(CollectionBaseHandler):
 
             self.write(ret)
         else:
-            self.send_error(404, message='collection not found')
+            self.send_error(404, reason='Collection not found')
 
 
 # --------------------------------------------------------------------------------------
@@ -888,7 +886,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
                 argbuilder.build_keys(kwargs)
             except Exception:  # pylint: disable=W0703
                 logging.warning('query parameter error', exc_info=True)
-                self.send_error(400, message='invalid query parameters')
+                self.send_error(400, reason='Invalid query parameter(s)')
                 return
 
             files = await self.db.find_files(**kwargs)
@@ -901,7 +899,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
                 'files': files,
             })
         else:
-            self.send_error(404, message='collection not found')
+            self.send_error(404, reason='Collection not found')
 
 
 # --------------------------------------------------------------------------------------
@@ -918,7 +916,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
         if not ret:
             ret = await self.db.get_collection({'collection_name': uid})
         if not ret:
-            self.send_error(400, message='cannot find collection')
+            self.send_error(400, reason='Cannot find collection')
             return
 
         try:
@@ -929,7 +927,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             kwargs['query'] = {'collection_id': ret['uuid']}
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
-            self.send_error(400, message='invalid query parameters')
+            self.send_error(400, reason='Invalid query parameter(s)')
             return
 
         snapshots = await self.db.find_snapshots(**kwargs)
@@ -950,7 +948,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
         if not ret:
             ret = await self.db.get_collection({'collection_name': uid})
         if not ret:
-            self.send_error(400, message='cannot find collection')
+            self.send_error(400, reason='Cannot find collection')
             return
 
         files_kwargs = {
@@ -979,7 +977,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 
         if snapshot:
             # snapshot uuid already exists
-            self.send_error(409, message='conflict with existing snapshot (uuid already exists)')
+            self.send_error(409, reason='Conflict with existing snapshot (uuid already exists)')
         else:
             # find the list of files
             files = await self.db.find_files(**files_kwargs)
@@ -1017,7 +1015,7 @@ class SingleSnapshotHandler(CollectionBaseHandler):
 
             self.write(ret)
         else:
-            self.send_error(404, message='snapshot not found')
+            self.send_error(404, reason='Snapshot not found')
 
 
 # --------------------------------------------------------------------------------------
@@ -1042,7 +1040,7 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
                 argbuilder.build_keys(kwargs)
             except Exception:  # pylint: disable=W0703
                 logging.warning('query parameter error', exc_info=True)
-                self.send_error(400, message='invalid query parameters')
+                self.send_error(400, reason='Invalid query parameter(s)')
                 return
 
             files = await self.db.find_files(**kwargs)
@@ -1055,4 +1053,4 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
                 'files': files,
             })
         else:
-            self.send_error(404, message='snapshot not found')
+            self.send_error(404, reason='Snapshot not found')

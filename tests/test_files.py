@@ -33,7 +33,9 @@ def _assert_httperror(exception: Exception, code: int, reason_substr: str) -> No
 
 
 class TestFilesAPI(TestServerAPI):
-    def test_10_files(self):
+    """Test /api/files/*."""
+
+    def test_10_files(self) -> None:
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -63,7 +65,8 @@ class TestFilesAPI(TestServerAPI):
                 r.request_seq(m, '/api/files')
             _assert_httperror(cm.exception, 405, "Method Not Allowed")
 
-    def test_11_files_count(self):
+    def test_11_files_count(self) -> None:
+        """Test /api/files/count."""
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -87,7 +90,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('files', data)
         self.assertEqual(data['files'], 1)
 
-    def test_12_files_keys(self):
+    def test_12_files_keys(self) -> None:
         """Test the 'keys' and all-keys' arguments."""
         self.start_server()
         token = self.get_token()
@@ -115,7 +118,7 @@ class TestFilesAPI(TestServerAPI):
         assert set(data["files"][0].keys()) == {"logical_name", "uuid"}
 
         # w/ all-keys
-        args = {"all-keys": True}
+        args: Dict[str, Any] = {"all-keys": True}
         data = r.request_seq("GET", "/api/files", args)
         assert set(data["files"][0].keys()) == {
             "logical_name",
@@ -157,13 +160,13 @@ class TestFilesAPI(TestServerAPI):
         data = r.request_seq("GET", "/api/files", args)
         assert set(data["files"][0].keys()) == {"checksum", "file_size"}
 
-    def test_13_files_path_like_args(self):
+    def test_13_files_path_like_args(self) -> None:
         """Test the path-like base/shortcut arguments.
 
         "logical_name", "directory", "filename", "path", & "path-regex".
         """
-        self.start_server()  # type: ignore[no-untyped-call]
-        token = self.get_token()  # type: ignore[no-untyped-call]
+        self.start_server()
+        token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata_objs = [
@@ -229,7 +232,7 @@ class TestFilesAPI(TestServerAPI):
         assert paths == ["/john/paul/george/ringo/ham.txt"]
         assert len(get_paths({"path-regex": r".*"})) == 4
 
-    def test_15_files_auth(self):
+    def test_15_files_auth(self) -> None:
         self.start_server(config_override={'SECRET':'secret'})
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -251,7 +254,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('file', data)
         url = data['file']
 
-    def test_16_files_uri(self):
+    def test_16_files_uri(self) -> None:
         host = os.environ['TEST_DATABASE_HOST']
         port = os.environ['TEST_DATABASE_PORT']
         uri = f"mongodb://{host}:{port}"
@@ -277,7 +280,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('file', data)
         url = data['file']
 
-    def test_20_file(self):
+    def test_20_file(self) -> None:
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -342,7 +345,7 @@ class TestFilesAPI(TestServerAPI):
             data = r.request_seq('POST', url)
         _assert_httperror(cm.exception, 405, "Method Not Allowed")
 
-    def test_30_archive(self):
+    def test_30_archive(self) -> None:
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -382,7 +385,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertFalse(any(uuid == f['uuid'] for f in data['files']))
         self.assertTrue(any(uuid2 == f['uuid'] for f in data['files']))
 
-    def test_40_simple_query(self):
+    def test_40_simple_query(self) -> None:
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -488,7 +491,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('checksum', data['files'][0])
         self.assertIn('file_size', data['files'][0])
 
-    def test_50_post_files_unique_logical_name(self):
+    def test_50_post_files_unique_logical_name(self) -> None:
         """Test that logical_name is unique when creating a new file."""
         self.start_server()
         token = self.get_token()
@@ -531,7 +534,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertEqual(len(data['files']), 1)
         self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
 
-    def test_51_put_files_uuid_unique_logical_name(self):
+    def test_51_put_files_uuid_unique_logical_name(self) -> None:
         """Test that logical_name is unique when replacing a file."""
         self.start_server()
         token = self.get_token()
@@ -570,7 +573,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('PUT', '/api/files/' + uuid, metadata2)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_52_put_files_uuid_replace_logical_name(self):
+    def test_52_put_files_uuid_replace_logical_name(self) -> None:
         """Test that a file can replace with the same logical_name."""
         self.start_server()
         token = self.get_token()
@@ -604,7 +607,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('self', data['_links'])
         self.assertIn('logical_name', data)
 
-    def test_53_patch_files_uuid_unique_logical_name(self):
+    def test_53_patch_files_uuid_unique_logical_name(self) -> None:
         """Test that logical_name is unique when updating a file."""
         self.start_server()
         token = self.get_token()
@@ -651,7 +654,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('PATCH', '/api/files/' + uuid, patch1)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_54_patch_files_uuid_replace_logical_name(self):
+    def test_54_patch_files_uuid_replace_logical_name(self) -> None:
         """Test that a file can be updated with the same logical_name."""
         self.start_server()
         token = self.get_token()
@@ -687,7 +690,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('self', data['_links'])
         self.assertIn('logical_name', data)
 
-    def test_55_post_files_unique_locations(self):
+    def test_55_post_files_unique_locations(self) -> None:
         """Test that locations is unique when creating a new file."""
         self.start_server()
         token = self.get_token()
@@ -728,7 +731,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('POST', '/api/files', metadata2)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_56_put_files_uuid_unique_locations(self):
+    def test_56_put_files_uuid_unique_locations(self) -> None:
         """Test that locations is unique when replacing a file."""
         self.start_server()
         token = self.get_token()
@@ -773,7 +776,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('PUT', '/api/files/' + uuid, replace1)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_57_put_files_uuid_replace_locations(self):
+    def test_57_put_files_uuid_replace_locations(self) -> None:
         """Test that a file can replace with the same location."""
         self.start_server()
         token = self.get_token()
@@ -807,7 +810,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('self', data['_links'])
         self.assertIn('logical_name', data)
 
-    def test_58_patch_files_uuid_unique_locations(self):
+    def test_58_patch_files_uuid_unique_locations(self) -> None:
         """Test that locations is unique when updating a file."""
         self.start_server()
         token = self.get_token()
@@ -854,7 +857,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('PATCH', '/api/files/' + uuid, patch1)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_59_patch_files_uuid_replace_locations(self):
+    def test_59_patch_files_uuid_replace_locations(self) -> None:
         """Test that a file can be updated with the same location."""
         self.start_server()
         token = self.get_token()
@@ -891,7 +894,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('logical_name', data)
         self.assertIn('locations', data)
 
-    def test_60_post_files_locations_1xN(self):
+    def test_60_post_files_locations_1xN(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -941,7 +944,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('POST', '/api/files', metadata2)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_61_post_files_locations_Nx1(self):
+    def test_61_post_files_locations_Nx1(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -994,7 +997,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('POST', '/api/files', metadata2)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_62_post_files_locations_NxN(self):
+    def test_62_post_files_locations_NxN(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1047,7 +1050,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('POST', '/api/files', metadata2)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_63_put_files_uuid_locations_1xN(self):
+    def test_63_put_files_uuid_locations_1xN(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1101,7 +1104,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('PUT', '/api/files/' + uuid, replace1)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_64_put_files_uuid_locations_Nx1(self):
+    def test_64_put_files_uuid_locations_Nx1(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1155,7 +1158,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('PUT', '/api/files/' + uuid, replace1)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_65_put_files_uuid_locations_NxN(self):
+    def test_65_put_files_uuid_locations_NxN(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1209,7 +1212,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('PUT', '/api/files/' + uuid, replace1)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_66_patch_files_uuid_locations_1xN(self):
+    def test_66_patch_files_uuid_locations_1xN(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1265,7 +1268,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('PATCH', '/api/files/' + uuid, patch1)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_67_patch_files_uuid_locations_Nx1(self):
+    def test_67_patch_files_uuid_locations_Nx1(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1321,7 +1324,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('PATCH', '/api/files/' + uuid, patch1)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_68_patch_files_uuid_locations_NxN(self):
+    def test_68_patch_files_uuid_locations_NxN(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1377,7 +1380,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('PATCH', '/api/files/' + uuid, patch1)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_70_abuse_post_files_locations(self):
+    def test_70_abuse_post_files_locations(self) -> None:
         """Abuse the POST /api/files/UUID/locations route to test error
         handling."""
         self.start_server()
@@ -1428,7 +1431,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('POST', '/api/files/' + uuid + '/locations', {"locations": "bobsyeruncle"})
         _assert_httperror(cm.exception, 400, "Bad Request")
 
-    def test_71_post_files_locations_duplicate(self):
+    def test_71_post_files_locations_duplicate(self) -> None:
         """Test that POST /api/files/UUID/locations is a no-op for non-distinct
         locations."""
         self.start_server()
@@ -1473,7 +1476,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertListEqual(rec["locations"], rec2["locations"])
         self.assertEqual(mmd, rec2["meta_modify_date"])
 
-    def test_72_post_files_locations_conflict(self):
+    def test_72_post_files_locations_conflict(self) -> None:
         """Test that POST /api/files/UUID/locations returns an error on
         conflicting duplicate locations."""
         self.start_server()
@@ -1526,7 +1529,7 @@ class TestFilesAPI(TestServerAPI):
             rec2 = r.request_seq('POST', '/api/files/' + uuid + '/locations', conflicting_locations)
         _assert_httperror(cm.exception, 409, "Conflict")
 
-    def test_73_post_files_locations(self):
+    def test_73_post_files_locations(self) -> None:
         """Test that POST /api/files/UUID/locations can add distinct non-
         conflicting locations."""
         self.start_server()
@@ -1574,7 +1577,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn(loc1c, rec2["locations"])
         self.assertIn(loc1d, rec2["locations"])
 
-    def test_74_post_files_locations_just_one(self):
+    def test_74_post_files_locations_just_one(self) -> None:
         """Test that POST /api/files/UUID/locations can add distinct non-
         conflicting locations."""
         self.start_server()

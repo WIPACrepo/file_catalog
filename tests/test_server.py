@@ -48,7 +48,7 @@ class TestServerAPI(unittest.TestCase):
             if 'system' not in c:
                 db.drop_collection(c)
 
-    def start_server(self, config_override={}):
+    def start_server(self, config_override={}) -> None:
         env = dict(os.environ)
         env.update(config_override)
         env['MONGODB_PORT'] = str(self.mongo_port)
@@ -63,7 +63,7 @@ class TestServerAPI(unittest.TestCase):
         self.addCleanup(s.terminate)
         time.sleep(2)
 
-    def get_token(self):
+    def get_token(self) -> str:
         if 'TOKEN_URL' in os.environ:
             r = requests.get(os.environ['TOKEN_URL']+'/token?scope=file_catalog')
             r.raise_for_status()

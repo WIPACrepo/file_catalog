@@ -56,7 +56,7 @@ async def _contains_existing_locations(
                 # then that location belongs to another file (already exists)
                 apihandler.send_error(
                     409,
-                    reason=f"Conflict with existing file (location already exists: `{loc}`)",
+                    reason=f"Conflict with existing file (location already exists `{loc['path']}`)",
                     file=os.path.join(apihandler.files_url, file_found["uuid"]),
                     location=loc,
                 )

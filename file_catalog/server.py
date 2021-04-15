@@ -190,7 +190,7 @@ class MainHandler(tornado.web.RequestHandler):
             self.auth = Auth(algorithm=self.config['TOKEN_ALGORITHM'],
                              secret=self.config['TOKEN_KEY'],
                              issuer=self.config['TOKEN_URL'])
-            self.auth_key = None
+            self.auth_key: Optional[bytes] = None
         else:
             self.auth = None
         self.current_user_secure = None
@@ -356,7 +356,7 @@ class APIHandler(tornado.web.RequestHandler):
 
         # subtract 1 to test before current connection is added
         self.rate_limit = rate_limit - 1
-        self.rate_limit_data = {}
+        self.rate_limit_data: Dict[str, int] = {}
 
     def check_xsrf_cookie(self) -> None:  # noqa: D102
         pass
@@ -820,8 +820,8 @@ class CollectionsHandler(CollectionBaseHandler):
 
         if ret:
             # collection uuid already exists
-            self.send_error(409, reason='Conflict with existing file (uuid already exists)',
-                            file=os.path.join(self.files_url, ret['uuid']))
+            self.send_error(409, reason='Conflict with existing collection (uuid already exists)',
+                            file=os.path.join(self.collections_url, ret['uuid']))
             return
         else:
             uuid = await self.db.create_collection(metadata)

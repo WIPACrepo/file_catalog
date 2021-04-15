@@ -179,13 +179,10 @@ class MainHandler(tornado.web.RequestHandler):
 
     def initialize(  # pylint: disable=C0116,W0201
         self,
+        config: Dict[str, Any],
         base_url: str = "/",
         debug: bool = False,
-        config: Optional[Dict[str, Any]] = None,
     ) -> None:  # noqa: D102
-        if config is None:
-            raise Exception('Invalid configuration: `config` is `None`')
-
         self.base_url = base_url
         self.debug = debug
         self.config = config

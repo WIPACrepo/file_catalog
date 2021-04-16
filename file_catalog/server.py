@@ -262,7 +262,7 @@ class LoginHandler(MainHandler):
     @catch_error
     def get(self) -> None:
         """Handle GET requests."""
-        if not self.get_argument('access', False):
+        if not self.get_argument('access', ''):
             url = url_concat(self.config['TOKEN_URL'] + '/token', {
                 'redirect': self.address + self.request.uri,
                 'state': self.get_argument('next', '/'),
@@ -288,7 +288,7 @@ class AccountHandler(MainHandler):
     @catch_error
     def get(self) -> None:
         """Handle Handle GET requests."""
-        if not self.get_argument('access', False):
+        if not self.get_argument('access', ''):
             url = url_concat(self.config['TOKEN_URL'] + '/token', {
                 'redirect': self.address + self.request.uri,
                 'scope': 'file-catalog',
@@ -339,9 +339,11 @@ class APIHandler(tornado.web.RequestHandler):
         base_url: str = "/",
         debug: bool = False,
         rate_limit: int = 10,
-    ) -> None:  # noqa: D102
+    ) -> None:
+        """Initialize handler."""
         if db is None:
             raise Exception('Mongo instance is None: `db`')
+
         self.db = db
         self.base_url = base_url
         self.debug = debug
@@ -405,11 +407,12 @@ class APIHandler(tornado.web.RequestHandler):
 class HATEOASHandler(APIHandler):
     """Initialize a new handler."""
 
-    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
-        # pylint: disable=W0201
+    def initialize(self, **kwargs: Any) -> None:  # type: ignore[override]  # pylint: disable=C0116,W0221
+        """Initialize handler."""
         super().initialize(**kwargs)
 
         # response is known ahead of time, so pre-compute it
+        # pylint: disable=W0201
         self.data = {
             '_links': {
                 'self': {'href': self.base_url},
@@ -429,11 +432,12 @@ class HATEOASHandler(APIHandler):
 class FilesHandler(APIHandler):
     """Initialize a handler for requesting files without a known uuid."""
 
-    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
-        # pylint: disable=W0201
+    def initialize(self, **kwargs: Any) -> None:  # type: ignore[override]  # pylint: disable=C0116,W0221
+        """Initialize handler."""
         super().initialize(**kwargs)
+        # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
-        self.validation = Validation(self.config)
+        self.validation = Validation(self.config)  # pylint: disable=W0201
 
     @validate_auth
     @catch_error
@@ -516,9 +520,10 @@ class FilesHandler(APIHandler):
 class FilesCountHandler(APIHandler):
     """Initialize a handler for counting files."""
 
-    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
-        # pylint: disable=W0201
+    def initialize(self, **kwargs: Any) -> None:  # type: ignore[override]  # pylint: disable=C0116,W0221
+        """Initialize handler."""
         super().initialize(**kwargs)
+        # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
         self.validation = Validation(self.config)
 
@@ -551,9 +556,10 @@ class FilesCountHandler(APIHandler):
 class SingleFileHandler(APIHandler):
     """Initialize a handler for requesting single files via uuid."""
 
-    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
-        # pylint: disable=W0201
+    def initialize(self, **kwargs: Any) -> None:  # type: ignore[override]  # pylint: disable=C0116,W0221
+        """Initialize handler."""
         super().initialize(**kwargs)
+        # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
         self.validation = Validation(self.config)
 
@@ -669,9 +675,10 @@ class SingleFileHandler(APIHandler):
 class SingleFileLocationsHandler(APIHandler):
     """Initialize a handler for adding new locations to an existing record."""
 
-    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
-        # pylint: disable=W0201
+    def initialize(self, **kwargs: Any) -> None:  # type: ignore[override]  # pylint: disable=C0116,W0221
+        """Initialize handler."""
         super().initialize(**kwargs)
+        # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
     @validate_auth
@@ -751,9 +758,10 @@ class SingleFileLocationsHandler(APIHandler):
 class CollectionBaseHandler(APIHandler):
     """Initialize an abstract/base handler for collection-type requests."""
 
-    def initialize(self, **kwargs: Any) -> None:  # noqa: D102  # pylint: disable=C0116
-        # pylint: disable=W0201
+    def initialize(self, **kwargs: Any) -> None:  # type: ignore[override]  # pylint: disable=C0116,W0221
+        """Initialize handler."""
         super().initialize(**kwargs)
+        # pylint: disable=W0201
         self.collections_url = os.path.join(self.base_url, 'collections')
         self.snapshots_url = os.path.join(self.base_url, 'snapshots')
 

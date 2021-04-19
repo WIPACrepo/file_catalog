@@ -379,7 +379,7 @@ class TestFilesAPI(TestServerAPI):
             u'file_size': 3,
             u'locations': [{u'site':u'test',u'path':u'blah.dat',u'archive':False}]
         }
-        data = r.request_seq('POST', '/api/files', metadata2)
+        data = r.request_seq('POST', '/api/files', metadata3)
         url3 = data['file']
         uid3 = url3.split('/')[-1]
 

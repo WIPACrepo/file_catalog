@@ -28,7 +28,7 @@ unrealistic_queries = [
     {'locations.archive': False},
     {'locations.archive': None},
     {'locations.archive': None, 'run.first_event': {'$lte': 400}, 'run.last_event': {'$gte': 400}},
-}
+]
 
 bad_queries = []
 ret = db.system.profile.find({ 'op': { '$nin' : ['command', 'insert'] } })

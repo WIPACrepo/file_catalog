@@ -23,14 +23,22 @@ if ret != pymongo.ALL:
     raise Exception('profiling disabled')
 db.set_profiling_level(pymongo.OFF)
 
+unrealistic_queries = [
+    {'locations.archive': True},
+    {'locations.archive': False},
+    {'locations.archive': None},
+    {'locations.archive': None, 'run.first_event': {'$lte': 400}, 'run.last_event': {'$gte': 400}},
+}
+
 bad_queries = []
 ret = db.system.profile.find({ 'op': { '$nin' : ['command', 'insert'] } })
 for query in ret:
     try:
         if 'find' in query['command'] and query['command']['find'] == 'collections':
             continue
-        if 'filter' in query['command'] and query['command']['filter'] == {'locations.archive': True}:
-            continue # exclude unrealistic test query
+        # exclude unrealistic test queries
+        if 'filter' in query['command'] and query['command']['filter'] in unrealistic_queries:
+            continue
         if 'planSummary' not in query:
             print(query)
             continue

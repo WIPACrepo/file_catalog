@@ -458,8 +458,8 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)
         self.assertEqual(len(data['files']), 1)
-        self.assertFalse(any(uid == f['uuid'] for f in data['files']))
-        self.assertFalse(any(uid2 == f['uuid'] for f in data['files']))
+        self.assertFalse(any(uuid == f['uuid'] for f in data['files']))
+        self.assertFalse(any(uuid2 == f['uuid'] for f in data['files']))
         self.assertTrue(any(uid3 == f['uuid'] for f in data['files']))
 
     def test_40_simple_query(self):

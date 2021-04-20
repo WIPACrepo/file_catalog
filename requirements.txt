@@ -21,7 +21,6 @@ motor==2.4.0
 mypy==0.812
 packaging==19.2
 pluggy==0.13.0
-py==1.8.0
 pyasn1==0.4.7
 pycparser==2.19
 Pygments==2.7.4

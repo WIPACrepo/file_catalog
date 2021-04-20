@@ -39,18 +39,31 @@ class Mongo:
             logger.info(f"MongoClient args: uri={uri}")
             self.client = MotorClient(uri, authSource=authSource).file_catalog
         else:
-            logger.info('MongoClient args: host=%s, port=%s, username=%s', host, port, username)
-            self.client = MongoClient(host=host, port=port,
-                                      authSource=authSource,
-                                      username=username, password=password).file_catalog
+            logger.info(
+                "MongoClient args: host=%s, port=%s, username=%s", host, port, username
+            )
+            self.client = MotorClient(
+                host=host,
+                port=port,
+                authSource=authSource,
+                username=username,
+                password=password,
+            ).file_catalog
 
-        # all files
-        self.client.files.create_index('uuid', unique=True, background=True)
-        self.client.files.create_index('logical_name', unique=True, background=True)
-        self.client.files.create_index([('logical_name',pymongo.HASHED)], background=True)
-        self.client.files.create_index('locations', unique=True, background=True)
-        self.client.files.create_index([('locations.site',pymongo.DESCENDING),('locations.path',pymongo.DESCENDING)], background=True)
-        self.client.files.create_index('create_date', background=True)
+        asyncio.get_event_loop().run_until_complete(self.create_indexes())
+        self.executor = ThreadPoolExecutor(max_workers=10)
+        logger.info("done setting up Mongo")
+
+    # fmt: off
+    async def create_indexes(self) -> None:
+        """Create indexes for all file-catalog mongo collections."""
+        # all files (a.k.a. required fields)
+        await self.client.files.create_index('uuid', unique=True, background=True)
+        await self.client.files.create_index('logical_name', unique=True, background=True)
+        await self.client.files.create_index([('logical_name', pymongo.HASHED)], background=True)
+        await self.client.files.create_index('locations', unique=True, background=True)
+        await self.client.files.create_index([('locations.site', pymongo.DESCENDING), ('locations.path', pymongo.DESCENDING)], background=True)
+        await self.client.files.create_index('create_date', background=True)
 
         # all .i3 files
         await self.client.files.create_index('content_status', sparse=True, background=True)
@@ -58,12 +71,12 @@ class Mongo:
         await self.client.files.create_index('data_type', sparse=True, background=True)
 
         # data_type=real files
-        self.client.files.create_index('run.run_number', sparse=True, background=True)
-        self.client.files.create_index('run.start_datetime', sparse=True, background=True)
-        self.client.files.create_index('run.end_datetime', sparse=True, background=True)
-        self.client.files.create_index('offline_processing_metadata.first_event', sparse=True, background=True)
-        self.client.files.create_index('offline_processing_metadata.last_event', sparse=True, background=True)
-        self.client.files.create_index('offline_processing_metadata.season', sparse=True, background=True)
+        await self.client.files.create_index('run.run_number', sparse=True, background=True)
+        await self.client.files.create_index('run.start_datetime', sparse=True, background=True)
+        await self.client.files.create_index('run.end_datetime', sparse=True, background=True)
+        await self.client.files.create_index('offline_processing_metadata.first_event', sparse=True, background=True)
+        await self.client.files.create_index('offline_processing_metadata.last_event', sparse=True, background=True)
+        await self.client.files.create_index('offline_processing_metadata.season', sparse=True, background=True)
 
         # data_type=simulation files
         await self.client.files.create_index('iceprod.dataset', sparse=True, background=True)

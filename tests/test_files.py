@@ -367,6 +367,31 @@ class TestFilesAPI(TestServerAPI):
         self.assertFalse(any(uid == f['uuid'] for f in data['files']))
         self.assertTrue(any(uid2 == f['uuid'] for f in data['files']))
 
+        data = r.request_seq('GET', '/api/files', {'query':json_encode({'locations.archive':False})})
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 0)
+
+        metadata3 = {
+            u'logical_name': u'blah3',
+            u'checksum': {u'sha512':hex('1234')},
+            u'file_size': 3,
+            u'locations': [{u'site':u'test',u'path':u'blah.dat',u'archive':False}]
+        }
+        data = r.request_seq('POST', '/api/files', metadata3)
+        url3 = data['file']
+        uid3 = url3.split('/')[-1]
+
+        data = r.request_seq('GET', '/api/files', {'query':json_encode({'locations.archive':False})})
+        self.assertIn('_links', data)
+        self.assertIn('self', data['_links'])
+        self.assertIn('files', data)
+        self.assertEqual(len(data['files']), 1)
+        self.assertFalse(any(uid == f['uuid'] for f in data['files']))
+        self.assertFalse(any(uid2 == f['uuid'] for f in data['files']))
+        self.assertTrue(any(uid3 == f['uuid'] for f in data['files']))
+
     def test_40_simple_query(self):
         self.start_server()
         token = self.get_token()

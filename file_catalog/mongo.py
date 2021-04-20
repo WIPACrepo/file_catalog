@@ -62,7 +62,7 @@ class Mongo:
         await self.client.files.create_index('logical_name', unique=True, background=True)
         await self.client.files.create_index([('logical_name', pymongo.HASHED)], background=True)
         await self.client.files.create_index('locations', unique=True, background=True)
-        await self.client.files.create_index([('locations.site', pymongo.DESCENDING), ('locations.path', pymongo.DESCENDING)], background=True,)
+        await self.client.files.create_index([('locations.site', pymongo.DESCENDING), ('locations.path', pymongo.DESCENDING)], background=True)
         await self.client.files.create_index('locations.archive', background=True)
         await self.client.files.create_index('create_date', background=True)
 
@@ -118,29 +118,12 @@ class Mongo:
     async def _limit_result_list(
         cursor: MotorCursor, limit: Optional[int] = None, start: int = 0,
     ) -> List[Dict[str, Any]]:
-        """Get sublist of results from `cursor` using `limit` and `start`.
-
-         `limit` and `skip` are ignored by __getitem__:
-         http://api.mongodb.com/python/current/api/pymongo/cursor.html#pymongo.cursor.Cursor.__getitem__
-
-        Therefore, implement it manually.
-        """
-        results = []
-        end = None
-
-        if limit is not None:
-            end = start + limit
-
-        i = 0
-        async for row in cursor:
-            if i < start:
-                continue
-            results.append(row)
-            if end and i >= end:
-                break
-            i += 1
-
-        return results
+        """Get sublist of results from `cursor` using `limit` and `start`."""
+        if limit:
+            results = await cursor.skip(start).limit(limit).to_list(None)
+        else:
+            results = await cursor.skip(start).to_list(None)
+        return cast(List[Dict[str, Any]], results)
 
     async def find_files(
         self,

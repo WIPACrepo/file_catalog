@@ -7,6 +7,7 @@ from __future__ import absolute_import, division, print_function
 
 import copy
 import hashlib
+import itertools
 import os
 import unittest
 from typing import Any, Dict, List, Optional
@@ -542,6 +543,59 @@ class TestFilesAPI(TestServerAPI):
         self.assertFalse(any(uuid2 == f['uuid'] for f in data['files']))
         self.assertIn('checksum', data['files'][0])
         self.assertIn('file_size', data['files'][0])
+
+    def test_41_simple_query(self) -> None:
+        """Test the limit and start parameters."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # Populate FC
+        for i in range(100):
+            metadata = {
+                'logical_name': f'/foo/bar/{i}.dat',
+                'checksum': {'sha512': hex(f'foo bar {i}')},
+                'file_size': 3 * i,
+                u'locations': [{u'site': u'WIPAC', u'path': f'/foo/bar/{i}.dat'}]
+            }
+            r.request_seq('POST', '/api/files', metadata)
+
+        # Some Legal Corner Cases
+        assert len(r.request_seq('GET', '/api/files')['files']) == 100
+        assert len(r.request_seq('GET', '/api/files', {'limit': 300})['files']) == 100
+        assert not r.request_seq('GET', '/api/files', {'start': 300})['files']
+        assert len(r.request_seq('GET', '/api/files', {'start': 99})['files']) == 1
+        assert len(r.request_seq('GET', '/api/files', {'start': None})['files']) == 100
+        assert len(r.request_seq('GET', '/api/files', {'limit': None})['files']) == 100
+
+        # Normal Usage
+        limit = 3
+        received = []
+        for i in itertools.count():
+            start = i * limit
+            print(f"{i=} {start=} {limit=}")
+            res = r.request_seq('GET', '/api/files', {'start': start, 'limit': limit})
+
+            # normal query batch
+            if i < (100 // limit):
+                assert len(res['files']) == limit
+            # penultimate query batch
+            elif i == (100 // limit):
+                assert len(res['files']) == (100 % limit)
+            # final query batch, AKA nothing more
+            else:
+                assert not res['files']
+                break
+
+            assert not any(f in received for f in res['files'])
+            received.extend(res['files'])
+        assert len(received) == 100
+
+        # Some Error Cases
+        for err in [{'start': -7}, {'limit': 0}, {'limit': -12}]:
+            with self.assertRaises(requests.exceptions.HTTPError) as cm:
+                r.request_seq('GET', '/api/files', err)
+            _assert_httperror(cm.exception, 400, 'Invalid query parameter(s)')
 
     def test_50_post_files_unique_logical_name(self) -> None:
         """Test that logical_name is unique when creating a new file."""

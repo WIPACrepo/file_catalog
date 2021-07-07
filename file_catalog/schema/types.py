@@ -129,6 +129,12 @@ class SimulationMetadata(TypedDict, total=False):
     hadronic_interaction: str
 
 
+class LongTermArchiveMetadata(TypedDict, total=False):
+    """Long Term Archive Metadata."""
+
+    date_archived: Date
+
+
 # ideally, we could do some kind of introspection, but this requires universal TypedDict support
 simulation_metadata_types = {
     "generator": str,
@@ -185,3 +191,6 @@ class Metadata(TypedDict, total=False):
     # /data/sim/* i3 File:
     iceprod: IceProdMetadata
     simulation: SimulationMetadata
+
+    # Long Term Archive (LTA):
+    lta: LongTermArchiveMetadata

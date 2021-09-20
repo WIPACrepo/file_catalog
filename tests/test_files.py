@@ -204,37 +204,35 @@ class TestFilesAPI(TestServerAPI):
         for meta in metadata_objs:
             r.request_seq("POST", "/api/files", meta)
 
-        def get_paths(args: Optional[Dict[str, str]] = None) -> List[str]:
+        def get_logical_names(args: Optional[Dict[str, str]] = None) -> List[str]:
             if not args:
                 args = {}
             ret = r.request_seq("GET", "/api/files", args)
             print(ret)
             return [f["logical_name"] for f in ret["files"]]
 
-        assert len(get_paths()) == 4
+        assert len(get_logical_names()) == 4
         # logical_name
-        assert len(get_paths({"logical_name": "/foo/bar/ham.txt"})) == 1
-        # path
-        assert len(get_paths({"path": "/green/eggs/and/ham.txt"})) == 1
+        assert len(get_logical_names({"logical_name": "/foo/bar/ham.txt"})) == 1
         # directory
-        paths = get_paths({"directory": "/foo/bar"})
+        paths = get_logical_names({"directory": "/foo/bar"})
         assert set(paths) == {"/foo/bar/ham.txt", "/foo/bar/baz/bat.txt"}
-        assert len(get_paths({"directory": "/fo"})) == 0
+        assert len(get_logical_names({"directory": "/fo"})) == 0
         # filename
-        paths = get_paths({"filename": "ham.txt"})
+        paths = get_logical_names({"filename": "ham.txt"})
         assert set(paths) == {
             "/foo/bar/ham.txt",
             "/green/eggs/and/ham.txt",
             "/john/paul/george/ringo/ham.txt",
         }
-        assert len(get_paths({"filename": ".txt"})) == 0
+        assert len(get_logical_names({"filename": ".txt"})) == 0
         # directory & filename
-        paths = get_paths({"directory": "/foo", "filename": "ham.txt"})
+        paths = get_logical_names({"directory": "/foo", "filename": "ham.txt"})
         assert paths == ["/foo/bar/ham.txt"]
         # logical-name-regex
-        paths = get_paths({"logical-name-regex": r".*george/ringo.*"})
+        paths = get_logical_names({"logical-name-regex": r".*george/ringo.*"})
         assert paths == ["/john/paul/george/ringo/ham.txt"]
-        assert len(get_paths({"logical-name-regex": r".*"})) == 4
+        assert len(get_logical_names({"logical-name-regex": r".*"})) == 4
 
     def test_15_files_auth(self) -> None:
         """Test auth/token; good and bad (403) cases.

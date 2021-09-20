@@ -1620,7 +1620,7 @@ class TestFilesAPI(TestServerAPI):
         # try to POST to the file with a non-array locations
         with self.assertRaises(Exception) as cm:
             r.request_seq('POST', '/api/files/' + uuid + '/locations', {"locations": "bobsyeruncle"})
-        _assert_httperror(cm.exception, 400, f"Field 'locations' must be a list (not `{type('bobsyeruncle')}`)")
+        _assert_httperror(cm.exception, 400, "Validation Error: member `locations` must be a list with 1+ entries, each with keys: ['site', 'path']")
 
     def test_71_post_files_locations_duplicate(self) -> None:
         """Test that POST /api/files/UUID/locations is a no-op for non-distinct

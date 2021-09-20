@@ -167,7 +167,7 @@ class TestFilesAPI(TestServerAPI):
     def test_13_files_path_like_args(self) -> None:
         """Test the path-like base/shortcut arguments.
 
-        "logical_name", "directory", "filename", "path", & "path-regex".
+        "logical_name", "directory", "filename", "path", & "logical-name-regex".
         """
         self.start_server()
         token = self.get_token()
@@ -231,10 +231,10 @@ class TestFilesAPI(TestServerAPI):
         # directory & filename
         paths = get_paths({"directory": "/foo", "filename": "ham.txt"})
         assert paths == ["/foo/bar/ham.txt"]
-        # path-regex
-        paths = get_paths({"path-regex": r".*george/ringo.*"})
+        # logical-name-regex
+        paths = get_paths({"logical-name-regex": r".*george/ringo.*"})
         assert paths == ["/john/paul/george/ringo/ham.txt"]
-        assert len(get_paths({"path-regex": r".*"})) == 4
+        assert len(get_paths({"logical-name-regex": r".*"})) == 4
 
     def test_15_files_auth(self) -> None:
         """Test auth/token; good and bad (403) cases.

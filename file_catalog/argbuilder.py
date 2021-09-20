@@ -3,8 +3,9 @@
 
 from typing import Any, Dict, Optional, Union
 
-from file_catalog.mongo import AllKeys
 from tornado.escape import json_decode
+
+from file_catalog.mongo import AllKeys
 
 
 def build_limit(kwargs: Dict[str, Any], config: Dict[str, Any]) -> None:
@@ -30,30 +31,28 @@ def build_start(kwargs: Dict[str, Any]) -> None:
             raise Exception("start is negative")
 
 
-def _resolve_path_args(kwargs: Dict[str, Any]) -> Optional[Union[Dict[str, Any], str]]:
-    """Resolve the path-type shortcut arguments by precedence.
+def _resolve_name_args(kwargs: Dict[str, Any]) -> Optional[Union[Dict[str, Any], str]]:
+    """Resolve the name-type shortcut arguments by precedence.
 
     Pop each key from `kwargs`, even if it's not used.
     """
     arg: Optional[Union[Dict[str, Any], str]] = None
 
     # regex
-    if "path-regex" in kwargs:
-        arg = {"$regex": kwargs.pop("path-regex")}
+    if "logical-name-regex" in kwargs:
+        arg = {"$regex": kwargs.pop("logical-name-regex")}
 
     # normal path
-    if "path" in kwargs:
-        arg = kwargs.pop("path")
     if "logical_name" in kwargs:
         arg = kwargs.pop("logical_name")
 
     # directory & filename
     if "directory" in kwargs or "filename" in kwargs:
-        if not (dpath := kwargs.pop("directory", "").rstrip("/")):
-            dpath = r".*"
+        if not (directory := kwargs.pop("directory", "").rstrip("/")):
+            directory = r".*"
         if not (fname := kwargs.pop("filename", "").lstrip("/")):
             fname = r".*"
-        arg = {"$regex": rf"^{dpath}/(.*/)?{fname}$"}
+        arg = {"$regex": rf"^{directory}/(.*/)?{fname}$"}
 
     return arg
 
@@ -76,7 +75,7 @@ def build_files_query(kwargs: Dict[str, Any]) -> None:
         query["locations.archive"] = None
 
     # shortcut query params
-    if path := _resolve_path_args(kwargs):
+    if path := _resolve_name_args(kwargs):
         query["logical_name"] = path
     if "run_number" in kwargs:
         query["run.run_number"] = kwargs.pop("run_number")

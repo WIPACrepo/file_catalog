@@ -77,10 +77,10 @@ Obtain list of files
 ##### REST-Query Parameters
   * [`limit`](#limit)
   * [`start`](#start)
-  * [`path` *or* `logical_name`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
-  * [`directory`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
-  * [`filename`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
-  * [`path-regex`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
+  * [`logical_name`](#shortcut-parameters-logical-name-regex-logical_name-directory-filename) *(shortcut parameter)*
+  * [`directory`](#shortcut-parameters-logical-name-regex-logical_name-directory-filename) *(shortcut parameter)*
+  * [`filename`](#shortcut-parameters-logical-name-regex-logical_name-directory-filename) *(shortcut parameter)*
+  * [`logical-name-regex`](#shortcut-parameters-logical-name-regex-logical_name-directory-filename) *(shortcut parameter)*
   * [`run_number`](#shortcut-parameter-run_number) *(shortcut parameter)*
   * [`dataset`](#shortcut-parameter-dataset) *(shortcut parameter)*
   * [`event_id`](#shortcut-parameter-event_id) *(shortcut parameter)*
@@ -208,13 +208,13 @@ Partially update/replace file metadata information
 - **NOTE:** there is no performance hit for including more fields
 - *see [`all-keys`](#shortcut-parameter-all-keys)*
 
-##### Shortcut Parameters: `path-regex`, `path`, `logical_name`, `directory`, `filename`
+##### Shortcut Parameters: `logical-name-regex`, `logical_name`, `directory`, `filename`
 *In decreasing order of precedence...*
-- `path-regex`
+- `logical-name-regex`
   - query by regex pattern (at your own risk... performance-wise)
   - equivalent to: `query: {"logical_name": {"$regex": p}}`
 
-- `path` *or* `logical_name`
+- `logical_name`
   - equivalent to: `query["logical_name"]`
 
 - `directory`

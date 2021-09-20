@@ -348,6 +348,8 @@ class APIHandler(tornado.web.RequestHandler):
         self.base_url = base_url
         self.debug = debug
         self.config = config
+        self.validation = Validation(self.config)
+
         if 'TOKEN_KEY' in self.config:
             self.auth = Auth(algorithm=self.config['TOKEN_ALGORITHM'],
                              secret=self.config['TOKEN_KEY'],
@@ -437,7 +439,6 @@ class FilesHandler(APIHandler):
         super().initialize(**kwargs)
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
-        self.validation = Validation(self.config)  # pylint: disable=W0201
 
     @validate_auth
     @catch_error
@@ -525,7 +526,6 @@ class FilesCountHandler(APIHandler):
         super().initialize(**kwargs)
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
-        self.validation = Validation(self.config)
 
     @validate_auth
     @catch_error
@@ -561,7 +561,6 @@ class SingleFileHandler(APIHandler):
         super().initialize(**kwargs)
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
-        self.validation = Validation(self.config)
 
     @validate_auth
     @catch_error
@@ -709,9 +708,9 @@ class SingleFileLocationsHandler(APIHandler):
             self.send_error(400, reason="POST body requires 'locations' field")
             return
 
-        # if locations isn't a list
-        if not isinstance(locations, list):
-            self.send_error(400, reason=f"Field 'locations' must be a list (not `{type(locations)}`)")
+        # validate `locations`
+        if not self.validation.is_valid_location_list(locations):
+            self.send_error(400, reason=self.validation.INVALID_LOCATIONS_LIST_MESSAGE)
             return
 
         # for each location provided

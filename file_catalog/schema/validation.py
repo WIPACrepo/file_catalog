@@ -28,6 +28,12 @@ def _find_missing_mandatory_field(metadata: types.Metadata, fields: List[str]) -
 class Validation:
     """Validating field-specific metadata."""
 
+    MANDATORY_LOCATION_KEYS = ['site', 'path']
+    INVALID_LOCATIONS_LIST_MESSAGE = (
+        f"Validation Error: member `locations` must be a list with "
+        f"1+ entries, each with keys: {MANDATORY_LOCATION_KEYS}"
+    )
+
     def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
 
@@ -35,6 +41,33 @@ class Validation:
     def is_valid_sha512(hash_str: str) -> bool:
         """Check if `hash_str` is a valid SHA512 hash."""
         return re.match(r"[0-9a-f]{128}", str(hash_str), re.IGNORECASE) is not None
+
+    @staticmethod
+    def is_valid_location_list(locations: List[types.LocationEntry]) -> bool:
+        """Check if `locations` is a valid list of location-entries."""
+        if not isinstance(locations, list):
+            return False
+        if not locations:
+            return False
+
+        for loc in locations:
+            if not Validation.is_valid_location(loc):
+                return False
+
+        return True
+
+    @staticmethod
+    def is_valid_location(location: types.LocationEntry) -> bool:
+        """Check if `location` is a valid location-entry."""
+        if not location:
+            return False
+        if not isinstance(location, dict):
+            return False
+
+        if not all(key in location for key in Validation.MANDATORY_LOCATION_KEYS):
+            return False
+
+        return True
 
     def has_forbidden_attributes_creation(self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata) -> bool:
         """Check if `metadata` has forbidden attributes and they have changed.
@@ -75,6 +108,7 @@ class Validation:
         Utilizes `send_error` and returns `False` if validation failed.
         If validation was successful, `True` is returned.
         """
+        # MANDATORY FIELDS
         missing = _find_missing_mandatory_field(metadata, self.config['META_MANDATORY_FIELDS'])
         if missing:
             apihandler.send_error(
@@ -85,6 +119,7 @@ class Validation:
             )
             return False
 
+        # CHECKSUM
         if ((not isinstance(metadata['checksum'], dict)) or 'sha512' not in metadata['checksum']):
             # checksum needs to be a dict with an sha512
             apihandler.send_error(
@@ -94,7 +129,8 @@ class Validation:
             )
             return False
 
-        elif not self.is_valid_sha512(metadata['checksum']['sha512']):
+        # CHECKSSUM.SHA512
+        if not self.is_valid_sha512(metadata['checksum']['sha512']):
             # force to use SHA512
             apihandler.send_error(
                 400,
@@ -103,13 +139,11 @@ class Validation:
             )
             return False
 
-        elif ((not isinstance(metadata['locations'], list))
-              or (not metadata['locations'])
-              or not all(loc for loc in metadata['locations'])):
-            # locations needs to be a non-empty list
+        # LOCATIONS LIST & ITS ENTRIES
+        if not self.is_valid_location_list(metadata['locations']):
             apihandler.send_error(
                 400,
-                reason='Validation Error: member `locations` must be a list with at least one entry',
+                reason=self.INVALID_LOCATIONS_LIST_MESSAGE,
                 file=apihandler.files_url
             )
             return False

@@ -115,7 +115,9 @@ class Mongo:
 
     @staticmethod
     async def _limit_result_list(
-        cursor: MotorCursor, limit: Optional[int] = None, start: int = 0,
+        cursor: MotorCursor,
+        limit: Optional[int] = None,
+        start: int = 0,
     ) -> List[Dict[str, Any]]:
         """Get sublist of results from `cursor` using `limit` and `start`."""
         if limit:
@@ -156,7 +158,9 @@ class Mongo:
         return results
 
     async def count_files(  # pylint: disable=W0613
-        self, query: Optional[Dict[str, Any]] = None, **kwargs: Any,
+        self,
+        query: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> int:
         """Get count of files matching query."""
         if not query:
@@ -166,7 +170,9 @@ class Mongo:
 
         return cast(int, ret)
 
-    async def create_file(self, metadata: types.Metadata) -> str:
+    async def create_file(
+        self, metadata: types.Metadata
+    ) -> pymongo.results.InsertOneResult:
         """Insert file metadata.
 
         Return uuid.
@@ -178,7 +184,7 @@ class Mongo:
             logger.warning(msg)
             raise Exception(msg)
 
-        return metadata["uuid"]
+        return result
 
     async def get_file(self, filters: Dict[str, Any]) -> types.Metadata:
         """Get file matching filters."""

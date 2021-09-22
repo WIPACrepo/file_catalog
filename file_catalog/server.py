@@ -35,6 +35,8 @@ from .schema.validation import Validation
 
 logger = logging.getLogger('server')
 
+StrDict = Dict[str, Any]
+
 
 def get_pkgdata_filename(package: str, resource: str) -> Optional[str]:
     """Get a filename for a resource bundled within the package."""
@@ -385,11 +387,10 @@ class APIHandler(tornado.web.RequestHandler):
         if self.rate_limit_data[ip] <= 0:
             del self.rate_limit_data[ip]
 
-    def write(self, chunk: Union[str, bytes, Dict[str, Any], types.Metadata]) -> None:
+    def write(self, chunk: Union[str, bytes, StrDict]) -> None:
         """Write chunk to output buffer."""
         # override write so we don't output a json header
         if isinstance(chunk, dict):
-            chunk = cast(Dict[str, Any], chunk)  # unfortunately necessary, but a no-op
             chunk = sort_dict(chunk)
             chunk = json_encode(chunk)
         super().write(chunk)
@@ -567,7 +568,7 @@ class SingleFileHandler(APIHandler):
                     'parent': {'href': self.files_url},
                 }
 
-                self.write(db_file)
+                self.write(cast(StrDict, db_file))
             else:
                 self.send_error(404, reason='File uuid not found')
         except pymongo.errors.InvalidId:
@@ -628,7 +629,7 @@ class SingleFileHandler(APIHandler):
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},
         }
-        self.write(db_file)
+        self.write(cast(StrDict, db_file))
 
     @validate_auth
     @catch_error
@@ -671,7 +672,7 @@ class SingleFileHandler(APIHandler):
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},
         }
-        self.write(metadata)
+        self.write(cast(StrDict, metadata))
 
 
 # --------------------------------------------------------------------------------------
@@ -753,7 +754,7 @@ class SingleFileLocationsHandler(APIHandler):
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},
         }
-        self.write(db_file)
+        self.write(cast(StrDict, db_file))
 
 
 # Collections #

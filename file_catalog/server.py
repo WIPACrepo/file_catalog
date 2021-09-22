@@ -479,32 +479,36 @@ class FilesHandler(APIHandler):
         # Validate Incoming Data
         if not self.validation.validate_metadata_creation(self, metadata):
             return
+
         set_last_modification_date(metadata)
+
+        # Deconflict with DB Records
+        # NOTE - POST should not conflict with any existing record
+        # NOTE - by uuid, by existing locations, or by existing file-version
+        if await self.db.get_file({'uuid': metadata['uuid']}):
+            self.send_error(
+                409,
+                reason='Conflict with existing file (uuid already exists)',
+                file=os.path.join(self.files_url, metadata['uuid'])
+            )
+            return
         if await deconfliction.any_location_already_in_db(self, metadata.get("locations")):
             return
-        if await deconfliction.file_version_already_in_db(
-            self, metadata.get("logical_name"), metadata.get("checksum")
-        ):
-            return
-
-        db_file = await self.db.get_file({'uuid': metadata['uuid']})
-
-        if db_file:
-            # file uuid already exists, check checksum
-            if db_file['checksum'] != metadata['checksum']:
-                # the uuid already exists (no replica since checksum is different
-                self.send_error(409, reason='Conflict with existing file (uuid already exists)',
-                                file=os.path.join(self.files_url, db_file['uuid']))
+        try:  # check if `metadata` will conflict with an existing metadata record
+            if await deconfliction.FileVersion(metadata).already_in_db(self):
                 return
-        else:
-            uuid = await self.db.create_file(metadata)
-            self.set_status(201)
+        except deconfliction.IndeterminateFileVersionError:
+            self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
+
+        # Create & Write-Back
+        await self.db.create_file(metadata)
+        self.set_status(201)
         self.write({
             '_links': {
                 'self': {'href': self.files_url},
                 'parent': {'href': self.base_url},
             },
-            'file': os.path.join(self.files_url, uuid),
+            'file': os.path.join(self.files_url, metadata['uuid']),
         })
 
 

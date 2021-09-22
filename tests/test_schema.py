@@ -5,7 +5,8 @@
 from typing import List, Optional, TypedDict
 
 # local imports
-from file_catalog.schema import types, validation
+from file_catalog.schema import types
+from file_catalog.schema.validation import Validation
 
 
 def test_00_types() -> None:
@@ -25,11 +26,6 @@ def test_00_types() -> None:
     ]
     for type_dict_class in type_dicts:
         assert type_dict_class in dir(types)
-
-
-def test_01_validation() -> None:
-    """Simply check imports."""
-    assert "Validation" in dir(validation)
 
 
 def test_10_find_missing_mandatory_field() -> None:
@@ -84,6 +80,6 @@ def test_10_find_missing_mandatory_field() -> None:
     ]
 
     for case in test_cases:
-        assert case["missing_field"] == validation._find_missing_mandatory_field(
+        assert case["missing_field"] == Validation._find_missing_mandatory_field(
             case["metadata"], case["mandatory_fields"]
         )

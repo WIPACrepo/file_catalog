@@ -3,32 +3,45 @@
 # fmt:off
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
+from .. import utils
 from . import types
 
 
-def _find_missing_mandatory_field(metadata: types.Metadata, fields: List[str]) -> Optional[str]:
-    """Return the first field found to be missing, or `None`."""
-    for field in fields:
-        try:
-            if "." in field:  # compound field; ex: "checksum.sha512"
-                parent, child = field.split(".", maxsplit=1)  # ex: "checksum" & "sha512"
-                if _find_missing_mandatory_field(metadata[parent], [child]):  # type: ignore[misc]
-                    return field
-            else:
-                # just try to access the field
-                _ = metadata[field]  # type: ignore[misc]
-        except KeyError:
-            return field
+def _get_val_in_metadata_dotted(field: str, metadata: types.Metadata) -> Any:
+    """Wraps `field_in_dict_dot_recurse()` with an incoming type cast.
 
-    return None
+    Raises:
+        KeyError - if field not found
+        TypeError - if parent-field is not `dict`-like
+    """
+    return utils.get_val_in_dict_dotted(field, cast(Dict[str, Any], metadata))
 
 
 class Validation:
     """Validating field-specific metadata."""
 
+    # keys/fields
+    FORBIDDEN_FIELDS_CREATION = ['mongo_id', '_id', 'meta_modify_date']
+    FORBIDDEN_FIELDS_UPDATE = [
+        "mongo_id",
+        "_id",
+        "meta_modify_date",
+        "uuid",
+        "logical_name",
+        "checksum.sha512",
+    ]
+    MANDATORY_FIELDS = [
+        "uuid",
+        "logical_name",
+        "locations",
+        "file_size",
+        "checksum.sha512",
+    ]
     MANDATORY_LOCATION_KEYS = ['site', 'path']
+
+    # error messages
     INVALID_LOCATIONS_LIST_MESSAGE = (
         f"Validation Error: member `locations` must be a list with "
         f"1+ entries, each with keys: {MANDATORY_LOCATION_KEYS}"
@@ -69,26 +82,47 @@ class Validation:
 
         return True
 
+    @staticmethod
+    def _find_all_field_vals(metadata: types.Metadata, fields: List[str]) -> Dict[str, Any]:
+        """Return all of fields' values in metadata."""
+        field_vals = {}
+        for field in fields:
+            try:
+                field_vals[field] = _get_val_in_metadata_dotted(field, metadata)
+            except (KeyError, TypeError):
+                continue
+        return field_vals
+
     def has_forbidden_attributes_creation(self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata) -> bool:
         """Check if `metadata` has forbidden attributes and they have changed.
 
         Returns `True` if it has forbidden attributes.
         """
-        for key in set(self.config['META_FORBIDDEN_FIELDS_CREATION']).intersection(metadata):
-            if key not in old_metadata or metadata[key] != old_metadata[key]:  # type: ignore[misc]
+        forbidden_matches = self._find_all_field_vals(metadata, self.FORBIDDEN_FIELDS_CREATION)
+
+        for field, val in forbidden_matches.items():
+            if field not in old_metadata or val != _get_val_in_metadata_dotted(field, old_metadata):
                 # forbidden fields
-                apihandler.send_error(400, reason=f'Validation Error: forbidden attribute creation `{key}`',
-                                      file=apihandler.files_url)
+                apihandler.send_error(
+                    400,
+                    reason=f"Validation Error: forbidden attribute creation '{field}'",
+                    file=apihandler.files_url,
+                )
                 return True
         return False
 
     def has_forbidden_attributes_modification(self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata) -> bool:
         """Check if `metadata` has forbidden attribute updates."""
-        for key in set(self.config['META_FORBIDDEN_FIELDS_UPDATE']).intersection(metadata):
-            if key not in old_metadata or metadata[key] != old_metadata[key]:  # type: ignore[misc]
+        forbidden_matches = self._find_all_field_vals(metadata, self.FORBIDDEN_FIELDS_UPDATE)
+
+        for field, val in forbidden_matches.items():
+            if field not in old_metadata or val != _get_val_in_metadata_dotted(field, old_metadata):
                 # forbidden fields
-                apihandler.send_error(400, reason=f'Validation Error: forbidden attribute update `{key}`',
-                                      file=apihandler.files_url)
+                apihandler.send_error(
+                    400,
+                    reason=f"Validation Error: forbidden attribute update '{field}'",
+                    file=apihandler.files_url,
+                )
                 return True
         return False
 
@@ -102,6 +136,16 @@ class Validation:
             return False
         return self.validate_metadata_modification(apihandler, metadata)
 
+    @staticmethod
+    def _find_missing_mandatory_field(metadata: types.Metadata, fields: List[str]) -> Optional[str]:
+        """Return the first field found to be missing, or `None`."""
+        for field in fields:
+            try:
+                _get_val_in_metadata_dotted(field, metadata)
+            except (KeyError, TypeError):
+                return field
+        return None
+
     def validate_metadata_modification(self, apihandler: Any, metadata: types.Metadata) -> bool:
         """Validate metadata for modification.
 
@@ -109,12 +153,12 @@ class Validation:
         If validation was successful, `True` is returned.
         """
         # MANDATORY FIELDS
-        missing = _find_missing_mandatory_field(metadata, self.config['META_MANDATORY_FIELDS'])
+        missing = self._find_missing_mandatory_field(metadata, self.MANDATORY_FIELDS)
         if missing:
             apihandler.send_error(
                 400,
                 reason=f"Validation Error: metadata missing mandatory field `{missing}` "
-                       f"(mandatory fields: {', '.join(self.config['META_MANDATORY_FIELDS'])})",
+                       f"(mandatory fields: {', '.join(self.MANDATORY_FIELDS)})",
                 file=apihandler.files_url
             )
             return False

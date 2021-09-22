@@ -19,45 +19,51 @@ def _is_conflict(uuid: Optional[str], file_found: types.Metadata) -> bool:
     return file_found["uuid"] != uuid
 
 
-async def file_version_already_in_db(
-    apihandler: Any,
-    logical_name: Optional[str],
-    checksum: Optional[types.Checksum],
-    ignore_uuid: Optional[str] = None,
-) -> bool:
-    """Return whether the file-version is already in the database.
+class IndeterminateFileVersionError(Exception):
+    """Raised when the file-version cannot be determined from the given parameters."""
 
-    A "file-version" is defined as the unique combination of a
-    `logical_name` and a `checksum`.
 
-    Pass in `ignore_uuid` to disregard matches (records) with this uuid.
+class FileVersion:
+    """Encapsulate the file-version representation for a metadata entry."""
 
-    If it is found to already be in the DB, send 409 error.
-    """
-    if not logical_name:
-        return False
-    if not checksum:
-        return False
+    def __init__(self, metadata: types.Metadata):
+        try:
+            self.logical_name = metadata["logical_name"]
+            self.checksum = metadata["checksum"]
+        except KeyError as e:
+            raise IndeterminateFileVersionError() from e
 
-    # try to load a file by that file-version
-    file_found = await apihandler.db.get_file(
-        {"logical_name": logical_name, "checksum": checksum}
-    )
-    # if we got a file by that file-version
-    if _is_conflict(ignore_uuid, file_found):
-        # then that file-version belongs to another file (already exists)
-        apihandler.send_error(
-            409,
-            reason=(
-                f"Conflict with existing file-version"
-                f" ('logical_name' + 'checksum' already exists:"
-                f"`{logical_name}` + `{checksum}`)"
-            ),
-            file=os.path.join(apihandler.files_url, file_found["uuid"]),
+    async def already_in_db(
+        self, apihandler: Any, ignore_uuid: Optional[str] = None
+    ) -> bool:
+        """Return whether the file-version is already in the database.
+
+        A "file-version" is defined as the unique combination of a
+        `logical_name` and a `checksum`.
+
+        Pass in `ignore_uuid` to disregard matches (records) with this uuid.
+
+        If it is found to already be in the DB, send 409 error.
+        """
+        # try to load a file by that file-version
+        from_db = await apihandler.db.get_file(
+            {"logical_name": self.logical_name, "checksum": self.checksum}
         )
-        return True
+        # if we got a file by that file-version
+        if _is_conflict(ignore_uuid, from_db):
+            # then that file-version belongs to another file (already exists)
+            apihandler.send_error(
+                409,
+                reason=(
+                    f"Conflict with existing file-version"
+                    f" ('logical_name' + 'checksum' already exists:"
+                    f"`{self.logical_name}` + `{self.checksum}`)"
+                ),
+                file=os.path.join(apihandler.files_url, from_db["uuid"]),
+            )
+            return True
 
-    return False
+        return False
 
 
 async def any_location_already_in_db(

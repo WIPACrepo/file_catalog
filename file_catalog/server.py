@@ -28,7 +28,7 @@ from tornado.httputil import url_concat
 # local imports
 import file_catalog
 
-from . import argbuilder, pathfinder, urlargparse
+from . import argbuilder, deconfliction, urlargparse
 from .mongo import Mongo
 from .schema import types
 from .schema.validation import Validation
@@ -475,11 +475,15 @@ class FilesHandler(APIHandler):
         if 'uuid' not in metadata:
             metadata['uuid'] = str(uuid1())
 
+        # Validate Incoming Data
         if not self.validation.validate_metadata_creation(self, metadata):
             return
-
         set_last_modification_date(metadata)
-        if await pathfinder.contains_existing_filepaths(self, metadata):
+        if await deconfliction.any_location_already_in_db(self, metadata.get("locations")):
+            return
+        if await deconfliction.file_version_already_in_db(
+            self, metadata.get("logical_name"), metadata.get("checksum")
+        ):
             return
 
         db_file = await self.db.get_file({'uuid': metadata['uuid']})
@@ -611,9 +615,16 @@ class SingleFileHandler(APIHandler):
             return
 
         # Validate Incoming Metadata
+        # TODO - go through all the validation scenarios for all methods
         if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
-        if await pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
+        if await deconfliction.any_location_already_in_db(
+            self, metadata.get("locations"), ignore_uuid=uuid
+        ):
+            return
+        if await deconfliction.file_version_already_in_db(
+            self, metadata.get("logical_name"), metadata.get("checksum"), ignore_uuid=uuid
+        ):
             return
 
         # Modify Metadata & Verify
@@ -650,7 +661,14 @@ class SingleFileHandler(APIHandler):
         # Validate Incoming Metadata
         if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
-        if await pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
+
+        if await deconfliction.any_location_already_in_db(
+            self, metadata.get("locations"), ignore_uuid=uuid
+        ):
+            return
+        if await deconfliction.file_version_already_in_db(
+            self, metadata.get("logical_name"), metadata.get("checksum"), ignore_uuid=uuid
+        ):
             return
 
         # Modify Metadata & Verify

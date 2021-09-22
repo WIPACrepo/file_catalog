@@ -495,18 +495,6 @@ class FilesHandler(APIHandler):
                 self.send_error(409, reason='Conflict with existing file (uuid already exists)',
                                 file=os.path.join(self.files_url, db_file['uuid']))
                 return
-            elif any(f in db_file['locations'] for f in metadata['locations']):
-                # replica has already been added
-                self.send_error(409, reason='Replica has already been added',
-                                file=os.path.join(self.files_url, db_file['uuid']))
-                return
-            else:
-                # add replica
-                db_file['locations'].extend(metadata['locations'])
-
-                await self.db.update_file(db_file['uuid'], {'locations': db_file['locations']})
-                self.set_status(200)
-                uuid = db_file['uuid']
         else:
             uuid = await self.db.create_file(metadata)
             self.set_status(201)

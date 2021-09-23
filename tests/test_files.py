@@ -982,7 +982,7 @@ class TestFilesAPI(TestServerAPI):
         # this is a PATCH to metadata; steps on metadata2's location
         patch1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar2')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
         }
@@ -1026,8 +1026,8 @@ class TestFilesAPI(TestServerAPI):
 
         # this is a PATCH to metadata; matches the old location
         patch1 = {
-            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hex('foo bar2')},
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
@@ -1245,7 +1245,7 @@ class TestFilesAPI(TestServerAPI):
         }
         replace1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar2')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 2,
             u'locations': locs3c
         }
@@ -1303,7 +1303,7 @@ class TestFilesAPI(TestServerAPI):
         }
         replace1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar2')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 2,
             u'locations': [loc1a]
         }
@@ -1361,7 +1361,7 @@ class TestFilesAPI(TestServerAPI):
         }
         replace1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar2')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 2,
             u'locations': locs3b
         }
@@ -1421,7 +1421,7 @@ class TestFilesAPI(TestServerAPI):
         # this is a PATCH to metadata; steps on metadata2's location
         patch1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar2')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 2,
             u'locations': locs3c
         }
@@ -1481,7 +1481,7 @@ class TestFilesAPI(TestServerAPI):
         # this is a PATCH to metadata; steps on metadata2's location
         patch1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar2')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 2,
             u'locations': [loc1c]
         }
@@ -1541,7 +1541,7 @@ class TestFilesAPI(TestServerAPI):
         # this is a PATCH to metadata; steps on metadata2's location
         patch1 = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar2')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 2,
             u'locations': locs3c
         }

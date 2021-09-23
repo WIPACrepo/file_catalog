@@ -92,7 +92,7 @@ class Validation:
         """Values aren't the same OR no value for that key in old metadata."""
         try:
             old_val = _get_val_in_metadata_dotted(field, old_metadata)
-            return bool(val == old_val)
+            return bool(val != old_val)
         except utils.DottedKeyError:
             return True
 

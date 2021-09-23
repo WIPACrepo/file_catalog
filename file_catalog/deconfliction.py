@@ -76,6 +76,18 @@ async def find_each_location_in_db(
         yield loc, from_db
 
 
+def send_location_conflict_error(
+    apihandler: Any, loc: types.LocationEntry, uuid: str
+) -> None:
+    """Send standard error message for a location conflict."""
+    apihandler.send_error(
+        409,
+        reason=f"Conflict with existing file (location already exists `{loc['path']}`)",
+        file=os.path.join(apihandler.files_url, uuid),
+        location=loc,
+    )
+
+
 async def any_location_in_db(
     apihandler: Any,
     locations: Optional[List[types.LocationEntry]],
@@ -95,12 +107,7 @@ async def any_location_in_db(
         # if we got a file by that location
         if from_db and _is_conflict(skip, from_db):
             # then that location belongs to another file (already exists)
-            apihandler.send_error(
-                409,
-                reason=f"Conflict with existing file (location already exists `{loc['path']}`)",
-                file=os.path.join(apihandler.files_url, from_db["uuid"]),
-                location=loc,
-            )
+            send_location_conflict_error(apihandler, loc, from_db["uuid"])
             return True
 
     return False

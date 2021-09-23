@@ -736,9 +736,7 @@ class SingleFileLocationsHandler(APIHandler):
                 # if the file we got isn't the one we're trying to update
                 if check['uuid'] != uuid:
                     # then that location belongs to another file (already exists)
-                    self.send_error(409, reason=f"Conflict with existing file (location already exists `{loc['path']}`)",
-                                    file=os.path.join(self.files_url, check['uuid']),
-                                    location=loc)
+                    deconfliction.send_location_conflict_error(self, loc, check['uuid'])
                     return
                 # note that if we get the record that we are trying to update
                 # the location will NOT be added to the list of new_locations

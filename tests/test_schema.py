@@ -2,6 +2,7 @@
 
 # pylint: disable=W0212
 
+from pprint import pprint
 from typing import List, Optional, TypedDict
 
 # local imports
@@ -80,6 +81,7 @@ def test_10_find_missing_mandatory_field() -> None:
     ]
 
     for case in test_cases:
+        pprint(case)
         assert case["missing_field"] == Validation._find_missing_mandatory_field(
             case["metadata"], case["mandatory_fields"]
         )

@@ -186,10 +186,12 @@ class Mongo:
 
         return result
 
-    async def get_file(self, filters: Dict[str, Any]) -> types.Metadata:
+    async def get_file(self, filters: Dict[str, Any]) -> Optional[types.Metadata]:
         """Get file matching filters."""
         file = await self.client.files.find_one(filters, {"_id": False})
-        return cast(types.Metadata, file)
+        if file:
+            return cast(types.Metadata, file)
+        return None
 
     async def update_file(self, uuid: str, metadata: types.Metadata) -> None:
         """Update file."""

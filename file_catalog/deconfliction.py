@@ -1,12 +1,13 @@
-"""Utility functions for finding a given filepath in the FC."""
+"""Utility functions for avoiding conflicts in the FC."""
 
 import os
-from typing import Any, List, Optional
+from typing import Any, AsyncGenerator, List, Optional, Tuple
 
+from .mongo import Mongo
 from .schema import types
 
 
-def _is_conflict(uuid: Optional[str], file_found: types.Metadata) -> bool:
+def _is_conflict(uuid: Optional[str], file_found: Optional[types.Metadata]) -> bool:
     # if no file was found, then no problem
     if not file_found:
         return False
@@ -33,15 +34,13 @@ class FileVersion:
         except KeyError as e:
             raise IndeterminateFileVersionError() from e
 
-    async def already_in_db(
-        self, apihandler: Any, ignore_uuid: Optional[str] = None
-    ) -> bool:
+    async def is_in_db(self, apihandler: Any, skip: Optional[str] = None) -> bool:
         """Return whether the file-version is already in the database.
 
         A "file-version" is defined as the unique combination of a
         `logical_name` and a `checksum`.
 
-        Pass in `ignore_uuid` to disregard matches (records) with this uuid.
+        Pass in `skip` to disregard matches (records) with this uuid.
 
         If it is found to already be in the DB, send 409 error.
         """
@@ -50,7 +49,7 @@ class FileVersion:
             {"logical_name": self.logical_name, "checksum": self.checksum}
         )
         # if we got a file by that file-version
-        if _is_conflict(ignore_uuid, from_db):
+        if _is_conflict(skip, from_db):
             # then that file-version belongs to another file (already exists)
             apihandler.send_error(
                 409,
@@ -66,14 +65,25 @@ class FileVersion:
         return False
 
 
-async def any_location_already_in_db(
+async def find_each_location_in_db(
+    db: Mongo,
+    locations: List[types.LocationEntry],
+) -> AsyncGenerator[Tuple[types.LocationEntry, Optional[types.Metadata]], None]:
+    """Yield each location entry with its database metadata file (or `None`)."""
+    for loc in locations:
+        # try to load a file by that location
+        from_db = await db.get_file({"locations": {"$elemMatch": loc}})
+        yield loc, from_db
+
+
+async def any_location_in_db(
     apihandler: Any,
     locations: Optional[List[types.LocationEntry]],
-    ignore_uuid: Optional[str] = None,
+    skip: Optional[str] = None,
 ) -> bool:
     """Return whether any of the given locations are already in the database.
 
-    Pass in `ignore_uuid` to disregard matches (records) with this uuid.
+    Pass in `skip` to disregard matches (records) with this uuid.
 
     If any are found to already be in the DB, send 409 error.
     """
@@ -81,16 +91,14 @@ async def any_location_already_in_db(
         return False
 
     # for each location provided
-    for loc in locations:
-        # try to load a file by that location
-        file_found = await apihandler.db.get_file({"locations": {"$elemMatch": loc}})
+    async for loc, from_db in find_each_location_in_db(apihandler.db, locations):
         # if we got a file by that location
-        if _is_conflict(ignore_uuid, file_found):
+        if from_db and _is_conflict(skip, from_db):
             # then that location belongs to another file (already exists)
             apihandler.send_error(
                 409,
                 reason=f"Conflict with existing file (location already exists `{loc['path']}`)",
-                file=os.path.join(apihandler.files_url, file_found["uuid"]),
+                file=os.path.join(apihandler.files_url, from_db["uuid"]),
                 location=loc,
             )
             return True

@@ -484,7 +484,7 @@ class FilesHandler(APIHandler):
 
         # Deconflict with DB Records
         # NOTE - POST should not conflict with any existing record
-        # NOTE - by uuid, by existing locations, or by existing file-version
+        # NOTE - by uuid, by existing location(s), or by existing file-version
         if await self.db.get_file({'uuid': metadata['uuid']}):
             self.send_error(
                 409,
@@ -492,10 +492,10 @@ class FilesHandler(APIHandler):
                 file=os.path.join(self.files_url, metadata['uuid'])
             )
             return
-        if await deconfliction.any_location_already_in_db(self, metadata.get("locations")):
+        if await deconfliction.any_location_in_db(self, metadata.get("locations")):
             return
         try:  # check if `metadata` will conflict with an existing metadata record
-            if await deconfliction.FileVersion(metadata).already_in_db(self):
+            if await deconfliction.FileVersion(metadata).is_in_db(self):
                 return
         except deconfliction.IndeterminateFileVersionError:
             self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
@@ -608,17 +608,19 @@ class SingleFileHandler(APIHandler):
             return
 
         # Validate Incoming Metadata
-        # TODO - go through all the validation scenarios for all methods
         if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
-        if await deconfliction.any_location_already_in_db(
-            self, metadata.get("locations"), ignore_uuid=uuid
-        ):
+
+        # Deconflict with DB Records
+        # NOTE - PATCH should not conflict with any existing record (excl. uuid's record)
+        # NOTE - by existing location(s) or by existing file-version
+        if await deconfliction.any_location_in_db(self, metadata.get("locations"), skip=uuid):
             return
-        if await deconfliction.file_version_already_in_db(
-            self, metadata.get("logical_name"), metadata.get("checksum"), ignore_uuid=uuid
-        ):
-            return
+        try:
+            if await deconfliction.FileVersion(metadata).is_in_db(self, skip=uuid):
+                return
+        except deconfliction.IndeterminateFileVersionError:
+            pass
 
         # Modify Metadata & Verify
         set_last_modification_date(metadata)
@@ -655,14 +657,16 @@ class SingleFileHandler(APIHandler):
         if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
 
-        if await deconfliction.any_location_already_in_db(
-            self, metadata.get("locations"), ignore_uuid=uuid
-        ):
+        # Deconflict with DB Records
+        # NOTE - PUT should not conflict with any existing record (excl. uuid's record)
+        # NOTE - by existing location(s) or by existing file-version
+        if await deconfliction.any_location_in_db(self, metadata.get("locations"), skip=uuid):
             return
-        if await deconfliction.file_version_already_in_db(
-            self, metadata.get("logical_name"), metadata.get("checksum"), ignore_uuid=uuid
-        ):
-            return
+        try:
+            if await deconfliction.FileVersion(metadata).is_in_db(self, skip=uuid):
+                return
+        except deconfliction.IndeterminateFileVersionError:
+            pass
 
         # Modify Metadata & Verify
         metadata['uuid'] = uuid
@@ -726,9 +730,7 @@ class SingleFileLocationsHandler(APIHandler):
 
         # for each location provided
         new_locations = []
-        for loc in locations:
-            # try to load a file by that location
-            check = await self.db.get_file({'locations': {'$elemMatch': loc}})
+        async for loc, check in deconfliction.find_each_location_in_db(self.db, locations):
             # if we got a file by that location
             if check:
                 # if the file we got isn't the one we're trying to update
@@ -752,6 +754,10 @@ class SingleFileLocationsHandler(APIHandler):
             await self.db.append_distinct_elements_to_file(uuid, {'locations': new_locations})
             # re-read the updated file from the database
             db_file = await self.db.get_file({'uuid': uuid})
+            if not db_file:
+                self.send_error(404, reason='File was deleted in a race condition',
+                                file=os.path.join(self.files_url, uuid))
+                return
 
         # send the record back to the caller
         db_file['_links'] = {

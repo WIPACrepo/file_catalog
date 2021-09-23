@@ -10,12 +10,6 @@ from . import types
 
 
 def _get_val_in_metadata_dotted(field: str, metadata: types.Metadata) -> Any:
-    """Wraps `field_in_dict_dot_recurse()` with an incoming type cast.
-
-    Raises:
-        KeyError - if field not found
-        TypeError - if parent-field is not `dict`-like
-    """
     return utils.get_val_in_dict_dotted(field, cast(Dict[str, Any], metadata))
 
 
@@ -89,9 +83,18 @@ class Validation:
         for field in fields:
             try:
                 field_vals[field] = _get_val_in_metadata_dotted(field, metadata)
-            except (KeyError, TypeError):
+            except utils.DottedKeyError:
                 continue
         return field_vals
+
+    @staticmethod
+    def _field_vals_are_different(field: str, val: Any, old_metadata: types.Metadata) -> bool:
+        """Values aren't the same OR no value for that key in old metadata."""
+        try:
+            old_val = _get_val_in_metadata_dotted(field, old_metadata)
+            return bool(val == old_val)
+        except utils.DottedKeyError:
+            return True
 
     def has_forbidden_attributes_creation(self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata) -> bool:
         """Check if `metadata` has forbidden attributes and they have changed.
@@ -101,8 +104,7 @@ class Validation:
         forbidden_matches = self._find_all_field_vals(metadata, self.FORBIDDEN_FIELDS_CREATION)
 
         for field, val in forbidden_matches.items():
-            if field not in old_metadata or val != _get_val_in_metadata_dotted(field, old_metadata):
-                # forbidden fields
+            if self._field_vals_are_different(field, val, old_metadata):
                 apihandler.send_error(
                     400,
                     reason=f"Validation Error: forbidden attribute creation '{field}'",
@@ -116,8 +118,7 @@ class Validation:
         forbidden_matches = self._find_all_field_vals(metadata, self.FORBIDDEN_FIELDS_UPDATE)
 
         for field, val in forbidden_matches.items():
-            if field not in old_metadata or val != _get_val_in_metadata_dotted(field, old_metadata):
-                # forbidden fields
+            if self._field_vals_are_different(field, val, old_metadata):
                 apihandler.send_error(
                     400,
                     reason=f"Validation Error: forbidden attribute update '{field}'",
@@ -142,7 +143,7 @@ class Validation:
         for field in fields:
             try:
                 _get_val_in_metadata_dotted(field, metadata)
-            except (KeyError, TypeError):
+            except utils.DottedKeyError:
                 return field
         return None
 

@@ -17,7 +17,7 @@ class Validation:
 
     # keys/fields
     FORBIDDEN_FIELDS_CREATION = ["mongo_id", "_id", "meta_modify_date"]
-    FORBIDDEN_FIELDS_UPDATE = [
+    FORBIDDEN_FIELDS_MODIFICATION = [
         "mongo_id",
         "_id",
         "meta_modify_date",
@@ -144,7 +144,7 @@ class Validation:
             apihandler,
             metadata,
             old_metadata,
-            self.FORBIDDEN_FIELDS_UPDATE,
+            self.FORBIDDEN_FIELDS_MODIFICATION,
             "forbidden attribute update",
         )
 

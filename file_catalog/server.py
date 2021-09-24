@@ -644,6 +644,7 @@ class SingleFileHandler(APIHandler):
     async def put(self, uuid: str) -> None:
         """Handle PUT request."""
         metadata: types.Metadata = json_decode(self.request.body)
+        metadata['uuid'] = uuid
 
         # Find Matching File
         try:
@@ -658,6 +659,10 @@ class SingleFileHandler(APIHandler):
         # Validate Incoming Metadata
         if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
+        if not self.validation.validate_metadata_schema_typing(self, metadata):
+            return
+
+        set_last_modification_date(metadata)
 
         # Deconflict with DB Records
         # NOTE - PUT should not conflict with any existing record (excl. uuid's record)
@@ -668,13 +673,8 @@ class SingleFileHandler(APIHandler):
             if await deconfliction.FileVersion(metadata).is_in_db(self, skip=uuid):
                 return
         except deconfliction.IndeterminateFileVersionError:
-            pass
-
-        # Modify Metadata & Verify
-        metadata['uuid'] = uuid
-        set_last_modification_date(metadata)
-        if not self.validation.validate_metadata_schema_typing(self, metadata):
-            return
+            # `validate_metadata_schema_typing()` should have detected this anyways
+            self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
 
         # Insert into DB & Write Back
         await self.db.replace_file(metadata.copy())

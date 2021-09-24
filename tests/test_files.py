@@ -316,13 +316,9 @@ class TestFilesAPI(TestServerAPI):
 
         metadata_cpy = copy.deepcopy(metadata)
         metadata_cpy['uuid'] = 'something else'
-        with self.assertRaises(Exception) as cm:
-            data = r.request_seq('PUT', url, metadata_cpy)
-        _assert_httperror(
-            cm.exception,
-            400,
-            "Validation Error: forbidden attribute update 'uuid'"
-        )
+        data = r.request_seq('PUT', url, metadata_cpy)
+        assert data['uuid'] != metadata_cpy['uuid']
+        assert data['uuid'] == url.split('/')[-1]
 
         data = r.request_seq('PUT', url, metadata)
         data.pop('_links')

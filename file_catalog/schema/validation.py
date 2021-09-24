@@ -121,7 +121,7 @@ class Validation:
                 return True
         return False
 
-    def _has_forbidden_attributes_creation(
+    def has_forbidden_attributes_creation(
         self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata
     ) -> bool:
         """Check if `metadata` has forbidden attributes and whether they have changed.
@@ -147,18 +147,6 @@ class Validation:
             self.FORBIDDEN_FIELDS_UPDATE,
             "forbidden attribute update",
         )
-
-    def validate_metadata_creation(
-        self, apihandler: Any, metadata: types.Metadata
-    ) -> bool:
-        """Validate metadata for creation.
-
-        Utilizes `send_error` and returns `False` if validation failed.
-        If validation was successful, `True` is returned.
-        """
-        if self._has_forbidden_attributes_creation(apihandler, metadata, {}):
-            return False
-        return self.validate_metadata_schema_typing(apihandler, metadata)
 
     @staticmethod
     def _find_missing_mandatory_field(

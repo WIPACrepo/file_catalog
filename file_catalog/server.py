@@ -477,7 +477,9 @@ class FilesHandler(APIHandler):
             metadata['uuid'] = str(uuid1())
 
         # Validate Incoming Data
-        if not self.validation.validate_metadata_creation(self, metadata):
+        if self.validation.has_forbidden_attributes_creation(self, metadata, {}):
+            return
+        if not self.validation.validate_metadata_schema_typing(self, metadata):
             return
 
         set_last_modification_date(metadata)

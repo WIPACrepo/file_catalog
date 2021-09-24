@@ -482,8 +482,6 @@ class FilesHandler(APIHandler):
         if not self.validation.validate_metadata_schema_typing(self, metadata):
             return
 
-        set_last_modification_date(metadata)
-
         # Deconflict with DB Records
         # NOTE - POST should not conflict with any existing record
         # NOTE - by uuid, by existing location(s), or by existing file-version
@@ -503,6 +501,7 @@ class FilesHandler(APIHandler):
             self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
 
         # Create & Write-Back
+        set_last_modification_date(metadata)
         await self.db.create_file(metadata)
         self.set_status(201)
         self.write({
@@ -624,14 +623,12 @@ class SingleFileHandler(APIHandler):
         except deconfliction.IndeterminateFileVersionError:
             pass
 
-        # Modify Metadata & Verify
+        # Modify & Write Back
         set_last_modification_date(metadata)
         db_file.update(metadata)
         # we have to validate `db_file` b/c `metadata` may not have all the required fields
         if not self.validation.validate_metadata_schema_typing(self, db_file):
             return
-
-        # Insert into DB & Write Back
         await self.db.update_file(uuid, metadata)
         db_file['_links'] = {
             'self': {'href': os.path.join(self.files_url, uuid)},
@@ -662,8 +659,6 @@ class SingleFileHandler(APIHandler):
         if not self.validation.validate_metadata_schema_typing(self, metadata):
             return
 
-        set_last_modification_date(metadata)
-
         # Deconflict with DB Records
         # NOTE - PUT should not conflict with any existing record (excl. uuid's record)
         # NOTE - by existing location(s) or by existing file-version
@@ -676,7 +671,8 @@ class SingleFileHandler(APIHandler):
             # `validate_metadata_schema_typing()` should have detected this anyways
             self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
 
-        # Insert into DB & Write Back
+        # Replace & Write Back
+        set_last_modification_date(metadata)
         await self.db.replace_file(metadata.copy())
         metadata['_links'] = {
             'self': {'href': os.path.join(self.files_url, uuid)},

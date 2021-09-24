@@ -96,7 +96,7 @@ class Validation:
         except utils.DottedKeyError:
             return True
 
-    def has_forbidden_attributes_creation(self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata) -> bool:
+    def _has_forbidden_attributes_creation(self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata) -> bool:
         """Check if `metadata` has forbidden attributes and they have changed.
 
         Returns `True` if it has forbidden attributes.
@@ -133,9 +133,9 @@ class Validation:
         Utilizes `send_error` and returns `False` if validation failed.
         If validation was successful, `True` is returned.
         """
-        if self.has_forbidden_attributes_creation(apihandler, metadata, {}):
+        if self._has_forbidden_attributes_creation(apihandler, metadata, {}):
             return False
-        return self.validate_metadata_modification(apihandler, metadata)
+        return self.is_metadata_ready_for_db(apihandler, metadata)
 
     @staticmethod
     def _find_missing_mandatory_field(metadata: types.Metadata, fields: List[str]) -> Optional[str]:
@@ -147,8 +147,8 @@ class Validation:
                 return field
         return None
 
-    def validate_metadata_modification(self, apihandler: Any, metadata: types.Metadata) -> bool:
-        """Validate metadata for modification.
+    def is_metadata_ready_for_db(self, apihandler: Any, metadata: types.Metadata) -> bool:
+        """Check that `metadata` is okay to insert into the database.
 
         Utilizes `send_error` and returns `False` if validation failed.
         If validation was successful, `True` is returned.

@@ -97,7 +97,7 @@ class Validation:
             old_val = _get_val_in_metadata_dotted(field, old_metadata)
             return bool(val != old_val)
         except utils.DottedKeyError:
-            return True
+            return True  # value was not found in old_metadata
 
     @staticmethod
     def _has_forbidden_attributes(
@@ -158,7 +158,7 @@ class Validation:
         """
         if self._has_forbidden_attributes_creation(apihandler, metadata, {}):
             return False
-        return self.is_metadata_ready_for_db(apihandler, metadata)
+        return self.validate_metadata_schema_typing(apihandler, metadata)
 
     @staticmethod
     def _find_missing_mandatory_field(
@@ -172,7 +172,7 @@ class Validation:
                 return field
         return None
 
-    def is_metadata_ready_for_db(
+    def validate_metadata_schema_typing(
         self, apihandler: Any, metadata: types.Metadata
     ) -> bool:
         """Check that `metadata` is okay to insert into the database.

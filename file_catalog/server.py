@@ -626,7 +626,7 @@ class SingleFileHandler(APIHandler):
         set_last_modification_date(metadata)
         db_file.update(metadata)
         # we have to validate `db_file` b/c `metadata` may not have all the required fields
-        if not self.validation.is_metadata_ready_for_db(self, db_file):
+        if not self.validation.validate_metadata_schema_typing(self, db_file):
             return
 
         # Insert into DB & Write Back
@@ -654,8 +654,6 @@ class SingleFileHandler(APIHandler):
             return
 
         # Validate Incoming Metadata
-        if not self.validation.validate_metadata_creation(self, metadata):
-            return
         if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
             return
 
@@ -673,7 +671,7 @@ class SingleFileHandler(APIHandler):
         # Modify Metadata & Verify
         metadata['uuid'] = uuid
         set_last_modification_date(metadata)
-        if not self.validation.is_metadata_ready_for_db(self, metadata):
+        if not self.validation.validate_metadata_schema_typing(self, metadata):
             return
 
         # Insert into DB & Write Back

@@ -499,6 +499,7 @@ class FilesHandler(APIHandler):
                 return
         except deconfliction.IndeterminateFileVersionError:
             self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
+            return
 
         # Create & Write-Back
         set_last_modification_date(metadata)
@@ -670,6 +671,7 @@ class SingleFileHandler(APIHandler):
         except deconfliction.IndeterminateFileVersionError:
             # `validate_metadata_schema_typing()` should have detected this anyways
             self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
+            return
 
         # Replace & Write Back
         set_last_modification_date(metadata)

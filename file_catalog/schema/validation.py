@@ -120,16 +120,13 @@ class Validation:
         return False
 
     def has_forbidden_fields_creation(
-        self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata
+        self, apihandler: Any, metadata: types.Metadata
     ) -> bool:
-        """Check if `metadata` has forbidden fields and whether they have changed.
-
-        Returns `True` if it has forbidden fields.
-        """
+        """Check if `metadata` has forbidden fields."""
         return self._has_forbidden_fields(
             apihandler,
             metadata,
-            old_metadata,
+            {},
             self.FORBIDDEN_FIELDS_CREATION,
             "forbidden field creation",
         )

@@ -1,6 +1,5 @@
 """Utilities for metadata validation."""
 
-# fmt:off
 
 import re
 from typing import Any, Dict, List, Optional, cast
@@ -17,7 +16,7 @@ class Validation:
     """Validating field-specific metadata."""
 
     # keys/fields
-    FORBIDDEN_FIELDS_CREATION = ['mongo_id', '_id', 'meta_modify_date']
+    FORBIDDEN_FIELDS_CREATION = ["mongo_id", "_id", "meta_modify_date"]
     FORBIDDEN_FIELDS_UPDATE = [
         "mongo_id",
         "_id",
@@ -33,7 +32,7 @@ class Validation:
         "file_size",
         "checksum.sha512",
     ]
-    MANDATORY_LOCATION_KEYS = ['site', 'path']
+    MANDATORY_LOCATION_KEYS = ["site", "path"]
 
     # error messages
     INVALID_LOCATIONS_LIST_MESSAGE = (
@@ -77,7 +76,9 @@ class Validation:
         return True
 
     @staticmethod
-    def _find_all_field_vals(metadata: types.Metadata, fields: List[str]) -> Dict[str, Any]:
+    def _find_all_field_vals(
+        metadata: types.Metadata, fields: List[str]
+    ) -> Dict[str, Any]:
         """Return all of fields' values in metadata."""
         field_vals = {}
         for field in fields:
@@ -88,7 +89,9 @@ class Validation:
         return field_vals
 
     @staticmethod
-    def _field_vals_are_different(field: str, val: Any, old_metadata: types.Metadata) -> bool:
+    def _field_vals_are_different(
+        field: str, val: Any, old_metadata: types.Metadata
+    ) -> bool:
         """Values aren't the same OR no value for that key in old metadata."""
         try:
             old_val = _get_val_in_metadata_dotted(field, old_metadata)
@@ -96,38 +99,58 @@ class Validation:
         except utils.DottedKeyError:
             return True
 
-    def _has_forbidden_attributes_creation(self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata) -> bool:
-        """Check if `metadata` has forbidden attributes and they have changed.
+    @staticmethod
+    def _has_forbidden_attributes(
+        apihandler: Any,
+        metadata: types.Metadata,
+        old_metadata: types.Metadata,
+        forbidden_attributes: List[str],
+        http_error_message: str,
+    ) -> bool:
+        forbidden_matches = Validation._find_all_field_vals(
+            metadata, forbidden_attributes
+        )
+
+        for field, val in forbidden_matches.items():
+            if Validation._field_vals_are_different(field, val, old_metadata):
+                apihandler.send_error(
+                    400,
+                    reason=f"Validation Error: {http_error_message} '{field}'",
+                    file=apihandler.files_url,
+                )
+                return True
+        return False
+
+    def _has_forbidden_attributes_creation(
+        self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata
+    ) -> bool:
+        """Check if `metadata` has forbidden attributes and whether they have changed.
 
         Returns `True` if it has forbidden attributes.
         """
-        forbidden_matches = self._find_all_field_vals(metadata, self.FORBIDDEN_FIELDS_CREATION)
+        return self._has_forbidden_attributes(
+            apihandler,
+            metadata,
+            old_metadata,
+            self.FORBIDDEN_FIELDS_CREATION,
+            "forbidden attribute creation",
+        )
 
-        for field, val in forbidden_matches.items():
-            if self._field_vals_are_different(field, val, old_metadata):
-                apihandler.send_error(
-                    400,
-                    reason=f"Validation Error: forbidden attribute creation '{field}'",
-                    file=apihandler.files_url,
-                )
-                return True
-        return False
-
-    def has_forbidden_attributes_modification(self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata) -> bool:
+    def has_forbidden_attributes_modification(
+        self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata
+    ) -> bool:
         """Check if `metadata` has forbidden attribute updates."""
-        forbidden_matches = self._find_all_field_vals(metadata, self.FORBIDDEN_FIELDS_UPDATE)
+        return self._has_forbidden_attributes(
+            apihandler,
+            metadata,
+            old_metadata,
+            self.FORBIDDEN_FIELDS_UPDATE,
+            "forbidden attribute update",
+        )
 
-        for field, val in forbidden_matches.items():
-            if self._field_vals_are_different(field, val, old_metadata):
-                apihandler.send_error(
-                    400,
-                    reason=f"Validation Error: forbidden attribute update '{field}'",
-                    file=apihandler.files_url,
-                )
-                return True
-        return False
-
-    def validate_metadata_creation(self, apihandler: Any, metadata: types.Metadata) -> bool:
+    def validate_metadata_creation(
+        self, apihandler: Any, metadata: types.Metadata
+    ) -> bool:
         """Validate metadata for creation.
 
         Utilizes `send_error` and returns `False` if validation failed.
@@ -138,7 +161,9 @@ class Validation:
         return self.is_metadata_ready_for_db(apihandler, metadata)
 
     @staticmethod
-    def _find_missing_mandatory_field(metadata: types.Metadata, fields: List[str]) -> Optional[str]:
+    def _find_missing_mandatory_field(
+        metadata: types.Metadata, fields: List[str]
+    ) -> Optional[str]:
         """Return the first field found to be missing, or `None`."""
         for field in fields:
             try:
@@ -147,12 +172,15 @@ class Validation:
                 return field
         return None
 
-    def is_metadata_ready_for_db(self, apihandler: Any, metadata: types.Metadata) -> bool:
+    def is_metadata_ready_for_db(
+        self, apihandler: Any, metadata: types.Metadata
+    ) -> bool:
         """Check that `metadata` is okay to insert into the database.
 
         Utilizes `send_error` and returns `False` if validation failed.
         If validation was successful, `True` is returned.
         """
+        # fmt: off
         # MANDATORY FIELDS
         missing = self._find_missing_mandatory_field(metadata, self.MANDATORY_FIELDS)
         if missing:
@@ -194,3 +222,4 @@ class Validation:
             return False
 
         return True
+        # fmt: on

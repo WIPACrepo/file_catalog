@@ -477,7 +477,7 @@ class FilesHandler(APIHandler):
             metadata['uuid'] = str(uuid1())
 
         # Validate Incoming Data
-        if self.validation.has_forbidden_attributes_creation(self, metadata, {}):
+        if self.validation.has_forbidden_fields_creation(self, metadata, {}):
             return
         if not self.validation.validate_metadata_schema_typing(self, metadata):
             return
@@ -610,7 +610,7 @@ class SingleFileHandler(APIHandler):
             return
 
         # Validate Incoming Metadata
-        if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
+        if self.validation.has_forbidden_fields_modification(self, metadata, db_file):
             return
 
         # Deconflict with DB Records
@@ -655,7 +655,7 @@ class SingleFileHandler(APIHandler):
             return
 
         # Validate Incoming Metadata
-        if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
+        if self.validation.has_forbidden_fields_modification(self, metadata, db_file):
             return
         if not self.validation.validate_metadata_schema_typing(self, metadata):
             return

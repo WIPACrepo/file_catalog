@@ -100,16 +100,14 @@ class Validation:
             return True  # value was not found in old_metadata
 
     @staticmethod
-    def _has_forbidden_attributes(
+    def _has_forbidden_fields(
         apihandler: Any,
         metadata: types.Metadata,
         old_metadata: types.Metadata,
-        forbidden_attributes: List[str],
+        forbidden_fields: List[str],
         http_error_message: str,
     ) -> bool:
-        forbidden_matches = Validation._find_all_field_vals(
-            metadata, forbidden_attributes
-        )
+        forbidden_matches = Validation._find_all_field_vals(metadata, forbidden_fields)
 
         for field, val in forbidden_matches.items():
             if Validation._field_vals_are_different(field, val, old_metadata):
@@ -121,31 +119,31 @@ class Validation:
                 return True
         return False
 
-    def has_forbidden_attributes_creation(
+    def has_forbidden_fields_creation(
         self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata
     ) -> bool:
-        """Check if `metadata` has forbidden attributes and whether they have changed.
+        """Check if `metadata` has forbidden fields and whether they have changed.
 
-        Returns `True` if it has forbidden attributes.
+        Returns `True` if it has forbidden fields.
         """
-        return self._has_forbidden_attributes(
+        return self._has_forbidden_fields(
             apihandler,
             metadata,
             old_metadata,
             self.FORBIDDEN_FIELDS_CREATION,
-            "forbidden attribute creation",
+            "forbidden field creation",
         )
 
-    def has_forbidden_attributes_modification(
+    def has_forbidden_fields_modification(
         self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata
     ) -> bool:
-        """Check if `metadata` has forbidden attribute updates."""
-        return self._has_forbidden_attributes(
+        """Check if `metadata` has forbidden field modifications."""
+        return self._has_forbidden_fields(
             apihandler,
             metadata,
             old_metadata,
             self.FORBIDDEN_FIELDS_MODIFICATION,
-            "forbidden attribute update",
+            "forbidden field modification",
         )
 
     @staticmethod

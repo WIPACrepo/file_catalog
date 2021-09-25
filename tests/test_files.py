@@ -10,7 +10,7 @@ import hashlib
 import itertools
 import os
 import unittest
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from file_catalog.schema import types
@@ -18,6 +18,8 @@ from rest_tools.client import RestClient  # type: ignore[import]
 from tornado.escape import json_encode
 
 from .test_server import TestServerAPI
+
+StrDict = Dict[str, Any]
 
 
 def hex(data: Any) -> str:
@@ -27,12 +29,58 @@ def hex(data: Any) -> str:
     return hashlib.sha512(data).hexdigest()
 
 
+# -----------------------------------------------------------------------------
+
+
 def _assert_httperror(exception: Exception, code: int, reason: str) -> None:
     """Assert that this is the expected HTTPError."""
     print(exception)
     assert isinstance(exception, requests.exceptions.HTTPError)
     assert exception.response.status_code == code
     assert exception.response.reason == reason
+
+
+def _post_and_assert(r: RestClient, metadata: StrDict) -> Tuple[StrDict, str, str]:
+    """Also return (data, url, uuid)."""
+    data = r.request_seq('POST', '/api/files', metadata)
+    assert '_links' in data
+    assert 'self' in data['_links']
+    assert 'file' in data
+    url = data['file']
+    uuid = url.split('/')[-1]
+    return data, url, uuid
+
+
+def _put_and_assert(r: RestClient, metadata: StrDict, uuid: str) -> StrDict:
+    """Also return data."""
+    data = r.request_seq('PUT', '/api/files/' + uuid, metadata)
+    assert '_links' in data
+    assert 'self' in data['_links']
+    assert 'logical_name' in data
+    return data  # type: ignore[no-any-return]
+
+
+def _patch_and_assert(r: RestClient, patch: StrDict, uuid: str) -> StrDict:
+    """Also return data."""
+    data = r.request_seq('PATCH', '/api/files/' + uuid, patch)
+    assert '_links' in data
+    assert 'self' in data['_links']
+    assert 'logical_name' in data
+    return data  # type: ignore[no-any-return]
+
+
+def _assert_uuid_in_fc(r: RestClient, uuid: str) -> StrDict:
+    """Also return data."""
+    data = r.request_seq('GET', '/api/files')
+    assert '_links' in data
+    assert 'self' in data['_links']
+    assert 'files' in data
+    assert len(data['files']) == 1
+    assert any(uuid == f['uuid'] for f in data['files'])
+    return data  # type: ignore[no-any-return]
+
+
+# -----------------------------------------------------------------------------
 
 
 class TestFilesAPI(TestServerAPI):
@@ -50,19 +98,9 @@ class TestFilesAPI(TestServerAPI):
             'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
-        data = r.request_seq('GET', '/api/files')
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('files', data)
-        self.assertEqual(len(data['files']), 1)
-        self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
+        data = _assert_uuid_in_fc(r, uuid)
 
         for m in ('PUT','DELETE','PATCH'):
             with self.assertRaises(Exception) as cm:
@@ -81,12 +119,7 @@ class TestFilesAPI(TestServerAPI):
             'file_size': 1,
             u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
         }
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         data = r.request_seq('GET', '/api/files/count')
         self.assertIn('_links', data)
@@ -254,11 +287,7 @@ class TestFilesAPI(TestServerAPI):
             r2.request_seq('POST', '/api/files', metadata)
         _assert_httperror(cm.exception, 403, "Forbidden")
 
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
+        data, url, _ = _post_and_assert(r, metadata)
 
     def test_16_files_uri(self) -> None:
         """Test changing the MongoDB URI.
@@ -284,11 +313,7 @@ class TestFilesAPI(TestServerAPI):
             r2.request_seq('POST', '/api/files', metadata)
         _assert_httperror(cm.exception, 403, "Forbidden")
 
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
+        data, url, _ = _post_and_assert(r, metadata)
 
     def test_20_file(self) -> None:
         """Test POST, GET, PUT, PATCH, and DELETE."""
@@ -419,12 +444,7 @@ class TestFilesAPI(TestServerAPI):
         url2 = data['file']
         uuid2 = url2.split('/')[-1]
 
-        data = r.request_seq('GET', '/api/files')
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('files', data)
-        self.assertEqual(len(data['files']), 1)
-        self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
+        data = _assert_uuid_in_fc(r, uuid)
         self.assertFalse(any(uuid2 == f['uuid'] for f in data['files']))
 
         data = r.request_seq('GET', '/api/files', {'query':json_encode({'locations.archive':True})})
@@ -852,20 +872,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # check that the file was created properly
-        data = r.request_seq('GET', '/api/files')
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('files', data)
-        self.assertEqual(len(data['files']), 1)
-        self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
+        data = _assert_uuid_in_fc(r, uuid)
 
         # create the second file; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -988,18 +998,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # create the second file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata2)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
+        data, _, __ = _post_and_assert(r, metadata2)
 
         # try to update the first file with a patch; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1033,18 +1035,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # try to update the file with a patch; should be OK
-        data = r.request_seq('PATCH', '/api/files/' + uuid, patch1)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('logical_name', data)
+        data = _patch_and_assert(r, patch1, uuid)
         self.assertIn('locations', data)
 
     def test_60_post_files_locations_1xN(self) -> None:
@@ -1077,20 +1071,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # check that the file was created properly
-        data = r.request_seq('GET', '/api/files')
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('files', data)
-        self.assertEqual(len(data['files']), 1)
-        self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
+        data = _assert_uuid_in_fc(r, uuid)
 
         # create the second file; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1131,20 +1115,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # check that the file was created properly
-        data = r.request_seq('GET', '/api/files')
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('files', data)
-        self.assertEqual(len(data['files']), 1)
-        self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
+        data = _assert_uuid_in_fc(r, uuid)
 
         # check that the file was created properly, part deux
         data = r.request_seq('GET', '/api/files/' + uuid)
@@ -1188,20 +1162,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # check that the file was created properly
-        data = r.request_seq('GET', '/api/files')
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('files', data)
-        self.assertEqual(len(data['files']), 1)
-        self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
+        data = _assert_uuid_in_fc(r, uuid)
 
         # check that the file was created properly, part deux
         data = r.request_seq('GET', '/api/files/' + uuid)
@@ -1251,18 +1215,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # create the second file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata2)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
+        data, _, __ = _post_and_assert(r, metadata2)
 
         # try to replace the first file with a location collision with the second; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1309,18 +1265,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # create the second file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata2)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
+        data, _, __ = _post_and_assert(r, metadata2)
 
         # try to replace the first file with a location collision with the second; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1367,18 +1315,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # create the second file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata2)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
+        data, _, __ = _post_and_assert(r, metadata2)
 
         # try to replace the first file with a location collision with the second; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1427,18 +1367,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # create the second file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata2)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
+        data, _, __ = _post_and_assert(r, metadata2)
 
         # try to update the first file with a patch; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1487,18 +1419,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # create the second file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata2)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
+        data, _, __ = _post_and_assert(r, metadata2)
 
         # try to update the first file with a patch; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1547,18 +1471,10 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the first file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # create the second file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata2)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
+        data, _, __ = _post_and_assert(r, metadata2)
 
         # try to update the first file with a patch; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1603,12 +1519,7 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # try to POST to the file without a post body
         with self.assertRaises(Exception) as cm:
@@ -1643,12 +1554,7 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # read the full record of the file; should be OK
         rec = r.request_seq('GET', '/api/files/' + uuid)
@@ -1688,12 +1594,7 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # define a second file to be created
         locations2 = [loc1c, loc1d]
@@ -1705,12 +1606,7 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata2)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid2 = url.split('/')[-1]
+        data, url, uuid2 = _post_and_assert(r, metadata2)
 
         # try to POST a second file location to the first file
         with self.assertRaises(Exception) as cm:
@@ -1745,12 +1641,7 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # read the full record of the file; should be OK
         rec = r.request_seq('GET', '/api/files/' + uuid)
@@ -1793,12 +1684,7 @@ class TestFilesAPI(TestServerAPI):
         }
 
         # create the file; should be OK
-        data = r.request_seq('POST', '/api/files', metadata)
-        self.assertIn('_links', data)
-        self.assertIn('self', data['_links'])
-        self.assertIn('file', data)
-        url = data['file']
-        uuid = url.split('/')[-1]
+        data, url, uuid = _post_and_assert(r, metadata)
 
         # read the full record of the file; should be OK
         rec = r.request_seq('GET', '/api/files/' + uuid)

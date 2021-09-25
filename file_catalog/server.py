@@ -492,13 +492,13 @@ class FilesHandler(APIHandler):
                 file=os.path.join(self.files_url, metadata['uuid'])
             )
             return
-        if await deconfliction.any_location_in_db(self, metadata.get("locations")):
-            return
         try:  # check if `metadata` will conflict with an existing metadata record
             if await deconfliction.FileVersion(metadata).is_in_db(self):
                 return
         except deconfliction.IndeterminateFileVersionError:
             self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
+            return
+        if await deconfliction.any_location_in_db(self, metadata.get("locations")):
             return
 
         # Create & Write-Back

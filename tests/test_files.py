@@ -640,218 +640,228 @@ class TestFilesAPI(TestServerAPI):
                 r.request_seq('GET', '/api/files', err)
             _assert_httperror(cm.exception, 400, 'Invalid query parameter(s)')
 
-    # def test_50_post_files_unique_logical_name(self) -> None:
-    #     """Test that logical_name is unique when creating a new file."""
-    #     self.start_server()
-    #     token = self.get_token()
-    #     r = RestClient(self.address, token, timeout=1, retries=1)
+    def test_50a_post_files_unique_file_version(self) -> None:
+        """Test that logical_name+checksum is unique when creating a new file.
 
-    #     # define the file to be created
-    #     metadata = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 1,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-    #     }
+        But a metadata with the same logical_name and different checksum
+        (or visa-versa) is okay.
+        """
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
-    #     # create the file the first time; should be OK
-    #     data = r.request_seq('POST', '/api/files', metadata)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('file', data)
-    #     url = data['file']
-    #     uuid = url.split('/')[-1]
+        # define the file to be created
+        logical_name = '/blah/data/exp/IceCube/blah.dat'
+        checksum = {'sha512': hex('foo bar')}
+        metadata1 = {
+            'logical_name': logical_name,
+            'checksum': checksum,
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+        metadata_same_logical_name = {
+            'logical_name': logical_name,
+            'checksum': {'sha512': hex('foo bar baz boink')},
+            'file_size': 1,
+            u'locations': [{u'site': u'NORTH-POLE', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+        metadata_same_checksum = {
+            'logical_name': logical_name + '!!!',
+            'checksum': checksum,
+            'file_size': 1,
+            u'locations': [{u'site': u'SOUTH-POLE', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
 
-    #     # check that the file was created properly
-    #     data = r.request_seq('GET', '/api/files')
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('files', data)
-    #     self.assertEqual(len(data['files']), 1)
-    #     self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
+        data, url, uuid = _post_and_assert(r, metadata1)
+        data = _assert_uuid_in_fc(r, uuid)
 
-    #     # create the file the second time; should NOT be OK
-    #     with self.assertRaises(Exception) as cm:
-    #         data = r.request_seq('POST', '/api/files', metadata)
-    #     _assert_httperror(
-    #         cm.exception,
-    #         409,
-    #         f"Conflict with existing file (logical_name already exists `{metadata['logical_name']}`)"
-    #     )
+        data, url, uuid = _post_and_assert(r, metadata_same_logical_name)
+        data = _assert_uuid_in_fc(r, uuid)
 
-    #     # check that the second file was not created
-    #     data = r.request_seq('GET', '/api/files')
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('files', data)
-    #     self.assertEqual(len(data['files']), 1)
-    #     self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
+        data, url, uuid = _post_and_assert(r, metadata_same_checksum)
+        data = _assert_uuid_in_fc(r, uuid)
 
-    # def test_51_put_files_uuid_unique_logical_name(self) -> None:
-    #     """Test that logical_name is unique when replacing a file."""
-    #     self.start_server()
-    #     token = self.get_token()
-    #     r = RestClient(self.address, token, timeout=1, retries=1)
+    def test_50b_post_files_unique_file_version_error(self) -> None:
+        """Test that logical_name+checksum is unique when creating a new file.
 
-    #     # define the files to be created
-    #     metadata = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 1,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-    #     }
-    #     metadata2 = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 1,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
-    #     }
+        If there's a conflict, there should be an error.
+        """
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
-    #     # create the first file; should be OK
-    #     data = r.request_seq('POST', '/api/files', metadata)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('file', data)
-    #     url = data['file']
-    #     uuid = url.split('/')[-1]
+        # define the file to be created
+        metadata1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
 
-    #     # create the second file; should be OK
-    #     data = r.request_seq('POST', '/api/files', metadata2)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('file', data)
+        # create the file the first time; should be OK
+        data, url, uuid = _post_and_assert(r, metadata1)
 
-    #     # try to replace the first file with a copy of the second; should NOT be OK
-    #     with self.assertRaises(Exception) as cm:
-    #         r.request_seq('PUT', '/api/files/' + uuid, metadata2)
-    #     _assert_httperror(
-    #         cm.exception,
-    #         409,
-    #         f"Conflict with existing file (logical_name already exists `{metadata2['logical_name']}`)"
-    #     )
+        # check that the file was created properly
+        data = _assert_uuid_in_fc(r, uuid)
 
-    # def test_52_put_files_uuid_replace_logical_name(self) -> None:
-    #     """Test that a file can replace with the same logical_name."""
-    #     self.start_server()
-    #     token = self.get_token()
-    #     r = RestClient(self.address, token, timeout=1, retries=1)
+        # create the file the second time; should NOT be OK
+        with self.assertRaises(Exception) as cm:
+            data = r.request_seq('POST', '/api/files', metadata1)
+        _assert_httperror(
+            cm.exception,
+            409,
+            f"Conflict with existing file-version ('logical_name' + 'checksum' already exists:"
+            f"`{metadata1['logical_name']}` + `{metadata1['checksum']}`)"
+        )
 
-    #     # define the files to be created
-    #     metadata = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 1,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-    #     }
-    #     metadata2 = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah.dat',
-    #         'checksum': {'sha512': hex('foo bar2')},
-    #         'file_size': 2,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-    #     }
+        # check that the second file was not created
+        data = _assert_uuid_in_fc(r, uuid)
 
-    #     # create the first file; should be OK
-    #     data = r.request_seq('POST', '/api/files', metadata)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('file', data)
-    #     url = data['file']
-    #     uuid = url.split('/')[-1]
+    def test_51_put_files_uuid_unique_file_version_error(self) -> None:
+        pass
 
-    #     # try to replace the first file with the second; should be OK
-    #     data = r.request_seq('PUT', '/api/files/' + uuid, metadata2)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('logical_name', data)
+    def test_51_put_files_uuid_unique_logical_name(self) -> None:
+        """Test that logical_name is unique when replacing a file."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
-    # def test_53_patch_files_uuid_unique_logical_name(self) -> None:
-    #     """Test that logical_name is unique when updating a file."""
-    #     self.start_server()
-    #     token = self.get_token()
-    #     r = RestClient(self.address, token, timeout=1, retries=1)
+        # define the files to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+        metadata2 = {
+            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
+        }
 
-    #     # define the files to be created
-    #     metadata = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 1,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-    #     }
-    #     metadata2 = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 1,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
-    #     }
+        # create the first file; should be OK
+        data, url, uuid = _post_and_assert(r, metadata)
 
-    #     # this is a PATCH to metadata; steps on metadata2's logical_name
-    #     patch1 = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-    #         'checksum': {'sha512': hex('foo bar2')},
-    #         'file_size': 2,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
-    #     }
+        # create the second file; should be OK
+        data, _, __ = _post_and_assert(r, metadata2)
 
-    #     # create the first file; should be OK
-    #     data = r.request_seq('POST', '/api/files', metadata)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('file', data)
-    #     url = data['file']
-    #     uuid = url.split('/')[-1]
+        # try to replace the first file with a copy of the second; should NOT be OK
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PUT', '/api/files/' + uuid, metadata2)
+        _assert_httperror(
+            cm.exception,
+            409,
+            f"Conflict with existing file (logical_name already exists `{metadata2['logical_name']}`)"
+        )
 
-    #     # create the second file; should be OK
-    #     data = r.request_seq('POST', '/api/files', metadata2)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('file', data)
+    def test_52_put_files_uuid_with_file_version_okay(self) -> None:
+        pass
 
-    #     # try to update the first file with a patch; should NOT be OK
-    #     with self.assertRaises(Exception) as cm:
-    #         r.request_seq('PATCH', '/api/files/' + uuid, patch1)
-    #     _assert_httperror(
-    #         cm.exception,
-    #         409,
-    #         f"Conflict with existing file (logical_name already exists `{metadata2['logical_name']}`)"
-    #     )
+    def test_52_put_files_uuid_replace_logical_name(self) -> None:
+        """Test that a file can replace with the same logical_name."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
-    # def test_54_patch_files_uuid_replace_logical_name(self) -> None:
-    #     """Test that a file can be updated with the same logical_name."""
-    #     self.start_server()
-    #     token = self.get_token()
-    #     r = RestClient(self.address, token, timeout=1, retries=1)
+        # define the files to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+        metadata2 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar2')},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
 
-    #     # define the file to be created
-    #     metadata = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 1,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-    #     }
+        # create the first file; should be OK
+        data, url, uuid = _post_and_assert(r, metadata)
 
-    #     # this is a PATCH to metadata; matches the old logical_name
-    #     patch1 = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 2,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-    #     }
+        # try to replace the first file with the second; should be OK
+        data = _put_and_assert(r, metadata2, uuid)
 
-    #     # create the file; should be OK
-    #     data = r.request_seq('POST', '/api/files', metadata)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('file', data)
-    #     url = data['file']
-    #     uuid = url.split('/')[-1]
+    def test_53_patch_files_uuid_unique_file_version_error(self) -> None:
+        pass
 
-    #     # try to update the file with a patch; should be OK
-    #     data = r.request_seq('PATCH', '/api/files/' + uuid, patch1)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('logical_name', data)
+    def test_53_patch_files_uuid_unique_logical_name(self) -> None:
+        """Test that logical_name is unique when updating a file."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
-    def test_55_post_files_unique_locations(self) -> None:
+        # define the files to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+        metadata2 = {
+            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
+        }
+
+        # this is a PATCH to metadata; steps on metadata2's logical_name
+        patch1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
+            'checksum': {'sha512': hex('foo bar2')},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
+        }
+
+        # create the first file; should be OK
+        data, url, uuid = _post_and_assert(r, metadata)
+
+        # create the second file; should be OK
+        data, _, __ = _post_and_assert(r, metadata2)
+
+        # try to update the first file with a patch; should NOT be OK
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PATCH', '/api/files/' + uuid, patch1)
+        _assert_httperror(
+            cm.exception,
+            409,
+            f"Conflict with existing file (logical_name already exists `{metadata2['logical_name']}`)"
+        )
+
+    def test_54_patch_files_uuid_with_file_version_okay(self) -> None:
+        pass
+
+    def test_54_patch_files_uuid_replace_logical_name(self) -> None:
+        """Test that a file can be updated with the same logical_name."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the file to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+
+        # this is a PATCH to metadata; matches the old logical_name
+        patch1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+
+        # create the file; should be OK
+        data, url, uuid = _post_and_assert(r, metadata)
+
+        # try to update the file with a patch; should be OK
+        data = _patch_and_assert(r, patch1, uuid)
+
+    def test_55_post_files_unique_locations_error(self) -> None:
         """Test that locations is unique when creating a new file."""
         self.start_server()
         token = self.get_token()
@@ -886,88 +896,79 @@ class TestFilesAPI(TestServerAPI):
             f"Conflict with existing file (location already exists `{metadata['logical_name']}`)"
         )
 
-    # def test_56_put_files_uuid_unique_locations(self) -> None:
-    #     """Test that locations is unique when replacing a file."""
-    #     self.start_server()
-    #     token = self.get_token()
-    #     r = RestClient(self.address, token, timeout=1, retries=1)
+    def test_56_put_files_uuid_unique_locations_error(self) -> None:
+        pass
 
-    #     # define the files to be created
-    #     metadata = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 1,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-    #     }
-    #     metadata2 = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-    #         'checksum': {'sha512': hex('foo bar2')},
-    #         'file_size': 2,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
-    #     }
-    #     replace1 = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 2,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
-    #     }
+    def test_56_put_files_uuid_unique_locations(self) -> None:
+        """Test that locations is unique when replacing a file."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
-    #     # create the first file; should be OK
-    #     data = r.request_seq('POST', '/api/files', metadata)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('file', data)
-    #     url = data['file']
-    #     uuid = url.split('/')[-1]
+        # define the files to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+        metadata2 = {
+            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
+            'checksum': {'sha512': hex('foo bar2')},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
+        }
+        replace1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
+        }
 
-    #     # create the second file; should be OK
-    #     data = r.request_seq('POST', '/api/files', metadata2)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('file', data)
+        # create the first file; should be OK
+        data, url, uuid = _post_and_assert(r, metadata)
 
-    #     # try to replace the first file with a location collision with the second; should NOT be OK
-    #     with self.assertRaises(Exception) as cm:
-    #         r.request_seq('PUT', '/api/files/' + uuid, replace1)
-    #     _assert_httperror(
-    #         cm.exception,
-    #         409,
-    #         f"Conflict with existing file (location already exists `{metadata2['logical_name']}`)"
-    #     )
+        # create the second file; should be OK
+        data, _, __ = _post_and_assert(r, metadata2)
 
-    # def test_57_put_files_uuid_replace_locations(self) -> None:
-    #     """Test that a file can replace with the same location."""
-    #     self.start_server()
-    #     token = self.get_token()
-    #     r = RestClient(self.address, token, timeout=1, retries=1)
+        # try to replace the first file with a location collision with the second; should NOT be OK
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PUT', '/api/files/' + uuid, replace1)
+        _assert_httperror(
+            cm.exception,
+            409,
+            f"Conflict with existing file (location already exists `{metadata2['logical_name']}`)"
+        )
 
-    #     # define the files to be created
-    #     metadata = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 1,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-    #     }
-    #     metadata2 = {
-    #         'logical_name': '/blah/data/exp/IceCube/blah.dat',
-    #         'checksum': {'sha512': hex('foo bar')},
-    #         'file_size': 2,
-    #         u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-    #     }
+    def test_57_put_files_uuid_with_locations_okay(self) -> None:
+        pass
 
-    #     # create the first file; should be OK
-    #     data = r.request_seq('POST', '/api/files', metadata)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('file', data)
-    #     url = data['file']
-    #     uuid = url.split('/')[-1]
+    def test_57_put_files_uuid_replace_locations(self) -> None:
+        """Test that a file can replace with the same location."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
-    #     # try to replace the first file with the second; should be OK
-    #     data = r.request_seq('PUT', '/api/files/'+uuid, metadata2)
-    #     self.assertIn('_links', data)
-    #     self.assertIn('self', data['_links'])
-    #     self.assertIn('logical_name', data)
+        # define the files to be created
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+        metadata2 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 2,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+
+        # create the first file; should be OK
+        data, url, uuid = _post_and_assert(r, metadata)
+
+        # try to replace the first file with the second; should be OK
+        data = _put_and_assert(r, metadata2, uuid)
+
 
     def test_58_patch_files_uuid_unique_locations(self) -> None:
         """Test that locations is unique when updating a file."""

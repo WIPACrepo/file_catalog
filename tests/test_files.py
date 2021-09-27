@@ -69,13 +69,13 @@ def _patch_and_assert(r: RestClient, patch: StrDict, uuid: str) -> StrDict:
     return data  # type: ignore[no-any-return]
 
 
-def _assert_uuid_in_fc(r: RestClient, uuid: str) -> StrDict:
+def _assert_in_fc(r: RestClient, uuid: str, files_in_fc: int = 1) -> StrDict:
     """Also return data."""
     data = r.request_seq('GET', '/api/files')
     assert '_links' in data
     assert 'self' in data['_links']
     assert 'files' in data
-    assert len(data['files']) == 1
+    assert len(data['files']) == files_in_fc
     assert any(uuid == f['uuid'] for f in data['files'])
     return data  # type: ignore[no-any-return]
 
@@ -100,7 +100,7 @@ class TestFilesAPI(TestServerAPI):
         }
         data, url, uuid = _post_and_assert(r, metadata)
 
-        data = _assert_uuid_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)
 
         for m in ('PUT','DELETE','PATCH'):
             with self.assertRaises(Exception) as cm:
@@ -444,7 +444,7 @@ class TestFilesAPI(TestServerAPI):
         url2 = data['file']
         uuid2 = url2.split('/')[-1]
 
-        data = _assert_uuid_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)
         self.assertFalse(any(uuid2 == f['uuid'] for f in data['files']))
 
         data = r.request_seq('GET', '/api/files', {'query':json_encode({'locations.archive':True})})
@@ -673,13 +673,13 @@ class TestFilesAPI(TestServerAPI):
         }
 
         data, url, uuid = _post_and_assert(r, metadata1)
-        data = _assert_uuid_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)
 
         data, url, uuid = _post_and_assert(r, metadata_same_logical_name)
-        data = _assert_uuid_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid, files_in_fc=2)
 
         data, url, uuid = _post_and_assert(r, metadata_same_checksum)
-        data = _assert_uuid_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid, files_in_fc=3)
 
     def test_50b_post_files_unique_file_version_error(self) -> None:
         """Test that logical_name+checksum is unique when creating a new file.
@@ -702,7 +702,7 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata1)
 
         # check that the file was created properly
-        data = _assert_uuid_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)
 
         # create the file the second time; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -715,7 +715,7 @@ class TestFilesAPI(TestServerAPI):
         )
 
         # check that the second file was not created
-        data = _assert_uuid_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)
 
     def test_51_put_files_uuid_unique_file_version_error(self) -> None:
         pass
@@ -885,7 +885,7 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata)
 
         # check that the file was created properly
-        data = _assert_uuid_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)
 
         # create the second file; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1075,7 +1075,7 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata)
 
         # check that the file was created properly
-        data = _assert_uuid_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)
 
         # create the second file; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1119,7 +1119,7 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata)
 
         # check that the file was created properly
-        data = _assert_uuid_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)
 
         # check that the file was created properly, part deux
         data = r.request_seq('GET', '/api/files/' + uuid)
@@ -1166,7 +1166,7 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata)
 
         # check that the file was created properly
-        data = _assert_uuid_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)
 
         # check that the file was created properly, part deux
         data = r.request_seq('GET', '/api/files/' + uuid)

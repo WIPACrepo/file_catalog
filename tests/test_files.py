@@ -315,6 +315,10 @@ class TestFilesAPI(TestServerAPI):
 
         data, url, _ = _post_and_assert(r, metadata)
 
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+
     def test_20_file(self) -> None:
         """Test POST, GET, PUT, PATCH, and DELETE."""
         self.start_server()
@@ -419,6 +423,10 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('DELETE', '/api/files/' + metadata_404['uuid'])
         _assert_httperror(cm.exception, 404, "File uuid not found")
 
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+
     def test_30_archive(self) -> None:
         """Test GET w/ query arg: `locations.archive`."""
         self.start_server()
@@ -479,6 +487,10 @@ class TestFilesAPI(TestServerAPI):
         self.assertFalse(any(uuid == f['uuid'] for f in data['files']))
         self.assertFalse(any(uuid2 == f['uuid'] for f in data['files']))
         self.assertTrue(any(uid3 == f['uuid'] for f in data['files']))
+
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
 
     def test_40_simple_query(self):
         """Test GET w/ shortcut-metadata query args."""
@@ -640,7 +652,12 @@ class TestFilesAPI(TestServerAPI):
                 r.request_seq('GET', '/api/files', err)
             _assert_httperror(cm.exception, 400, 'Invalid query parameter(s)')
 
-    def test_50a_post_files_unique_file_version(self) -> None:
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+
+    # # # POST # # #
+    def test_50a_post_files_unique_file_version_okay(self) -> None:
         """Test that logical_name+checksum is unique when creating a new file.
 
         But a metadata with the same logical_name and different checksum
@@ -717,6 +734,7 @@ class TestFilesAPI(TestServerAPI):
         # check that the second file was not created
         data = _assert_in_fc(r, uuid)
 
+    # # # PUT # # #
     def test_51_put_files_uuid_unique_file_version_error(self) -> None:
         pass
 
@@ -784,6 +802,7 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with the second; should be OK
         data = _put_and_assert(r, metadata2, uuid)
 
+    # # # PATCH # # #
     def test_53_patch_files_uuid_unique_file_version_error(self) -> None:
         pass
 
@@ -861,6 +880,7 @@ class TestFilesAPI(TestServerAPI):
         # try to update the file with a patch; should be OK
         data = _patch_and_assert(r, patch1, uuid)
 
+    # # # POST # # #
     def test_55_post_files_unique_locations_error(self) -> None:
         """Test that locations is unique when creating a new file."""
         self.start_server()
@@ -896,6 +916,7 @@ class TestFilesAPI(TestServerAPI):
             f"Conflict with existing file (location already exists `{metadata['logical_name']}`)"
         )
 
+    # # # PUT # # #
     def test_56_put_files_uuid_unique_locations_error(self) -> None:
         pass
 
@@ -969,7 +990,7 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with the second; should be OK
         data = _put_and_assert(r, metadata2, uuid)
 
-
+    # # # PATCH # # #
     def test_58_patch_files_uuid_unique_locations(self) -> None:
         """Test that locations is unique when updating a file."""
         self.start_server()
@@ -1041,6 +1062,10 @@ class TestFilesAPI(TestServerAPI):
         # try to update the file with a patch; should be OK
         data = _patch_and_assert(r, patch1, uuid)
         self.assertIn('locations', data)
+
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
 
     def test_60_post_files_locations_1xN(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
@@ -1485,6 +1510,10 @@ class TestFilesAPI(TestServerAPI):
             409,
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
+
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
 
     def test_70_abuse_post_files_locations(self) -> None:
         """Abuse the POST /api/files/UUID/locations route to test error

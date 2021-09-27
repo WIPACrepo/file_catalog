@@ -59,7 +59,7 @@ class Mongo:
         """Create indexes for all file-catalog mongo collections."""
         # all files (a.k.a. required fields)
         await self.client.files.create_index('uuid', unique=True, background=True)
-        await self.client.files.create_index('logical_name', unique=True, background=True)
+        await self.client.files.create_index('logical_name', unique=False, background=True)
         await self.client.files.create_index([('logical_name', pymongo.HASHED)], background=True)
         await self.client.files.create_index('locations', unique=True, background=True)
         await self.client.files.create_index([('locations.site', pymongo.DESCENDING), ('locations.path', pymongo.DESCENDING)], background=True)

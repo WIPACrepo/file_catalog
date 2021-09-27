@@ -197,7 +197,7 @@ class TestFilesAPI(TestServerAPI):
         data = r.request_seq("GET", "/api/files", args)
         assert set(data["files"][0].keys()) == {"checksum", "file_size"}
 
-    def test_13_files_path_like_args(self) -> None:
+    def test_13_files__path_like_args(self) -> None:
         """Test the path-like base/shortcut arguments.
 
         "logical_name", "directory", "filename", "path", & "logical-name-regex".
@@ -267,7 +267,7 @@ class TestFilesAPI(TestServerAPI):
         assert paths == ["/john/paul/george/ringo/ham.txt"]
         assert len(get_logical_names({"logical-name-regex": r".*"})) == 4
 
-    def test_15_files_auth(self) -> None:
+    def test_15_files__auth(self) -> None:
         """Test auth/token; good and bad (403) cases.
 
         Override/set the `SECRET` environment variable.
@@ -289,7 +289,7 @@ class TestFilesAPI(TestServerAPI):
 
         data, url, _ = _post_and_assert(r, metadata)
 
-    def test_16_files_uri(self) -> None:
+    def test_16_files__uri(self) -> None:
         """Test changing the MongoDB URI.
 
         Override/set the `MONGODB_URI` environment variable.
@@ -319,7 +319,7 @@ class TestFilesAPI(TestServerAPI):
     # -------------------------------------------------------------------------
     # -------------------------------------------------------------------------
 
-    def test_20_file(self) -> None:
+    def test_20_files(self) -> None:
         """Test POST, GET, PUT, PATCH, and DELETE."""
         self.start_server()
         token = self.get_token()
@@ -385,7 +385,7 @@ class TestFilesAPI(TestServerAPI):
             data = r.request_seq('POST', url)
         _assert_httperror(cm.exception, 405, "Method Not Allowed")
 
-    def test_21_file_404(self) -> None:
+    def test_21_files__404(self) -> None:
         """Test 404 (File Not Found) cases for GET, PUT, PATCH, and DELETE."""
         self.start_server()
         token = self.get_token()
@@ -427,7 +427,7 @@ class TestFilesAPI(TestServerAPI):
     # -------------------------------------------------------------------------
     # -------------------------------------------------------------------------
 
-    def test_30_archive(self) -> None:
+    def test_30_files__archive(self) -> None:
         """Test GET w/ query arg: `locations.archive`."""
         self.start_server()
         token = self.get_token()
@@ -492,7 +492,7 @@ class TestFilesAPI(TestServerAPI):
     # -------------------------------------------------------------------------
     # -------------------------------------------------------------------------
 
-    def test_40_simple_query(self):
+    def test_40_files__simple_query(self) -> None:
         """Test GET w/ shortcut-metadata query args."""
         self.start_server()
         token = self.get_token()
@@ -599,7 +599,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn('checksum', data['files'][0])
         self.assertIn('file_size', data['files'][0])
 
-    def test_41_simple_query(self) -> None:
+    def test_41_files__simple_query(self) -> None:
         """Test the limit and start parameters."""
         self.start_server()
         token = self.get_token()
@@ -657,7 +657,7 @@ class TestFilesAPI(TestServerAPI):
     # -------------------------------------------------------------------------
 
     # # # POST # # #
-    def test_50a_post_files_unique_file_version_okay(self) -> None:
+    def test_50a_post_files__unique_file_version_okay(self) -> None:
         """Test that logical_name+checksum is unique when creating a new file.
 
         But a metadata with the same logical_name and different checksum
@@ -698,7 +698,7 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata_same_checksum)
         data = _assert_in_fc(r, uuid, files_in_fc=3)
 
-    def test_50b_post_files_unique_file_version_error(self) -> None:
+    def test_50b_post_files__unique_file_version_error(self) -> None:
         """Test that logical_name+checksum is unique when creating a new file.
 
         If there's a conflict, there should be an error.
@@ -735,10 +735,10 @@ class TestFilesAPI(TestServerAPI):
         data = _assert_in_fc(r, uuid)
 
     # # # PUT # # #
-    def test_51_put_files_uuid_unique_file_version_error(self) -> None:
+    def test_51_put_files_uuid__unique_file_version_error(self) -> None:
         pass
 
-    def test_51_put_files_uuid_unique_logical_name(self) -> None:
+    def test_51_put_files_uuid__unique_logical_name(self) -> None:
         """Test that logical_name is unique when replacing a file."""
         self.start_server()
         token = self.get_token()
@@ -773,10 +773,10 @@ class TestFilesAPI(TestServerAPI):
             f"Conflict with existing file (logical_name already exists `{metadata2['logical_name']}`)"
         )
 
-    def test_52_put_files_uuid_with_file_version_okay(self) -> None:
+    def test_52_put_files_uuid__with_file_version_okay(self) -> None:
         pass
 
-    def test_52_put_files_uuid_replace_logical_name(self) -> None:
+    def test_52_put_files_uuid__replace_logical_name(self) -> None:
         """Test that a file can replace with the same logical_name."""
         self.start_server()
         token = self.get_token()
@@ -803,10 +803,10 @@ class TestFilesAPI(TestServerAPI):
         data = _put_and_assert(r, metadata2, uuid)
 
     # # # PATCH # # #
-    def test_53_patch_files_uuid_unique_file_version_error(self) -> None:
+    def test_53_patch_files_uuid__unique_file_version_error(self) -> None:
         pass
 
-    def test_53_patch_files_uuid_unique_logical_name(self) -> None:
+    def test_53_patch_files_uuid__unique_logical_name(self) -> None:
         """Test that logical_name is unique when updating a file."""
         self.start_server()
         token = self.get_token()
@@ -849,10 +849,10 @@ class TestFilesAPI(TestServerAPI):
             f"Conflict with existing file (logical_name already exists `{metadata2['logical_name']}`)"
         )
 
-    def test_54_patch_files_uuid_with_file_version_okay(self) -> None:
+    def test_54_patch_files_uuid__with_file_version_okay(self) -> None:
         pass
 
-    def test_54_patch_files_uuid_replace_logical_name(self) -> None:
+    def test_54_patch_files_uuid__replace_logical_name(self) -> None:
         """Test that a file can be updated with the same logical_name."""
         self.start_server()
         token = self.get_token()
@@ -881,7 +881,7 @@ class TestFilesAPI(TestServerAPI):
         data = _patch_and_assert(r, patch1, uuid)
 
     # # # POST # # #
-    def test_55_post_files_unique_locations_error(self) -> None:
+    def test_55_post_files__unique_locations_error(self) -> None:
         """Test that locations is unique when creating a new file."""
         self.start_server()
         token = self.get_token()
@@ -917,10 +917,10 @@ class TestFilesAPI(TestServerAPI):
         )
 
     # # # PUT # # #
-    def test_56_put_files_uuid_unique_locations_error(self) -> None:
+    def test_56_put_files_uuid__unique_locations_error(self) -> None:
         pass
 
-    def test_56_put_files_uuid_unique_locations(self) -> None:
+    def test_56_put_files_uuid__unique_locations(self) -> None:
         """Test that locations is unique when replacing a file."""
         self.start_server()
         token = self.get_token()
@@ -961,10 +961,10 @@ class TestFilesAPI(TestServerAPI):
             f"Conflict with existing file (location already exists `{metadata2['logical_name']}`)"
         )
 
-    def test_57_put_files_uuid_with_locations_okay(self) -> None:
+    def test_57_put_files_uuid__with_locations_okay(self) -> None:
         pass
 
-    def test_57_put_files_uuid_replace_locations(self) -> None:
+    def test_57_put_files_uuid__replace_locations(self) -> None:
         """Test that a file can replace with the same location."""
         self.start_server()
         token = self.get_token()
@@ -991,7 +991,7 @@ class TestFilesAPI(TestServerAPI):
         data = _put_and_assert(r, metadata2, uuid)
 
     # # # PATCH # # #
-    def test_58_patch_files_uuid_unique_locations(self) -> None:
+    def test_58_patch_files_uuid__unique_locations(self) -> None:
         """Test that locations is unique when updating a file."""
         self.start_server()
         token = self.get_token()
@@ -1034,7 +1034,7 @@ class TestFilesAPI(TestServerAPI):
             f"Conflict with existing file (location already exists `{metadata2['logical_name']}`)"
         )
 
-    def test_59_patch_files_uuid_replace_locations(self) -> None:
+    def test_59_patch_files_uuid__replace_locations(self) -> None:
         """Test that a file can be updated with the same location."""
         self.start_server()
         token = self.get_token()
@@ -1067,7 +1067,7 @@ class TestFilesAPI(TestServerAPI):
     # -------------------------------------------------------------------------
     # -------------------------------------------------------------------------
 
-    def test_60_post_files_locations_1xN(self) -> None:
+    def test_60_post_files__locations_1xN(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1111,7 +1111,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_61_post_files_locations_Nx1(self) -> None:
+    def test_61_post_files__locations_Nx1(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1158,7 +1158,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_62_post_files_locations_NxN(self) -> None:
+    def test_62_post_files__locations_NxN(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1205,7 +1205,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_63_put_files_uuid_locations_1xN(self) -> None:
+    def test_63_put_files_uuid__locations_1xN(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1255,7 +1255,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_64_put_files_uuid_locations_Nx1(self) -> None:
+    def test_64_put_files_uuid__locations_Nx1(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1305,7 +1305,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_65_put_files_uuid_locations_NxN(self) -> None:
+    def test_65_put_files_uuid__locations_NxN(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1355,7 +1355,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_66_patch_files_uuid_locations_1xN(self) -> None:
+    def test_66_patch_files_uuid__locations_1xN(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1407,7 +1407,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_67_patch_files_uuid_locations_Nx1(self) -> None:
+    def test_67_patch_files_uuid__locations_Nx1(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1459,7 +1459,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_68_patch_files_uuid_locations_NxN(self) -> None:
+    def test_68_patch_files_uuid__locations_NxN(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1515,7 +1515,7 @@ class TestFilesAPI(TestServerAPI):
     # -------------------------------------------------------------------------
     # -------------------------------------------------------------------------
 
-    def test_70_abuse_post_files_locations(self) -> None:
+    def test_70_abuse_post_files__locations(self) -> None:
         """Abuse the POST /api/files/UUID/locations route to test error
         handling."""
         self.start_server()
@@ -1561,7 +1561,7 @@ class TestFilesAPI(TestServerAPI):
             r.request_seq('POST', '/api/files/' + uuid + '/locations', {"locations": "bobsyeruncle"})
         _assert_httperror(cm.exception, 400, "Validation Error: member `locations` must be a list with 1+ entries, each with keys: ['site', 'path']")
 
-    def test_71_post_files_locations_duplicate(self) -> None:
+    def test_71_post_files__locations_duplicate(self) -> None:
         """Test that POST /api/files/UUID/locations is a no-op for non-distinct
         locations."""
         self.start_server()
@@ -1601,7 +1601,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertListEqual(rec["locations"], rec2["locations"])
         self.assertEqual(mmd, rec2["meta_modify_date"])
 
-    def test_72_post_files_locations_conflict(self) -> None:
+    def test_72_post_files__locations_conflict(self) -> None:
         """Test that POST /api/files/UUID/locations returns an error on
         conflicting duplicate locations."""
         self.start_server()
@@ -1648,7 +1648,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_73_post_files_locations(self) -> None:
+    def test_73_post_files__locations(self) -> None:
         """Test that POST /api/files/UUID/locations can add distinct non-
         conflicting locations."""
         self.start_server()
@@ -1691,7 +1691,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn(loc1c, rec2["locations"])
         self.assertIn(loc1d, rec2["locations"])
 
-    def test_74_post_files_locations_just_one(self) -> None:
+    def test_74_post_files__locations_just_one(self) -> None:
         """Test that POST /api/files/UUID/locations can add distinct non-
         conflicting locations."""
         self.start_server()

@@ -175,16 +175,6 @@ class Validation:
             )
             return False
 
-        # CHECKSUM
-        if ((not isinstance(metadata['checksum'], dict)) or 'sha512' not in metadata['checksum']):
-            # checksum needs to be a dict with an sha512
-            apihandler.send_error(
-                400,
-                reason='Validation Error: member `checksum` must be a dict with a sha512 hash',
-                file=apihandler.files_url
-            )
-            return False
-
         # CHECKSSUM.SHA512
         if not self.is_valid_sha512(metadata['checksum']['sha512']):
             # force to use SHA512

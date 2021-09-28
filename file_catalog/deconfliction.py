@@ -30,7 +30,7 @@ class FileVersion:
     def __init__(self, metadata: types.Metadata):
         try:
             self.logical_name = metadata["logical_name"]
-            self.checksum = metadata["checksum"]
+            self.checksum_sha512 = metadata["checksum"]["sha512"]
         except KeyError as e:
             raise IndeterminateFileVersionError() from e
 
@@ -38,7 +38,7 @@ class FileVersion:
         """Return whether the file-version is already in the database.
 
         A "file-version" is defined as the unique combination of a
-        `logical_name` and a `checksum`.
+        `logical_name` and a `checksum.sha512`.
 
         Pass in `skip` to disregard matches (records) with this uuid.
 
@@ -46,7 +46,7 @@ class FileVersion:
         """
         # try to load a file by that file-version
         from_db = await apihandler.db.get_file(
-            {"logical_name": self.logical_name, "checksum": self.checksum}
+            {"logical_name": self.logical_name, "checksum.sha512": self.checksum_sha512}
         )
         # if we got a file by that file-version
         if _is_conflict(skip, from_db):
@@ -55,8 +55,8 @@ class FileVersion:
                 409,
                 reason=(
                     f"Conflict with existing file-version"
-                    f" ('logical_name' + 'checksum' already exists:"
-                    f"`{self.logical_name}` + `{self.checksum}`)"
+                    f" ('logical_name' + 'checksum.sha512' already exists:"
+                    f"`{self.logical_name}` + `{self.checksum_sha512}`)"
                 ),
                 file=os.path.join(apihandler.files_url, from_db["uuid"]),
             )

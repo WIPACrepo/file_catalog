@@ -872,13 +872,61 @@ class TestFilesAPI(TestServerAPI):
         data = _put_and_assert(r, metadata2, uuid)
         data = _assert_in_fc(r, uuid)
 
-    # TODO
     # # # PATCH w/ File-Version # # #
-    def test_53_patch_files_uuid__unique_file_version__error(self) -> None:
-        pass
+    def test_53a_patch_files_uuid__immutable_file_version__error(self) -> None:
+        """Test that file-version (logical_name+checksum.sha512) cannot be changed."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
-    def test_53_patch_files_uuid__unique_logical_name(self) -> None:
-        """Test that logical_name is unique when updating a file."""
+        checksum = {'sha512': hex('foo bar')}
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': checksum,
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+
+        # create the first file; should be OK
+        data, url, uuid = _post_and_assert(r, metadata)
+
+        # try to change 'logical_name'
+        patch_logical_name = {'logical_name': '/this/shall/not/pass'}
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PATCH', '/api/files/' + uuid, patch_logical_name)
+        _assert_httperror(
+            cm.exception,
+            400,
+            "Validation Error: forbidden field modification 'logical_name'"
+        )
+
+        # try to change 'checksum.sha512'
+        patch_checksums = [
+            {"checksum": {"sha512": hex("baz baz baz")}},
+            {"checksum": {"sha512": hex("baz baz baz"), "abc123": hex("yoink")}},
+        ]
+        for pc in patch_checksums:
+            with self.assertRaises(Exception) as cm:
+                r.request_seq('PATCH', '/api/files/' + uuid, pc)
+            _assert_httperror(
+                cm.exception,
+                400,
+                "Validation Error: forbidden field modification 'checksum.sha512'"
+            )
+
+        # try to change 'checksum' to another non-sha512 checksum
+        patch_checksum_only_nonsha512 = {'checksum': {'abc123': hex('yoink')}}
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PATCH', '/api/files/' + uuid, patch_checksum_only_nonsha512)
+        _assert_httperror(
+            cm.exception,
+            400,
+            "Validation Error: metadata missing mandatory field `checksum.sha512` "
+            "(mandatory fields: uuid, logical_name, locations, file_size, checksum.sha512)"
+        )
+
+    def test_54a_patch_files_uuid__with_file_version__okay(self) -> None:
+        """Test that a file can replaced with the same file-version."""
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -890,46 +938,61 @@ class TestFilesAPI(TestServerAPI):
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
-        metadata2 = {
-            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hex('foo bar')},
-            'file_size': 1,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
-        }
 
-        # this is a PATCH to metadata; steps on metadata2's logical_name
-        patch1 = {
-            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hex('foo bar2')},
-            'file_size': 2,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
+        # create the first file; should be OK
+        data, url, uuid = _post_and_assert(r, metadata)
+
+        # try to replace with full file-version; should be OK
+        patch_w_file_version = copy.deepcopy(metadata)
+        patch_w_file_version['file_size'] = 200
+        patch_w_file_version.pop(u'locations')
+        data = _patch_and_assert(r, patch_w_file_version, uuid)
+
+        # try to replace with full file-version w/o checksum; should be OK
+        patch_w_file_version_wo_checksum = copy.deepcopy(metadata)
+        patch_w_file_version_wo_checksum['file_size'] = 20000
+        patch_w_file_version_wo_checksum.pop(u'locations')
+        patch_w_file_version_wo_checksum.pop(u'checksum')
+        data = _patch_and_assert(r, patch_w_file_version_wo_checksum, uuid)
+
+        # try to replace with full file-version w/o logical_name; should be OK
+        patch_w_file_version_wo_logical_name = copy.deepcopy(metadata)
+        patch_w_file_version_wo_logical_name['file_size'] = 20000000
+        patch_w_file_version_wo_logical_name.pop(u'locations')
+        patch_w_file_version_wo_logical_name.pop(u'logical_name')
+        data = _patch_and_assert(r, patch_w_file_version_wo_logical_name, uuid)
+
+    def test_54b_patch_files_uuid__with_addl_checksum_algos__okay(self) -> None:
+        """Check that PATCH still works when there's also non-sha512 checksums."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the files to be created
+        checksum_w_sha512 = {'sha512': hex('foo bar')}
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': checksum_w_sha512,
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
 
         # create the first file; should be OK
         data, url, uuid = _post_and_assert(r, metadata)
 
-        # create the second file; should be OK
-        data, _, __ = _post_and_assert(r, metadata2)
+        # try to patch; should be OK
+        patch_with_addl_nonsha512 = {'checksum': {'abc123': hex('scoop')}}
+        patch_with_addl_nonsha512['checksum'].update(checksum_w_sha512)
+        data = _patch_and_assert(r, patch_with_addl_nonsha512, uuid)
+        data = _assert_in_fc(r, uuid)
 
-        # try to update the first file with a patch; should NOT be OK
-        with self.assertRaises(Exception) as cm:
-            r.request_seq('PATCH', '/api/files/' + uuid, patch1)
-        _assert_httperror(
-            cm.exception,
-            409,
-            f"Conflict with existing file (logical_name already exists `{metadata2['logical_name']}`)"
-        )
-
-    def test_54_patch_files_uuid__with_file_version__okay(self) -> None:
-        pass
-
-    def test_54_patch_files_uuid__replace_logical_name(self) -> None:
-        """Test that a file can be updated with the same logical_name."""
+    def test_54c_patch_files_uuid__without_file_version__okay(self) -> None:
+        """Test that a file can be updated if it has a file-version."""
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
 
-        # define the file to be created
+        # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
             'checksum': {'sha512': hex('foo bar')},
@@ -937,19 +1000,12 @@ class TestFilesAPI(TestServerAPI):
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
 
-        # this is a PATCH to metadata; matches the old logical_name
-        patch1 = {
-            'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar')},
-            'file_size': 2,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-        }
-
-        # create the file; should be OK
+        # create the first file; should be OK
         data, url, uuid = _post_and_assert(r, metadata)
 
-        # try to update the file with a patch; should be OK
-        data = _patch_and_assert(r, patch1, uuid)
+        # try to replace the first file with the second; should be OK
+        patch_file_size = {'file_size': 200}
+        data = _patch_and_assert(r, patch_file_size, uuid)
 
     # # # POST w/ Locations # # #
     def test_55_post_files__unique_locations__error(self) -> None:

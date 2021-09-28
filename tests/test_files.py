@@ -657,8 +657,8 @@ class TestFilesAPI(TestServerAPI):
     # -------------------------------------------------------------------------
 
     # # # POST # # #
-    def test_50a_post_files__unique_file_version_okay(self) -> None:
-        """Test that logical_name+checksum is unique when creating a new file.
+    def test_50a_post_files__unique_file_version__okay(self) -> None:
+        """Test that file-version (logical_name+checksum.sha512) is unique when creating a new file.
 
         But a metadata with the same logical_name and different checksum
         (or visa-versa) is okay.
@@ -698,8 +698,8 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata_same_checksum)
         data = _assert_in_fc(r, uuid, files_in_fc=3)
 
-    def test_50b_post_files__unique_file_version_error(self) -> None:
-        """Test that logical_name+checksum is unique when creating a new file.
+    def test_50b_post_files__unique_file_version__error(self) -> None:
+        """Test that file-version (logical_name+checksum.sha512) is unique for creating a new file.
 
         If there's a conflict, there should be an error.
         """
@@ -727,7 +727,7 @@ class TestFilesAPI(TestServerAPI):
         _assert_httperror(
             cm.exception,
             409,
-            f"Conflict with existing file-version ('logical_name' + 'checksum' already exists:"
+            f"Conflict with existing file-version ('logical_name' + 'checksum.sha512' already exists:"
             f"`{metadata1['logical_name']}` + `{metadata1['checksum']}`)"
         )
 
@@ -849,7 +849,7 @@ class TestFilesAPI(TestServerAPI):
             f"Conflict with existing file (logical_name already exists `{metadata2['logical_name']}`)"
         )
 
-    def test_54_patch_files_uuid__with_file_version_okay(self) -> None:
+    def test_54_patch_files_uuid__with_file_version__okay(self) -> None:
         pass
 
     def test_54_patch_files_uuid__replace_logical_name(self) -> None:
@@ -880,8 +880,8 @@ class TestFilesAPI(TestServerAPI):
         # try to update the file with a patch; should be OK
         data = _patch_and_assert(r, patch1, uuid)
 
-    # # # POST # # #
-    def test_55_post_files__unique_locations_error(self) -> None:
+    # # # POST w Locations # # #
+    def test_55_post_files__unique_locations__error(self) -> None:
         """Test that locations is unique when creating a new file."""
         self.start_server()
         token = self.get_token()
@@ -916,8 +916,8 @@ class TestFilesAPI(TestServerAPI):
             f"Conflict with existing file (location already exists `{metadata['logical_name']}`)"
         )
 
-    # # # PUT # # #
-    def test_56_put_files_uuid__unique_locations_error(self) -> None:
+    # # # PUT w Locations # # #
+    def test_56_put_files_uuid__unique_locations__error(self) -> None:
         pass
 
     def test_56_put_files_uuid__unique_locations(self) -> None:
@@ -961,7 +961,7 @@ class TestFilesAPI(TestServerAPI):
             f"Conflict with existing file (location already exists `{metadata2['logical_name']}`)"
         )
 
-    def test_57_put_files_uuid__with_locations_okay(self) -> None:
+    def test_57_put_files_uuid__with_locations__okay(self) -> None:
         pass
 
     def test_57_put_files_uuid__replace_locations(self) -> None:
@@ -990,7 +990,7 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with the second; should be OK
         data = _put_and_assert(r, metadata2, uuid)
 
-    # # # PATCH # # #
+    # # # PATCH w Locations # # #
     def test_58_patch_files_uuid__unique_locations(self) -> None:
         """Test that locations is unique when updating a file."""
         self.start_server()

@@ -197,10 +197,10 @@ class TestFilesAPI(TestServerAPI):
         data = r.request_seq("GET", "/api/files", args)
         assert set(data["files"][0].keys()) == {"checksum", "file_size"}
 
-    def test_13_files__path_like_args(self) -> None:
-        """Test the path-like base/shortcut arguments.
+    def test_13_files__name_type_args(self) -> None:
+        """Test the name-type base/shortcut arguments.
 
-        "logical_name", "directory", "filename", "path", & "logical-name-regex".
+        "logical_name", "directory", "filename", & "logical-name-regex".
         """
         self.start_server()
         token = self.get_token()

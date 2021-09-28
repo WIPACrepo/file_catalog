@@ -656,7 +656,7 @@ class TestFilesAPI(TestServerAPI):
     # -------------------------------------------------------------------------
     # -------------------------------------------------------------------------
 
-    # # # POST # # #
+    # # # POST w/ File-Version # # #
     def test_50a_post_files__unique_file_version__okay(self) -> None:
         """Test that file-version (logical_name+checksum.sha512) is unique when creating a new file.
 
@@ -727,57 +727,107 @@ class TestFilesAPI(TestServerAPI):
         _assert_httperror(
             cm.exception,
             409,
-            f"Conflict with existing file-version ('logical_name' + 'checksum.sha512' already exists:"
-            f"`{metadata1['logical_name']}` + `{metadata1['checksum']}`)"
+            f"Conflict with existing file-version ('logical_name' + 'checksum.sha512' already exists:"  # type: ignore[index]
+            f"`{metadata1['logical_name']}` + `{metadata1['checksum']['sha512']}`)"
         )
 
         # check that the second file was not created
         data = _assert_in_fc(r, uuid)
 
-    # # # PUT # # #
-    def test_51_put_files_uuid__unique_file_version_error(self) -> None:
-        pass
-
-    def test_51_put_files_uuid__unique_logical_name(self) -> None:
-        """Test that logical_name is unique when replacing a file."""
+    # # # PUT w/ File-Version # # #
+    def test_51a_put_files_uuid__immutable_file_version__error(self) -> None:
+        """Test that file-version (logical_name+checksum.sha512) cannot be changed."""
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
 
-        # define the files to be created
         metadata = {
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
             'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-        }
-        metadata2 = {
-            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hex('foo bar')},
-            'file_size': 1,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
         }
 
         # create the first file; should be OK
         data, url, uuid = _post_and_assert(r, metadata)
 
-        # create the second file; should be OK
-        data, _, __ = _post_and_assert(r, metadata2)
-
-        # try to replace the first file with a copy of the second; should NOT be OK
+        # try to change 'logical_name'
+        metadata_diff_logical_name = copy.deepcopy(metadata)
+        metadata_diff_logical_name['logical_name'] = '/this/shall/not/pass'
         with self.assertRaises(Exception) as cm:
-            r.request_seq('PUT', '/api/files/' + uuid, metadata2)
+            r.request_seq('PUT', '/api/files/' + uuid, metadata_diff_logical_name)
         _assert_httperror(
             cm.exception,
-            409,
-            f"Conflict with existing file (logical_name already exists `{metadata2['logical_name']}`)"
+            400,
+            "Validation Error: forbidden field modification 'logical_name'"
         )
 
-    def test_52_put_files_uuid__with_file_version_okay(self) -> None:
-        pass
+        # try to change 'checksum.sha512'
+        metadata_diff_checksum = copy.deepcopy(metadata)
+        metadata_diff_checksum['checksum'] = {'sha512': hex('baz baz baz')}
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PUT', '/api/files/' + uuid, metadata_diff_checksum)
+        _assert_httperror(
+            cm.exception,
+            400,
+            "Validation Error: forbidden field modification 'checksum.sha512'"
+        )
 
-    def test_52_put_files_uuid__replace_logical_name(self) -> None:
-        """Test that a file can replace with the same logical_name."""
+    def test_51b_put_files_uuid__without_file_version__error(self) -> None:
+        """Test that a file cannot be replaced if it does not have a file-version.
+
+        In contrast, this scenario would be okay for PATCH.
+        """
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+
+        # create the first file; should be OK
+        data, url, uuid = _post_and_assert(r, metadata)
+
+        # try replace without a 'logical_name'
+        metadata_no_logical_name = copy.deepcopy(metadata)
+        metadata_no_logical_name.pop('logical_name')
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PUT', '/api/files/' + uuid, metadata_no_logical_name)
+        _assert_httperror(
+            cm.exception,
+            400,
+            "Validation Error: metadata missing mandatory field `logical_name` (mandatory fields: uuid, logical_name, locations, file_size, checksum.sha512)"
+        )
+
+        # try replace without a 'checksum.sha512'
+        metadata_no_checksum_sha512 = copy.deepcopy(metadata)
+        metadata_no_checksum_sha512['checksum'].pop('sha512')  # type: ignore[attr-defined]
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PUT', '/api/files/' + uuid, metadata_no_checksum_sha512)
+        _assert_httperror(
+            cm.exception,
+            400,
+            "Validation Error: metadata missing mandatory field `checksum.sha512` (mandatory fields: uuid, logical_name, locations, file_size, checksum.sha512)"
+        )
+
+        # try replace without a 'checksum.sha512' but with another checksum
+        metadata_only_a_nonsha512_checksum = copy.deepcopy(metadata)
+        metadata_only_a_nonsha512_checksum['checksum'].pop('sha512')  # type: ignore[attr-defined]
+        metadata_only_a_nonsha512_checksum['checksum']['abc123'] = hex('scoop')  # type: ignore[index]
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PUT', '/api/files/' + uuid, metadata_only_a_nonsha512_checksum)
+        _assert_httperror(
+            cm.exception,
+            400,
+            "Validation Error: metadata missing mandatory field `checksum.sha512` (mandatory fields: uuid, logical_name, locations, file_size, checksum.sha512)"
+        )
+
+    def test_52a_put_files_uuid__with_file_version__okay(self) -> None:
+        """Test that a file can replaced with the same file-version."""
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -787,12 +837,6 @@ class TestFilesAPI(TestServerAPI):
             'logical_name': '/blah/data/exp/IceCube/blah.dat',
             'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-        }
-        metadata2 = {
-            'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar2')},
-            'file_size': 2,
             u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
 
@@ -800,10 +844,37 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata)
 
         # try to replace the first file with the second; should be OK
+        metadata2 = copy.deepcopy(metadata)
+        metadata2['file_size'] = 200
         data = _put_and_assert(r, metadata2, uuid)
 
-    # # # PATCH # # #
-    def test_53_patch_files_uuid__unique_file_version_error(self) -> None:
+    def test_52b_put_files_uuid__with_addl_checksum_algos__okay(self) -> None:
+        """Check that PUT still work when there's also non-sha512 checksums."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the files to be created
+        checksum_w_sha512 = {'sha512': hex('foo bar')}
+        metadata = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': checksum_w_sha512,
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+
+        # create the first file; should be OK
+        data, url, uuid = _post_and_assert(r, metadata)
+
+        # try to replace the first file with the second; should be OK
+        metadata2 = copy.deepcopy(metadata)
+        metadata2['checksum'].update({'abc123': hex('scoop')})  # type: ignore[attr-defined]
+        data = _put_and_assert(r, metadata2, uuid)
+        data = _assert_in_fc(r, uuid)
+
+    # TODO
+    # # # PATCH w/ File-Version # # #
+    def test_53_patch_files_uuid__unique_file_version__error(self) -> None:
         pass
 
     def test_53_patch_files_uuid__unique_logical_name(self) -> None:
@@ -880,7 +951,7 @@ class TestFilesAPI(TestServerAPI):
         # try to update the file with a patch; should be OK
         data = _patch_and_assert(r, patch1, uuid)
 
-    # # # POST w Locations # # #
+    # # # POST w/ Locations # # #
     def test_55_post_files__unique_locations__error(self) -> None:
         """Test that locations is unique when creating a new file."""
         self.start_server()
@@ -916,7 +987,7 @@ class TestFilesAPI(TestServerAPI):
             f"Conflict with existing file (location already exists `{metadata['logical_name']}`)"
         )
 
-    # # # PUT w Locations # # #
+    # # # PUT w/ Locations # # #
     def test_56_put_files_uuid__unique_locations__error(self) -> None:
         pass
 
@@ -990,7 +1061,7 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with the second; should be OK
         data = _put_and_assert(r, metadata2, uuid)
 
-    # # # PATCH w Locations # # #
+    # # # PATCH w/ Locations # # #
     def test_58_patch_files_uuid__unique_locations(self) -> None:
         """Test that locations is unique when updating a file."""
         self.start_server()

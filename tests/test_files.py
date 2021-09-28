@@ -657,7 +657,43 @@ class TestFilesAPI(TestServerAPI):
     # -------------------------------------------------------------------------
 
     # # # POST w/ File-Version # # #
-    def test_50a_post_files__unique_file_version__okay(self) -> None:
+    def test_50a_post_files__conflicting_file_version__error(self) -> None:
+        """Test that file-version (logical_name+checksum.sha512) is unique for creating a new file.
+
+        If there's a conflict, there should be an error.
+        """
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the file to be created
+        metadata1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
+        }
+
+        # create the file the first time; should be OK
+        data, url, uuid = _post_and_assert(r, metadata1)
+
+        # check that the file was created properly
+        data = _assert_in_fc(r, uuid)
+
+        # create the file the second time; should NOT be OK
+        with self.assertRaises(Exception) as cm:
+            data = r.request_seq('POST', '/api/files', metadata1)
+        _assert_httperror(
+            cm.exception,
+            409,
+            f"Conflict with existing file-version ('logical_name' + 'checksum.sha512' already exists:"  # type: ignore[index]
+            f"`{metadata1['logical_name']}` + `{metadata1['checksum']['sha512']}`)"
+        )
+
+        # check that the second file was not created
+        data = _assert_in_fc(r, uuid)
+
+    def test_50b_post_files__unique_file_version__okay(self) -> None:
         """Test that file-version (logical_name+checksum.sha512) is unique when creating a new file.
 
         But a metadata with the same logical_name and different checksum
@@ -698,42 +734,6 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata_same_checksum)
         data = _assert_in_fc(r, uuid, files_in_fc=3)
 
-    def test_50b_post_files__unique_file_version__error(self) -> None:
-        """Test that file-version (logical_name+checksum.sha512) is unique for creating a new file.
-
-        If there's a conflict, there should be an error.
-        """
-        self.start_server()
-        token = self.get_token()
-        r = RestClient(self.address, token, timeout=1, retries=1)
-
-        # define the file to be created
-        metadata1 = {
-            'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar')},
-            'file_size': 1,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-        }
-
-        # create the file the first time; should be OK
-        data, url, uuid = _post_and_assert(r, metadata1)
-
-        # check that the file was created properly
-        data = _assert_in_fc(r, uuid)
-
-        # create the file the second time; should NOT be OK
-        with self.assertRaises(Exception) as cm:
-            data = r.request_seq('POST', '/api/files', metadata1)
-        _assert_httperror(
-            cm.exception,
-            409,
-            f"Conflict with existing file-version ('logical_name' + 'checksum.sha512' already exists:"  # type: ignore[index]
-            f"`{metadata1['logical_name']}` + `{metadata1['checksum']['sha512']}`)"
-        )
-
-        # check that the second file was not created
-        data = _assert_in_fc(r, uuid)
-
     # # # PUT w/ File-Version # # #
     def test_51a_put_files_uuid__immutable_file_version__error(self) -> None:
         """Test that file-version (logical_name+checksum.sha512) cannot be changed."""
@@ -773,10 +773,22 @@ class TestFilesAPI(TestServerAPI):
             "Validation Error: forbidden field modification 'checksum.sha512'"
         )
 
+        # try to change 'checksum' to another non-sha512 checksum
+        metadata_only_nonsha512 = copy.deepcopy(metadata)
+        metadata_only_nonsha512['checksum'] = {'abc123': hex('yoink')}
+        with self.assertRaises(Exception) as cm:
+            r.request_seq('PUT', '/api/files/' + uuid, metadata_only_nonsha512)
+        _assert_httperror(
+            cm.exception,
+            400,
+            "Validation Error: metadata missing mandatory field `checksum.sha512` "
+            "(mandatory fields: uuid, logical_name, locations, file_size, checksum.sha512)"
+        )
+
     def test_51b_put_files_uuid__without_file_version__error(self) -> None:
         """Test that a file cannot be replaced if it does not have a file-version.
 
-        In contrast, this scenario would be okay for PATCH.
+        In contrast, this scenario would be okay (normal) for PATCH.
         """
         self.start_server()
         token = self.get_token()
@@ -867,9 +879,9 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata)
 
         # try to replace the first file with the second; should be OK
-        metadata2 = copy.deepcopy(metadata)
-        metadata2['checksum'].update({'abc123': hex('scoop')})  # type: ignore[attr-defined]
-        data = _put_and_assert(r, metadata2, uuid)
+        metadata_with_addl_nonsha512 = copy.deepcopy(metadata)
+        metadata_with_addl_nonsha512['checksum'].update({'abc123': hex('scoop')})  # type: ignore[attr-defined]
+        data = _put_and_assert(r, metadata_with_addl_nonsha512, uuid)
         data = _assert_in_fc(r, uuid)
 
     # # # PATCH w/ File-Version # # #

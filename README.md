@@ -89,6 +89,7 @@ Obtain list of files
   * [`query`](#query)
   * [`keys`](#keys)
   * [`all-keys`](#shortcut-parameter-all-keys) *(shortcut parameter)*
+  * [`max_time_ms`](#max_time_ms)
 
 ##### HTTP Response Status Codes
   * `200`: Response contains collection of file resources
@@ -207,6 +208,11 @@ Partially update/replace file metadata information
 - different routes/methods define differing defaults
 - **NOTE:** there is no performance hit for including more fields
 - *see [`all-keys`](#shortcut-parameter-all-keys)*
+
+##### `max_time_ms`
+- *non-negative integer OR `None`;* timeout to kill long queries in MILLISECONDS
+- overrides the default timeout of 600000 ms (10 minutes)
+- `None` indicates no timeout (this can hang the server -- you have been warned)
 
 ##### Shortcut Parameters: `logical-name-regex`, `logical_name`, `directory`, `filename`
 *In decreasing order of precedence...*

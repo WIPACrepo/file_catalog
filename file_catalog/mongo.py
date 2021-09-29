@@ -22,6 +22,9 @@ class AllKeys:  # pylint: disable=R0903
     """Include all keys in MongoDB find*() methods."""
 
 
+DEFAULT_MAX_TIME_MS = 10 * 60 * 1000  # 10 minutes
+
+
 class Mongo:
     """A ThreadPoolExecutor-based MongoDB client."""
 
@@ -33,7 +36,9 @@ class Mongo:
         username: Optional[str] = None,
         password: Optional[str] = None,
         uri: Optional[str] = None,
+        max_time_ms: Optional[int] = None,
     ) -> None:
+        self.max_time_ms = max_time_ms
 
         if uri:
             logger.info(f"MongoClient args: uri={uri}")
@@ -132,6 +137,7 @@ class Mongo:
         keys: Optional[Union[List[str], AllKeys]] = None,
         limit: Optional[int] = None,
         start: int = 0,
+        max_time_ms: Optional[int] = DEFAULT_MAX_TIME_MS,
     ) -> List[Dict[str, Any]]:
         """Find files.
 
@@ -145,6 +151,7 @@ class Mongo:
             keys -- fields to include in MongoDB projection
             limit -- max count of files returned
             start -- starting index
+            max_time_ms -- the query timeout in milliseconds
 
         Returns:
             List of MongoDB files
@@ -152,7 +159,7 @@ class Mongo:
         projection = Mongo._get_projection(
             keys, default={"uuid": True, "logical_name": True}
         )
-        cursor = self.client.files.find(query, projection)
+        cursor = self.client.files.find(query, projection, max_time_ms=max_time_ms)
         results = await Mongo._limit_result_list(cursor, limit, start)
 
         return results
@@ -186,9 +193,20 @@ class Mongo:
 
         return result
 
-    async def get_file(self, filters: Dict[str, Any]) -> Optional[types.Metadata]:
-        """Get file matching filters."""
-        file = await self.client.files.find_one(filters, {"_id": False})
+    async def get_file(
+        self, filters: Dict[str, Any], max_time_ms: Optional[int] = DEFAULT_MAX_TIME_MS
+    ) -> Optional[types.Metadata]:
+        """Get file matching filters.
+
+        Arguments:
+            filters -- MongoDB query filters
+
+        Keyword Arguments:
+            max_time_ms -- the query timeout in milliseconds
+        """
+        file = await self.client.files.find_one(
+            filters, {"_id": False}, max_time_ms=max_time_ms
+        )
         if file:
             return cast(types.Metadata, file)
         return None

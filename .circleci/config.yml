@@ -24,8 +24,7 @@ jobs:
             - run: |
                 . env/bin/activate &&
                 resources/enable_profiling.py &&
-                coverage run --source file_catalog -m pytest -vvvvv --tb=short &&
-                coverage report
+                pytest -vvvvv --tb=short &&
                 resources/profile_queries.py
 
     mypy:

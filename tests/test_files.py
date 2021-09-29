@@ -693,7 +693,7 @@ class TestFilesAPI(TestServerAPI):
         # check that the second file was not created
         data = _assert_in_fc(r, uuid)
 
-    def test_50b_post_files__unique_file_version__okay(self) -> None:
+    def test_51a_post_files__unique_file_version__okay(self) -> None:
         """Test that file-version (logical_name+checksum.sha512) is unique when creating a new file.
 
         But a metadata with the same logical_name and different checksum
@@ -735,7 +735,7 @@ class TestFilesAPI(TestServerAPI):
         data = _assert_in_fc(r, uuid, files_in_fc=3)
 
     # # # PUT w/ File-Version # # #
-    def test_51a_put_files_uuid__immutable_file_version__error(self) -> None:
+    def test_52a_put_files_uuid__immutable_file_version__error(self) -> None:
         """Test that file-version (logical_name+checksum.sha512) cannot be changed."""
         self.start_server()
         token = self.get_token()
@@ -785,7 +785,7 @@ class TestFilesAPI(TestServerAPI):
             "(mandatory fields: uuid, logical_name, locations, file_size, checksum.sha512)"
         )
 
-    def test_51b_put_files_uuid__without_file_version__error(self) -> None:
+    def test_52b_put_files_uuid__without_file_version__error(self) -> None:
         """Test that a file cannot be replaced if it does not have a file-version.
 
         In contrast, this scenario would be okay (normal) for PATCH.
@@ -838,7 +838,7 @@ class TestFilesAPI(TestServerAPI):
             "Validation Error: metadata missing mandatory field `checksum.sha512` (mandatory fields: uuid, logical_name, locations, file_size, checksum.sha512)"
         )
 
-    def test_52a_put_files_uuid__with_file_version__okay(self) -> None:
+    def test_53a_put_files_uuid__with_file_version__okay(self) -> None:
         """Test that a file can replaced with the same file-version."""
         self.start_server()
         token = self.get_token()
@@ -860,7 +860,7 @@ class TestFilesAPI(TestServerAPI):
         metadata2['file_size'] = 200
         data = _put_and_assert(r, metadata2, uuid)
 
-    def test_52b_put_files_uuid__with_addl_checksum_algos__okay(self) -> None:
+    def test_53b_put_files_uuid__with_addl_checksum_algos__okay(self) -> None:
         """Check that PUT still work when there's also non-sha512 checksums."""
         self.start_server()
         token = self.get_token()
@@ -885,7 +885,7 @@ class TestFilesAPI(TestServerAPI):
         data = _assert_in_fc(r, uuid)
 
     # # # PATCH w/ File-Version # # #
-    def test_53a_patch_files_uuid__immutable_file_version__error(self) -> None:
+    def test_54a_patch_files_uuid__immutable_file_version__error(self) -> None:
         """Test that file-version (logical_name+checksum.sha512) cannot be changed."""
         self.start_server()
         token = self.get_token()
@@ -937,7 +937,7 @@ class TestFilesAPI(TestServerAPI):
             "(mandatory fields: uuid, logical_name, locations, file_size, checksum.sha512)"
         )
 
-    def test_54a_patch_files_uuid__with_file_version__okay(self) -> None:
+    def test_55a_patch_files_uuid__with_file_version__okay(self) -> None:
         """Test that a file can replaced with the same file-version."""
         self.start_server()
         token = self.get_token()
@@ -974,7 +974,7 @@ class TestFilesAPI(TestServerAPI):
         patch_w_file_version_wo_logical_name.pop(u'logical_name')
         data = _patch_and_assert(r, patch_w_file_version_wo_logical_name, uuid)
 
-    def test_54b_patch_files_uuid__with_addl_checksum_algos__okay(self) -> None:
+    def test_55b_patch_files_uuid__with_addl_checksum_algos__okay(self) -> None:
         """Check that PATCH still works when there's also non-sha512 checksums."""
         self.start_server()
         token = self.get_token()
@@ -998,7 +998,7 @@ class TestFilesAPI(TestServerAPI):
         data = _patch_and_assert(r, patch_with_addl_nonsha512, uuid)
         data = _assert_in_fc(r, uuid)
 
-    def test_54c_patch_files_uuid__without_file_version__okay(self) -> None:
+    def test_55c_patch_files_uuid__without_file_version__okay(self) -> None:
         """Test that a file can be updated if it has a file-version."""
         self.start_server()
         token = self.get_token()
@@ -1019,91 +1019,11 @@ class TestFilesAPI(TestServerAPI):
         patch_file_size = {'file_size': 200}
         data = _patch_and_assert(r, patch_file_size, uuid)
 
-    # # # POST w/ Locations # # #
-    def test_55_post_files__unique_locations__error(self) -> None:
-        """Test that locations is unique when creating a new file."""
-        self.start_server()
-        token = self.get_token()
-        r = RestClient(self.address, token, timeout=1, retries=1)
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
 
-        # define the files to be created
-        metadata = {
-            'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar')},
-            'file_size': 1,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-        }
-        metadata2 = {
-            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hex('foo bar2')},
-            'file_size': 2,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-        }
-
-        # create the first file; should be OK
-        data, url, uuid = _post_and_assert(r, metadata)
-
-        # check that the file was created properly
-        data = _assert_in_fc(r, uuid)
-
-        # create the second file; should NOT be OK
-        with self.assertRaises(Exception) as cm:
-            r.request_seq('POST', '/api/files', metadata2)
-        _assert_httperror(
-            cm.exception,
-            409,
-            f"Conflict with existing file (location already exists `{metadata['logical_name']}`)"
-        )
-
-    # # # PUT w/ Locations # # #
-    def test_56_put_files_uuid__unique_locations__error(self) -> None:
-        pass
-
-    def test_56_put_files_uuid__unique_locations(self) -> None:
-        """Test that locations is unique when replacing a file."""
-        self.start_server()
-        token = self.get_token()
-        r = RestClient(self.address, token, timeout=1, retries=1)
-
-        # define the files to be created
-        metadata = {
-            'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar')},
-            'file_size': 1,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-        }
-        metadata2 = {
-            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hex('foo bar2')},
-            'file_size': 2,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
-        }
-        replace1 = {
-            'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar')},
-            'file_size': 2,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
-        }
-
-        # create the first file; should be OK
-        data, url, uuid = _post_and_assert(r, metadata)
-
-        # create the second file; should be OK
-        data, _, __ = _post_and_assert(r, metadata2)
-
-        # try to replace the first file with a location collision with the second; should NOT be OK
-        with self.assertRaises(Exception) as cm:
-            r.request_seq('PUT', '/api/files/' + uuid, replace1)
-        _assert_httperror(
-            cm.exception,
-            409,
-            f"Conflict with existing file (location already exists `{metadata2['logical_name']}`)"
-        )
-
-    def test_57_put_files_uuid__with_locations__okay(self) -> None:
-        pass
-
-    def test_57_put_files_uuid__replace_locations(self) -> None:
+    def test_60a_put_files_uuid__replace_locations__okay(self) -> None:
         """Test that a file can replace with the same location."""
         self.start_server()
         token = self.get_token()
@@ -1129,51 +1049,7 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with the second; should be OK
         data = _put_and_assert(r, metadata2, uuid)
 
-    # # # PATCH w/ Locations # # #
-    def test_58_patch_files_uuid__unique_locations(self) -> None:
-        """Test that locations is unique when updating a file."""
-        self.start_server()
-        token = self.get_token()
-        r = RestClient(self.address, token, timeout=1, retries=1)
-
-        # define the files to be created
-        metadata = {
-            'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar')},
-            'file_size': 1,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
-        }
-        metadata2 = {
-            'logical_name': '/blah/data/exp/IceCube/blah2.dat',
-            'checksum': {'sha512': hex('foo bar')},
-            'file_size': 1,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
-        }
-
-        # this is a PATCH to metadata; steps on metadata2's location
-        patch1 = {
-            'logical_name': '/blah/data/exp/IceCube/blah.dat',
-            'checksum': {'sha512': hex('foo bar')},
-            'file_size': 2,
-            u'locations': [{u'site': u'WIPAC', u'path': u'/blah/data/exp/IceCube/blah2.dat'}]
-        }
-
-        # create the first file; should be OK
-        data, url, uuid = _post_and_assert(r, metadata)
-
-        # create the second file; should be OK
-        data, _, __ = _post_and_assert(r, metadata2)
-
-        # try to update the first file with a patch; should NOT be OK
-        with self.assertRaises(Exception) as cm:
-            r.request_seq('PATCH', '/api/files/' + uuid, patch1)
-        _assert_httperror(
-            cm.exception,
-            409,
-            f"Conflict with existing file (location already exists `{metadata2['logical_name']}`)"
-        )
-
-    def test_59_patch_files_uuid__replace_locations(self) -> None:
+    def test_61a_patch_files_uuid__replace_locations__okay(self) -> None:
         """Test that a file can be updated with the same location."""
         self.start_server()
         token = self.get_token()
@@ -1202,11 +1078,7 @@ class TestFilesAPI(TestServerAPI):
         data = _patch_and_assert(r, patch1, uuid)
         self.assertIn('locations', data)
 
-    # -------------------------------------------------------------------------
-    # -------------------------------------------------------------------------
-    # -------------------------------------------------------------------------
-
-    def test_60_post_files__locations_1xN(self) -> None:
+    def test_62a_post_files__locations_1xN__error(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1250,7 +1122,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_61_post_files__locations_Nx1(self) -> None:
+    def test_62b_post_files__locations_Nx1__error(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1297,7 +1169,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_62_post_files__locations_NxN(self) -> None:
+    def test_62c_post_files__locations_NxN__error(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1344,7 +1216,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_63_put_files_uuid__locations_1xN(self) -> None:
+    def test_63a_put_files_uuid__locations_1xN__error(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1394,7 +1266,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_64_put_files_uuid__locations_Nx1(self) -> None:
+    def test_63b_put_files_uuid__locations_Nx1__error(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1444,7 +1316,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_65_put_files_uuid__locations_NxN(self) -> None:
+    def test_63c_put_files_uuid__locations_NxN__error(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1494,7 +1366,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_66_patch_files_uuid__locations_1xN(self) -> None:
+    def test_64a_patch_files_uuid__locations_1xN__error(self) -> None:
         """Test locations uniqueness under 1xN multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1546,7 +1418,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_67_patch_files_uuid__locations_Nx1(self) -> None:
+    def test_64b_patch_files_uuid__locations_Nx1__error(self) -> None:
         """Test locations uniqueness under Nx1 multiplicity."""
         self.start_server()
         token = self.get_token()
@@ -1598,7 +1470,7 @@ class TestFilesAPI(TestServerAPI):
             "Conflict with existing file (location already exists `/data/test/exp/IceCube/foo.dat`)"
         )
 
-    def test_68_patch_files_uuid__locations_NxN(self) -> None:
+    def test_64c_patch_files_uuid__locations_NxN__error(self) -> None:
         """Test locations uniqueness under NxN multiplicity."""
         self.start_server()
         token = self.get_token()

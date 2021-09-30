@@ -62,7 +62,10 @@ class Mongo:
         await self.client.files.create_index('logical_name', unique=False, background=True)
         await self.client.files.create_index([('logical_name', pymongo.HASHED)], background=True)
         await self.client.files.create_index('locations', unique=True, background=True)
-        await self.client.files.create_index([('locations.site', pymongo.DESCENDING), ('locations.path', pymongo.DESCENDING)], background=True)
+        await self.client.files.create_index(
+            [('locations.path', pymongo.DESCENDING), ('locations.site', pymongo.DESCENDING)],
+            background=True
+        )
         await self.client.files.create_index('create_date', background=True)
 
         # all .i3 files

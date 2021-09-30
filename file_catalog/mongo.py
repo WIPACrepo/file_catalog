@@ -196,7 +196,7 @@ class Mongo:
 
     async def get_file(
         self, filters: Dict[str, Any], max_time_ms: Optional[int] = DEFAULT_MAX_TIME_MS
-    ) -> types.Metadata:
+    ) -> Optional[types.Metadata]:
         """Get file matching filters."""
         file = await self.client.files.find_one(
             filters, {"_id": False}, max_time_ms=max_time_ms

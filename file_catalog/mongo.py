@@ -18,6 +18,9 @@ from .schema import types
 logger = logging.getLogger("mongo")
 
 
+DEFAULT_MAX_TIME_MS = 10 * 60 * 1000  # 10 minutes
+
+
 class AllKeys:  # pylint: disable=R0903
     """Include all keys in MongoDB find*() methods."""
 
@@ -115,7 +118,9 @@ class Mongo:
 
     @staticmethod
     async def _limit_result_list(
-        cursor: MotorCursor, limit: Optional[int] = None, start: int = 0,
+        cursor: MotorCursor,
+        limit: Optional[int] = None,
+        start: int = 0,
     ) -> List[Dict[str, Any]]:
         """Get sublist of results from `cursor` using `limit` and `start`."""
         if limit:
@@ -130,6 +135,7 @@ class Mongo:
         keys: Optional[Union[List[str], AllKeys]] = None,
         limit: Optional[int] = None,
         start: int = 0,
+        max_time_ms: Optional[int] = DEFAULT_MAX_TIME_MS,
     ) -> List[Dict[str, Any]]:
         """Find files.
 
@@ -143,6 +149,7 @@ class Mongo:
             keys -- fields to include in MongoDB projection
             limit -- max count of files returned
             start -- starting index
+            max_time_ms -- the query timeout in milliseconds
 
         Returns:
             List of MongoDB files
@@ -150,13 +157,15 @@ class Mongo:
         projection = Mongo._get_projection(
             keys, default={"uuid": True, "logical_name": True}
         )
-        cursor = self.client.files.find(query, projection)
+        cursor = self.client.files.find(query, projection, max_time_ms=max_time_ms)
         results = await Mongo._limit_result_list(cursor, limit, start)
 
         return results
 
     async def count_files(  # pylint: disable=W0613
-        self, query: Optional[Dict[str, Any]] = None, **kwargs: Any,
+        self,
+        query: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> int:
         """Get count of files matching query."""
         if not query:
@@ -180,9 +189,13 @@ class Mongo:
 
         return metadata["uuid"]
 
-    async def get_file(self, filters: Dict[str, Any]) -> types.Metadata:
+    async def get_file(
+        self, filters: Dict[str, Any], max_time_ms: Optional[int] = DEFAULT_MAX_TIME_MS
+    ) -> types.Metadata:
         """Get file matching filters."""
-        file = await self.client.files.find_one(filters, {"_id": False})
+        file = await self.client.files.find_one(
+            filters, {"_id": False}, max_time_ms=max_time_ms
+        )
         return cast(types.Metadata, file)
 
     async def update_file(self, uuid: str, metadata: types.Metadata) -> None:

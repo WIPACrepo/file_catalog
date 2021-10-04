@@ -110,7 +110,7 @@ Create a new file or add a replica
   * `200`: Replica has been added. Response contains link to file resource
   * `201`: Response contains link to newly created file resource
   * `400`: Bad request (metadata failed validation)
-  * `409`: Conflict (if the file already exists); includes link to existing file
+  * `409`: Conflict (if the file-version already exists); includes link to existing file
   * `429`: Too many requests (if server is being hammered)
   * `500`: Unspecified server error
   * `503`: Service unavailable (maintenance, etc.)

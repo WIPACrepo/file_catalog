@@ -1745,6 +1745,33 @@ class TestFilesAPI(TestServerAPI):
         self.assertIn(loc1c, rec2["locations"])
         self.assertNotIn(loc1d, rec2["locations"])
 
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+
+    def test_80_files_uuid_actions_remove_location__keep_record__okay() -> None:
+        """Test removing a location from a record with multiple locations."""
+        pass
+
+    def test_81_files_uuid_actions_remove_location__delete_record__okay() -> None:
+        """Test removing a location from a record with only one location.
+
+        Will also delete the record.
+        """
+        pass
+
+    def test_82_files_uuid_actions_remove_location__missing_arg__error() -> None:
+        """Test that there's an error when not providing the `"location"` arg."""
+        pass
+
+    def test_83_files_uuid_actions_remove_location__bad_location__error() -> None:
+        """Test that there's an error when the given an invalid `"location"` arg."""
+        pass
+
+    def test_84_files_uuid_actions_remove_location__location_404__error() -> None:
+        """Test that there's an error when the given location is not in the record."""
+        pass
+
 
 if __name__ == '__main__':
     suite = unittest.TestLoader().loadTestsFromTestCase(TestStringMethods)

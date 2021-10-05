@@ -718,30 +718,24 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
             return
 
         # decode the JSON provided in the POST body
-        location: types.LocationEntry = json_decode(self.request.body).get("location")
-        if location is None:
-            self.send_error(400, reason="POST body requires 'location' field")
-            return
-
-        # validate `location`
-        if not self.validation.is_valid_location(location):
-            self.send_error(
-                400,
-                reason=f"Validation Error: argument `location` must be a "
-                f"dict with keys: {self.validation.MANDATORY_LOCATION_KEYS}",
-            )
+        body = json_decode(self.request.body)
+        try:
+            site = body["site"]
+            path = body["path"]
+        except KeyError:
+            self.send_error(400, reason="POST body requires 'site' & 'path' fields")
             return
 
         def is_location_match(loc: types.LocationEntry) -> bool:
             # only match against the mandatory fields
-            return all(loc[key] == location[key] for key in self.validation.MANDATORY_LOCATION_KEYS)  # type: ignore[misc]
+            return bool(loc['site'] == site and loc['path'] == path)
 
         # Remove `location` (possibly entire record) & Send Back
         before = db_file.get('locations', [])
         after = [loc for loc in before if not is_location_match(loc)]
         # bad location!
         if before == after:
-            self.send_error(404, reason=f'Location entry not found: {location}')
+            self.send_error(404, reason=f"Location entry not found for site='{site}' & path='{path}'")
             return
         # remove location!
         elif after:

@@ -1749,26 +1749,98 @@ class TestFilesAPI(TestServerAPI):
     # -------------------------------------------------------------------------
     # -------------------------------------------------------------------------
 
-    def test_80_files_uuid_actions_remove_location__keep_record__okay() -> None:
+    def test_80a_files_uuid_actions_remove_location__keep_record__okay(self) -> None:
         """Test removing a location from a record with multiple locations."""
-        pass
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
 
-    def test_81_files_uuid_actions_remove_location__delete_record__okay() -> None:
+        # define the file to be created
+        wipac_path = u'/blah/data/exp/IceCube/blah.dat'
+        nersc_path = u'/blah/data/exp/IceCube/blah.dat'
+        metadata1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [
+                {u'site': u'WIPAC', u'path': wipac_path},
+                {u'site': u'NERSC', u'path': nersc_path}
+            ]
+        }
+
+        # create the file the first time; should be OK
+        data, url, uuid = _post_and_assert(r, metadata1)
+        data = _assert_in_fc(r, uuid)
+
+        # remove WIPAC location
+        data = r.request_seq(
+            'POST',
+            f'/api/files/{uuid}/actions/remove_location',
+            {'site': 'WIPAC', 'path': wipac_path}
+        )
+        metadata_without_wipac = copy.deepcopy(metadata1)
+        metadata_without_wipac['locations'] = [{u'site': u'NERSC', u'path': nersc_path}]
+        assert data == metadata_without_wipac
+
+        # double-check FC
+        data = _assert_in_fc(r, uuid)
+        assert data == metadata_without_wipac
+
+    def test_80b_files_uuid_actions_remove_location__keep_record__okay(self) -> None:
+        """Test removing a location from a record with multiple locations.
+
+        This time check that only the mandatory fields are needed to match.
+        """
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the file to be created
+        wipac_path = u'/blah/data/exp/IceCube/blah.dat'
+        nersc_path = u'/blah/data/exp/IceCube/blah.dat'
+        metadata1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [
+                {u'site': u'WIPAC', u'path': wipac_path},
+                {u'site': u'NERSC', u'path': nersc_path, 'archive': True}
+            ]
+        }
+
+        # create the file the first time; should be OK
+        data, url, uuid = _post_and_assert(r, metadata1)
+        data = _assert_in_fc(r, uuid)
+
+        # remove NERSC location -- BUT don't include "archive"
+        data = r.request_seq(
+            'POST',
+            f'/api/files/{uuid}/actions/remove_location',
+            {'site': 'NERSC', 'path': nersc_path}
+        )
+        metadata_without_nersc = copy.deepcopy(metadata1)
+        metadata_without_nersc['locations'] = [{u'site': u'WIPAC', u'path': wipac_path}]
+        assert data == metadata_without_nersc
+
+        # double-check FC
+        data = _assert_in_fc(r, uuid)
+        assert data == metadata_without_nersc
+
+    def test_81_files_uuid_actions_remove_location__delete_record__okay(self) -> None:
         """Test removing a location from a record with only one location.
 
         Will also delete the record.
         """
         pass
 
-    def test_82_files_uuid_actions_remove_location__missing_arg__error() -> None:
-        """Test that there's an error when not providing the `"location"` arg."""
+    def test_82_files_uuid_actions_remove_location__bad_args__error(self) -> None:
+        """Test that there's an error when the given invalid args."""
+        # missing args(s)
+        # non-mandatory location-field args(s), like "archive"
+        # other bogus args(s)
         pass
 
-    def test_83_files_uuid_actions_remove_location__bad_location__error() -> None:
-        """Test that there's an error when the given an invalid `"location"` arg."""
-        pass
-
-    def test_84_files_uuid_actions_remove_location__location_404__error() -> None:
+    def test_83_files_uuid_actions_remove_location__location_404__error(self) -> None:
         """Test that there's an error when the given location is not in the record."""
         pass
 

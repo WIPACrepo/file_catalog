@@ -150,6 +150,7 @@ class Server:
                 (r"/api/files", FilesHandler, api_args),
                 (r"/api/files/count", FilesCountHandler, api_args),
                 (r"/api/files/([^\/]+)", SingleFileHandler, api_args),
+                (r"/api/files/([^\/]+)/actions/remove_location", SingleFileActionsRemoveLocationHandler, api_args),
                 (r"/api/files/([^\/]+)/locations", SingleFileLocationsHandler, api_args),
                 (r"/api/collections", CollectionsHandler, api_args),
                 (r"/api/collections/([^\/]+)", SingleCollectionHandler, api_args),
@@ -681,6 +682,89 @@ class SingleFileHandler(APIHandler):
             'parent': {'href': self.files_url},
         }
         self.write(cast(StrDict, metadata))
+
+
+# --------------------------------------------------------------------------------------
+
+
+class SingleFileActionsRemoveLocationHandler(APIHandler):
+    """Initialize a non-RESTful action handler for removing an existing record's location.
+
+    And potentially the entire record.
+    """
+
+    def initialize(self, **kwargs: Any) -> None:  # type: ignore[override]  # pylint: disable=C0116,W0221
+        """Initialize handler."""
+        super().initialize(**kwargs)
+        # pylint: disable=W0201
+        self.files_url = os.path.join(self.base_url, 'files')
+
+    @validate_auth
+    @catch_error
+    async def post(self, uuid: str) -> None:
+        """Handle POST request.
+
+        Remove location from the record identified by the provided UUID,
+        and potentially the entire record.
+        """
+        # try to load the record from the file catalog by UUID
+        try:
+            db_file = await self.db.get_file({'uuid': uuid})
+        except pymongo.errors.InvalidId:
+            self.send_error(400, reason='Not a valid uuid')
+            return
+        if not db_file:
+            self.send_error(404, reason='File uuid not found')
+            return
+
+        # decode the JSON provided in the POST body
+        location: types.LocationEntry = json_decode(self.request.body).get("location")
+        if location is None:
+            self.send_error(400, reason="POST body requires 'location' field")
+            return
+
+        # validate `location`
+        if not self.validation.is_valid_location(location):
+            self.send_error(
+                400,
+                reason=f"Validation Error: argument `location` must be a "
+                f"dict with keys: {self.validation.MANDATORY_LOCATION_KEYS}",
+            )
+            return
+
+        def is_location_match(loc: types.LocationEntry) -> bool:
+            # only match against the mandatory fields
+            return all(loc[key] == location[key] for key in self.validation.MANDATORY_LOCATION_KEYS)  # type: ignore[misc]
+
+        # Remove `location` (possibly entire record) & Send Back
+        before = db_file.get('locations', [])
+        after = [loc for loc in before if not is_location_match(loc)]
+        # bad location!
+        if before == after:
+            self.send_error(404, reason=f'Location entry not found: {location}')
+            return
+        # remove location!
+        elif after:
+            await self.db.update_file(uuid, {'locations': after})
+            # re-read the updated record from the database
+            db_file = await self.db.get_file({'uuid': uuid})
+            if not db_file:
+                self.send_error(404, reason='File was deleted in a race condition',
+                                file=os.path.join(self.files_url, uuid))
+                return
+            # send the record back to the caller
+            db_file['_links'] = {
+                'self': {'href': os.path.join(self.files_url, uuid)},
+                'parent': {'href': self.files_url},
+            }
+            self.write(cast(StrDict, db_file))
+            return
+        # delete whole record!
+        else:
+            await self.db.delete_file({'uuid': uuid})
+            # send back empty dict to show record was deleted
+            self.write({})
+            return
 
 
 # --------------------------------------------------------------------------------------

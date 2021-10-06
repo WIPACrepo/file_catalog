@@ -1784,7 +1784,8 @@ class TestFilesAPI(TestServerAPI):
 
         # double-check FC
         data = _assert_in_fc(r, uuid)
-        assert data == metadata_without_wipac
+        extras = ['_links', 'meta_modify_date', 'uuid']
+        assert {k: v for k, v in data.items() if k not in extras} == metadata_without_wipac
 
     def test_80b_files_uuid_actions_remove_location__keep_record__okay(self) -> None:
         """Test removing a location from a record with multiple locations.
@@ -1824,7 +1825,8 @@ class TestFilesAPI(TestServerAPI):
 
         # double-check FC
         data = _assert_in_fc(r, uuid)
-        assert data == metadata_without_nersc
+        extras = ['_links', 'meta_modify_date', 'uuid']
+        assert {k: v for k, v in data.items() if k not in extras} == metadata_without_nersc
 
     def test_81_files_uuid_actions_remove_location__delete_record__okay(self) -> None:
         """Test removing a location from a record with only one location.

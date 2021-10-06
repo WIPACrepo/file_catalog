@@ -1934,7 +1934,54 @@ class TestFilesAPI(TestServerAPI):
 
     def test_83_files_uuid_actions_remove_location__location_404__error(self) -> None:
         """Test that there's an error when the given location is not in the record."""
-        pass
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the file to be created
+        wipac_path = u'/blah/data/exp/IceCube/blah.dat'
+        metadata1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': wipac_path}]
+        }
+
+        # create the file the first time; should be OK
+        data, url, uuid = _post_and_assert(r, metadata1)
+        data = _assert_in_fc(r, uuid)
+
+        # bogus path
+        with self.assertRaises(Exception) as cm:
+            r.request_seq(
+                'POST',
+                f'/api/files/{uuid}/actions/remove_location',
+                {'site': 'WIPAC', 'path': wipac_path + '!'}
+            )
+        _assert_httperror(
+            cm.exception,
+            404,
+            f"Location entry not found for site='WIPAC' & path='{wipac_path + '!'}'"
+        )
+        # check that nothing has changed
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata1
+
+        # bogus site
+        with self.assertRaises(Exception) as cm:
+            r.request_seq(
+                'POST',
+                f'/api/files/{uuid}/actions/remove_location',
+                {'site': 'WIPAC!', 'path': wipac_path}
+            )
+        _assert_httperror(
+            cm.exception,
+            404,
+            f"Location entry not found for site='WIPAC!' & path='{wipac_path}'"
+        )
+        # check that nothing has changed
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata1
 
 
 if __name__ == '__main__':

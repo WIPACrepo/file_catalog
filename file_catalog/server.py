@@ -748,11 +748,14 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
         # Remove `location` (possibly entire record) & Send Back
         before = db_file.get('locations', [])
         after = [loc for loc in before if not is_location_match(loc)]
-        # bad location!
+        # bad location! -- no location was filtered out
         if before == after:
-            self.send_error(404, reason=f"Location entry not found for site='{site}' & path='{path}'")
+            self.send_error(
+                404,
+                reason=f"Location entry not found for site='{site}' & path='{path}'"
+            )
             return
-        # remove location!
+        # remove location! -- there are remaining locations after filtering
         elif after:
             await self.db.update_file(uuid, {'locations': after})
             # re-read the updated record from the database
@@ -768,7 +771,7 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
             }
             self.write(cast(StrDict, db_file))
             return
-        # delete whole record!
+        # delete whole record! -- no remaining locations after filtering
         else:
             await self.db.delete_file({'uuid': uuid})
             # send back empty dict to show record was deleted

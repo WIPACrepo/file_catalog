@@ -29,6 +29,12 @@ def hex(data: Any) -> str:
     return hashlib.sha512(data).hexdigest()
 
 
+def copy_without_rest_response_keys(data: StrDict) -> StrDict:
+    """Return copy of `data` without the keys inserted by REST in a response."""
+    response_keys = ['_links', 'meta_modify_date', 'uuid']
+    return {k: v for k, v in copy.deepcopy(data).items() if k not in response_keys}
+
+
 # -----------------------------------------------------------------------------
 
 
@@ -69,9 +75,12 @@ def _patch_and_assert(r: RestClient, patch: StrDict, uuid: str) -> StrDict:
     return data  # type: ignore[no-any-return]
 
 
-def _assert_in_fc(r: RestClient, uuid: str, files_in_fc: int = 1) -> StrDict:
+def _assert_in_fc(r: RestClient, uuid: str, files_in_fc: int = 1, all_keys: bool = False) -> StrDict:
     """Also return data."""
-    data = r.request_seq('GET', '/api/files')
+    if all_keys:
+        data = r.request_seq('GET', '/api/files', {'all-keys': True})
+    else:
+        data = r.request_seq('GET', '/api/files')
     assert '_links' in data
     assert 'self' in data['_links']
     assert 'files' in data
@@ -1780,12 +1789,11 @@ class TestFilesAPI(TestServerAPI):
         )
         metadata_without_wipac = copy.deepcopy(metadata1)
         metadata_without_wipac['locations'] = [{u'site': u'NERSC', u'path': nersc_path}]
-        assert data == metadata_without_wipac
+        assert copy_without_rest_response_keys(data) == metadata_without_wipac
 
         # double-check FC
-        data = _assert_in_fc(r, uuid)
-        extras = ['_links', 'meta_modify_date', 'uuid']
-        assert {k: v for k, v in data.items() if k not in extras} == metadata_without_wipac
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata_without_wipac
 
     def test_80b_files_uuid_actions_remove_location__keep_record__okay(self) -> None:
         """Test removing a location from a record with multiple locations.
@@ -1821,12 +1829,11 @@ class TestFilesAPI(TestServerAPI):
         )
         metadata_without_nersc = copy.deepcopy(metadata1)
         metadata_without_nersc['locations'] = [{u'site': u'WIPAC', u'path': wipac_path}]
-        assert data == metadata_without_nersc
+        assert copy_without_rest_response_keys(data) == metadata_without_nersc
 
         # double-check FC
-        data = _assert_in_fc(r, uuid)
-        extras = ['_links', 'meta_modify_date', 'uuid']
-        assert {k: v for k, v in data.items() if k not in extras} == metadata_without_nersc
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata_without_nersc
 
     def test_81_files_uuid_actions_remove_location__delete_record__okay(self) -> None:
         """Test removing a location from a record with only one location.

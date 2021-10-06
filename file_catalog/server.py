@@ -28,12 +28,14 @@ from tornado.httputil import url_concat
 # local imports
 import file_catalog
 
-from . import argbuilder, pathfinder, urlargparse
+from . import argbuilder, deconfliction, urlargparse
 from .mongo import Mongo
 from .schema import types
 from .schema.validation import Validation
 
 logger = logging.getLogger('server')
+
+StrDict = Dict[str, Any]
 
 
 def get_pkgdata_filename(package: str, resource: str) -> Optional[str]:
@@ -348,6 +350,8 @@ class APIHandler(tornado.web.RequestHandler):
         self.base_url = base_url
         self.debug = debug
         self.config = config
+        self.validation = Validation(self.config)
+
         if 'TOKEN_KEY' in self.config:
             self.auth = Auth(algorithm=self.config['TOKEN_ALGORITHM'],
                              secret=self.config['TOKEN_KEY'],
@@ -383,11 +387,10 @@ class APIHandler(tornado.web.RequestHandler):
         if self.rate_limit_data[ip] <= 0:
             del self.rate_limit_data[ip]
 
-    def write(self, chunk: Union[str, bytes, Dict[str, Any], types.Metadata]) -> None:
+    def write(self, chunk: Union[str, bytes, StrDict]) -> None:
         """Write chunk to output buffer."""
         # override write so we don't output a json header
         if isinstance(chunk, dict):
-            chunk = cast(Dict[str, Any], chunk)  # unfortunately necessary, but a no-op
             chunk = sort_dict(chunk)
             chunk = json_encode(chunk)
         super().write(chunk)
@@ -437,7 +440,6 @@ class FilesHandler(APIHandler):
         super().initialize(**kwargs)
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
-        self.validation = Validation(self.config)  # pylint: disable=W0201
 
     @validate_auth
     @catch_error
@@ -474,43 +476,41 @@ class FilesHandler(APIHandler):
         if 'uuid' not in metadata:
             metadata['uuid'] = str(uuid1())
 
-        if not self.validation.validate_metadata_creation(self, metadata):
+        # Validate Incoming Data
+        if self.validation.has_forbidden_fields_creation(self, metadata):
+            return
+        if not self.validation.validate_metadata_schema_typing(self, metadata):
             return
 
+        # Deconflict with DB Records
+        # NOTE - POST should not conflict with any existing record
+        # NOTE - by uuid, by existing location(s), or by existing file-version
+        if await self.db.get_file({'uuid': metadata['uuid']}):
+            self.send_error(
+                409,
+                reason='Conflict with existing file (uuid already exists)',
+                file=os.path.join(self.files_url, metadata['uuid'])
+            )
+            return
+        try:  # check if `metadata` will conflict with an existing metadata record
+            if await deconfliction.FileVersion(metadata).is_in_db(self):
+                return
+        except deconfliction.IndeterminateFileVersionError:
+            self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
+            return
+        if await deconfliction.any_location_in_db(self, metadata.get("locations")):
+            return
+
+        # Create & Write-Back
         set_last_modification_date(metadata)
-        if await pathfinder.contains_existing_filepaths(self, metadata):
-            return
-
-        db_file = await self.db.get_file({'uuid': metadata['uuid']})
-
-        if db_file:
-            # file uuid already exists, check checksum
-            if db_file['checksum'] != metadata['checksum']:
-                # the uuid already exists (no replica since checksum is different
-                self.send_error(409, reason='Conflict with existing file (uuid already exists)',
-                                file=os.path.join(self.files_url, db_file['uuid']))
-                return
-            elif any(f in db_file['locations'] for f in metadata['locations']):
-                # replica has already been added
-                self.send_error(409, reason='Replica has already been added',
-                                file=os.path.join(self.files_url, db_file['uuid']))
-                return
-            else:
-                # add replica
-                db_file['locations'].extend(metadata['locations'])
-
-                await self.db.update_file(db_file['uuid'], {'locations': db_file['locations']})
-                self.set_status(200)
-                uuid = db_file['uuid']
-        else:
-            uuid = await self.db.create_file(metadata)
-            self.set_status(201)
+        await self.db.create_file(metadata)
+        self.set_status(201)
         self.write({
             '_links': {
                 'self': {'href': self.files_url},
                 'parent': {'href': self.base_url},
             },
-            'file': os.path.join(self.files_url, uuid),
+            'file': os.path.join(self.files_url, metadata['uuid']),
         })
 
 
@@ -525,7 +525,6 @@ class FilesCountHandler(APIHandler):
         super().initialize(**kwargs)
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
-        self.validation = Validation(self.config)
 
     @validate_auth
     @catch_error
@@ -561,7 +560,6 @@ class SingleFileHandler(APIHandler):
         super().initialize(**kwargs)
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
-        self.validation = Validation(self.config)
 
     @validate_auth
     @catch_error
@@ -576,7 +574,7 @@ class SingleFileHandler(APIHandler):
                     'parent': {'href': self.files_url},
                 }
 
-                self.write(db_file)
+                self.write(cast(StrDict, db_file))
             else:
                 self.send_error(404, reason='File uuid not found')
         except pymongo.errors.InvalidId:
@@ -612,31 +610,39 @@ class SingleFileHandler(APIHandler):
             return
 
         # Validate Incoming Metadata
-        if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
-            return
-        if await pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
+        if self.validation.has_forbidden_fields_modification(self, metadata, db_file):
             return
 
-        # Modify Metadata & Verify
+        # Deconflict with DB Records
+        # NOTE - PATCH should not conflict with any existing record (excl. uuid's record)
+        # NOTE - by existing location(s) or by existing file-version
+        if await deconfliction.any_location_in_db(self, metadata.get("locations"), skip=uuid):
+            return
+        try:
+            if await deconfliction.FileVersion(metadata).is_in_db(self, skip=uuid):
+                return
+        except deconfliction.IndeterminateFileVersionError:
+            pass
+
+        # Modify & Write Back
         set_last_modification_date(metadata)
         db_file.update(metadata)
         # we have to validate `db_file` b/c `metadata` may not have all the required fields
-        if not self.validation.validate_metadata_modification(self, db_file):
+        if not self.validation.validate_metadata_schema_typing(self, db_file):
             return
-
-        # Insert into DB & Write Back
         await self.db.update_file(uuid, metadata)
         db_file['_links'] = {
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},
         }
-        self.write(db_file)
+        self.write(cast(StrDict, db_file))
 
     @validate_auth
     @catch_error
     async def put(self, uuid: str) -> None:
         """Handle PUT request."""
         metadata: types.Metadata = json_decode(self.request.body)
+        metadata['uuid'] = uuid
 
         # Find Matching File
         try:
@@ -649,24 +655,32 @@ class SingleFileHandler(APIHandler):
             return
 
         # Validate Incoming Metadata
-        if self.validation.has_forbidden_attributes_modification(self, metadata, db_file):
+        if self.validation.has_forbidden_fields_modification(self, metadata, db_file):
             return
-        if await pathfinder.contains_existing_filepaths(self, metadata, uuid=uuid):
+        if not self.validation.validate_metadata_schema_typing(self, metadata):
             return
 
-        # Modify Metadata & Verify
-        metadata['uuid'] = uuid
+        # Deconflict with DB Records
+        # NOTE - PUT should not conflict with any existing record (excl. uuid's record)
+        # NOTE - by existing location(s) or by existing file-version
+        if await deconfliction.any_location_in_db(self, metadata.get("locations"), skip=uuid):
+            return
+        try:
+            if await deconfliction.FileVersion(metadata).is_in_db(self, skip=uuid):
+                return
+        except deconfliction.IndeterminateFileVersionError:
+            # `validate_metadata_schema_typing()` should have detected this anyways
+            self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
+            return
+
+        # Replace & Write Back
         set_last_modification_date(metadata)
-        if not self.validation.validate_metadata_modification(self, metadata):
-            return
-
-        # Insert into DB & Write Back
         await self.db.replace_file(metadata.copy())
         metadata['_links'] = {
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},
         }
-        self.write(metadata)
+        self.write(cast(StrDict, metadata))
 
 
 # --------------------------------------------------------------------------------------
@@ -709,24 +723,20 @@ class SingleFileLocationsHandler(APIHandler):
             self.send_error(400, reason="POST body requires 'locations' field")
             return
 
-        # if locations isn't a list
-        if not isinstance(locations, list):
-            self.send_error(400, reason=f"Field 'locations' must be a list (not `{type(locations)}`)")
+        # validate `locations`
+        if not self.validation.is_valid_location_list(locations):
+            self.send_error(400, reason=self.validation.INVALID_LOCATIONS_LIST_MESSAGE)
             return
 
         # for each location provided
         new_locations = []
-        for loc in locations:
-            # try to load a file by that location
-            check = await self.db.get_file({'locations': {'$elemMatch': loc}})
+        async for loc, check in deconfliction.find_each_location_in_db(self.db, locations):
             # if we got a file by that location
             if check:
                 # if the file we got isn't the one we're trying to update
                 if check['uuid'] != uuid:
                     # then that location belongs to another file (already exists)
-                    self.send_error(409, reason=f"Conflict with existing file (location already exists `{loc['path']}`)",
-                                    file=os.path.join(self.files_url, check['uuid']),
-                                    location=loc)
+                    deconfliction.send_location_conflict_error(self, loc, check['uuid'])
                     return
                 # note that if we get the record that we are trying to update
                 # the location will NOT be added to the list of new_locations
@@ -742,13 +752,17 @@ class SingleFileLocationsHandler(APIHandler):
             await self.db.append_distinct_elements_to_file(uuid, {'locations': new_locations})
             # re-read the updated file from the database
             db_file = await self.db.get_file({'uuid': uuid})
+            if not db_file:
+                self.send_error(404, reason='File was deleted in a race condition',
+                                file=os.path.join(self.files_url, uuid))
+                return
 
         # send the record back to the caller
         db_file['_links'] = {
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},
         }
-        self.write(db_file)
+        self.write(cast(StrDict, db_file))
 
 
 # Collections #

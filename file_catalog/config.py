@@ -44,21 +44,6 @@ class Config(dict):
         'MONGODB_HOST': ConfigParamSpec('localhost', str, 'MongoDB host'),
         'MONGODB_PORT': ConfigParamSpec(27017, int, 'MongoDB port'),
         'MONGODB_URI': ConfigParamSpec(None, str, 'MongoDB URI'),
-        'META_FORBIDDEN_FIELDS_CREATION': ConfigParamSpec(
-            ['mongo_id', '_id', 'meta_modify_date'],
-            str.split,
-            'List of fields not allowed in the metadata for creation',
-        ),
-        'META_FORBIDDEN_FIELDS_UPDATE': ConfigParamSpec(
-            ['mongo_id', '_id', 'meta_modify_date', 'uuid'],
-            str.split,
-            'List of fields not allowed in the metadata for update/replace',
-        ),
-        'META_MANDATORY_FIELDS': ConfigParamSpec(
-            ['uuid', 'logical_name', 'locations', 'file_size', 'checksum.sha512'],
-            str.split,
-            'List of mandatory metadata fields',
-        ),
         'TOKEN_ALGORITHM': ConfigParamSpec('RS512', str, 'Token signature algorithm'),
         'TOKEN_KEY': ConfigParamSpec(
             None,

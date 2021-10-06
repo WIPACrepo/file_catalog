@@ -62,10 +62,13 @@ class Mongo:
         """Create indexes for all file-catalog mongo collections."""
         # all files (a.k.a. required fields)
         await self.client.files.create_index('uuid', unique=True, background=True)
-        await self.client.files.create_index('logical_name', unique=True, background=True)
+        await self.client.files.create_index('logical_name', unique=False, background=True)
         await self.client.files.create_index([('logical_name', pymongo.HASHED)], background=True)
         await self.client.files.create_index('locations', unique=True, background=True)
-        await self.client.files.create_index([('locations.site', pymongo.DESCENDING), ('locations.path', pymongo.DESCENDING)], background=True)
+        await self.client.files.create_index(
+            [('locations.path', pymongo.DESCENDING), ('locations.site', pymongo.DESCENDING)],
+            background=True
+        )
         await self.client.files.create_index('create_date', background=True)
 
         # all .i3 files
@@ -175,7 +178,9 @@ class Mongo:
 
         return cast(int, ret)
 
-    async def create_file(self, metadata: types.Metadata) -> str:
+    async def create_file(
+        self, metadata: types.Metadata
+    ) -> pymongo.results.InsertOneResult:
         """Insert file metadata.
 
         Return uuid.
@@ -187,16 +192,18 @@ class Mongo:
             logger.warning(msg)
             raise Exception(msg)
 
-        return metadata["uuid"]
+        return result
 
     async def get_file(
         self, filters: Dict[str, Any], max_time_ms: Optional[int] = DEFAULT_MAX_TIME_MS
-    ) -> types.Metadata:
+    ) -> Optional[types.Metadata]:
         """Get file matching filters."""
         file = await self.client.files.find_one(
             filters, {"_id": False}, max_time_ms=max_time_ms
         )
-        return cast(types.Metadata, file)
+        if file:
+            return cast(types.Metadata, file)
+        return None
 
     async def update_file(self, uuid: str, metadata: types.Metadata) -> None:
         """Update file."""

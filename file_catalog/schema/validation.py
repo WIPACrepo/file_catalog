@@ -1,32 +1,44 @@
 """Utilities for metadata validation."""
 
-# fmt:off
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
+from .. import utils
 from . import types
 
 
-def _find_missing_mandatory_field(metadata: types.Metadata, fields: List[str]) -> Optional[str]:
-    """Return the first field found to be missing, or `None`."""
-    for field in fields:
-        try:
-            if "." in field:  # compound field; ex: "checksum.sha512"
-                parent, child = field.split(".", maxsplit=1)  # ex: "checksum" & "sha512"
-                if _find_missing_mandatory_field(metadata[parent], [child]):  # type: ignore[misc]
-                    return field
-            else:
-                # just try to access the field
-                _ = metadata[field]  # type: ignore[misc]
-        except KeyError:
-            return field
-
-    return None
+def _get_val_in_metadata_dotted(field: str, metadata: types.Metadata) -> Any:
+    return utils.get_val_in_dict_dotted(field, cast(Dict[str, Any], metadata))
 
 
 class Validation:
     """Validating field-specific metadata."""
+
+    # keys/fields
+    FORBIDDEN_FIELDS_CREATION = ["mongo_id", "_id", "meta_modify_date"]
+    FORBIDDEN_FIELDS_MODIFICATION = [
+        "mongo_id",
+        "_id",
+        "meta_modify_date",
+        "uuid",
+        "logical_name",
+        "checksum.sha512",
+    ]
+    MANDATORY_FIELDS = [
+        "uuid",
+        "logical_name",
+        "locations",
+        "file_size",
+        "checksum.sha512",
+    ]
+    MANDATORY_LOCATION_KEYS = ["site", "path"]
+
+    # error messages
+    INVALID_LOCATIONS_LIST_MESSAGE = (
+        f"Validation Error: member `locations` must be a list with "
+        f"1+ entries, each with keys: {MANDATORY_LOCATION_KEYS}"
+    )
 
     def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
@@ -36,65 +48,135 @@ class Validation:
         """Check if `hash_str` is a valid SHA512 hash."""
         return re.match(r"[0-9a-f]{128}", str(hash_str), re.IGNORECASE) is not None
 
-    def has_forbidden_attributes_creation(self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata) -> bool:
-        """Check if `metadata` has forbidden attributes and they have changed.
-
-        Returns `True` if it has forbidden attributes.
-        """
-        for key in set(self.config['META_FORBIDDEN_FIELDS_CREATION']).intersection(metadata):
-            if key not in old_metadata or metadata[key] != old_metadata[key]:  # type: ignore[misc]
-                # forbidden fields
-                apihandler.send_error(400, reason=f'Validation Error: forbidden attribute creation `{key}`',
-                                      file=apihandler.files_url)
-                return True
-        return False
-
-    def has_forbidden_attributes_modification(self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata) -> bool:
-        """Check if `metadata` has forbidden attribute updates."""
-        for key in set(self.config['META_FORBIDDEN_FIELDS_UPDATE']).intersection(metadata):
-            if key not in old_metadata or metadata[key] != old_metadata[key]:  # type: ignore[misc]
-                # forbidden fields
-                apihandler.send_error(400, reason=f'Validation Error: forbidden attribute update `{key}`',
-                                      file=apihandler.files_url)
-                return True
-        return False
-
-    def validate_metadata_creation(self, apihandler: Any, metadata: types.Metadata) -> bool:
-        """Validate metadata for creation.
-
-        Utilizes `send_error` and returns `False` if validation failed.
-        If validation was successful, `True` is returned.
-        """
-        if self.has_forbidden_attributes_creation(apihandler, metadata, {}):
+    @staticmethod
+    def is_valid_location_list(locations: List[types.LocationEntry]) -> bool:
+        """Check if `locations` is a valid list of location-entries."""
+        if not isinstance(locations, list):
             return False
-        return self.validate_metadata_modification(apihandler, metadata)
+        if not locations:
+            return False
 
-    def validate_metadata_modification(self, apihandler: Any, metadata: types.Metadata) -> bool:
-        """Validate metadata for modification.
+        for loc in locations:
+            if not Validation.is_valid_location(loc):
+                return False
+
+        return True
+
+    @staticmethod
+    def is_valid_location(location: types.LocationEntry) -> bool:
+        """Check if `location` is a valid location-entry."""
+        if not location:
+            return False
+        if not isinstance(location, dict):
+            return False
+
+        if not all(key in location for key in Validation.MANDATORY_LOCATION_KEYS):
+            return False
+
+        return True
+
+    @staticmethod
+    def _find_all_field_vals(
+        metadata: types.Metadata, fields: List[str]
+    ) -> Dict[str, Any]:
+        """Return all of fields' values in metadata."""
+        field_vals = {}
+        for field in fields:
+            try:
+                field_vals[field] = _get_val_in_metadata_dotted(field, metadata)
+            except utils.DottedKeyError:
+                continue
+        return field_vals
+
+    @staticmethod
+    def _field_vals_are_different(
+        field: str, val: Any, old_metadata: types.Metadata
+    ) -> bool:
+        """Values aren't the same OR no value for that key in old metadata."""
+        try:
+            old_val = _get_val_in_metadata_dotted(field, old_metadata)
+            return bool(val != old_val)
+        except utils.DottedKeyError:
+            return True  # value was not found in old_metadata
+
+    @staticmethod
+    def _has_forbidden_fields(
+        apihandler: Any,
+        metadata: types.Metadata,
+        old_metadata: types.Metadata,
+        forbidden_fields: List[str],
+        http_error_message: str,
+    ) -> bool:
+        forbidden_matches = Validation._find_all_field_vals(metadata, forbidden_fields)
+
+        for field, val in forbidden_matches.items():
+            if Validation._field_vals_are_different(field, val, old_metadata):
+                apihandler.send_error(
+                    400,
+                    reason=f"Validation Error: {http_error_message} '{field}'",
+                    file=apihandler.files_url,
+                )
+                return True
+        return False
+
+    def has_forbidden_fields_creation(
+        self, apihandler: Any, metadata: types.Metadata
+    ) -> bool:
+        """Check if `metadata` has forbidden fields."""
+        return self._has_forbidden_fields(
+            apihandler,
+            metadata,
+            {},
+            self.FORBIDDEN_FIELDS_CREATION,
+            "forbidden field creation",
+        )
+
+    def has_forbidden_fields_modification(
+        self, apihandler: Any, metadata: types.Metadata, old_metadata: types.Metadata
+    ) -> bool:
+        """Check if `metadata` has forbidden field modifications."""
+        return self._has_forbidden_fields(
+            apihandler,
+            metadata,
+            old_metadata,
+            self.FORBIDDEN_FIELDS_MODIFICATION,
+            "forbidden field modification",
+        )
+
+    @staticmethod
+    def _find_missing_mandatory_field(
+        metadata: types.Metadata, fields: List[str]
+    ) -> Optional[str]:
+        """Return the first field found to be missing, or `None`."""
+        for field in fields:
+            try:
+                _get_val_in_metadata_dotted(field, metadata)
+            except utils.DottedKeyError:
+                return field
+        return None
+
+    def validate_metadata_schema_typing(
+        self, apihandler: Any, metadata: types.Metadata
+    ) -> bool:
+        """Check that `metadata` is okay to insert into the database.
 
         Utilizes `send_error` and returns `False` if validation failed.
         If validation was successful, `True` is returned.
         """
-        missing = _find_missing_mandatory_field(metadata, self.config['META_MANDATORY_FIELDS'])
+        # fmt: off
+        # MANDATORY FIELDS
+        missing = self._find_missing_mandatory_field(metadata, self.MANDATORY_FIELDS)
         if missing:
             apihandler.send_error(
                 400,
                 reason=f"Validation Error: metadata missing mandatory field `{missing}` "
-                       f"(mandatory fields: {', '.join(self.config['META_MANDATORY_FIELDS'])})",
+                       f"(mandatory fields: {', '.join(self.MANDATORY_FIELDS)})",
                 file=apihandler.files_url
             )
             return False
 
-        if ((not isinstance(metadata['checksum'], dict)) or 'sha512' not in metadata['checksum']):
-            # checksum needs to be a dict with an sha512
-            apihandler.send_error(
-                400,
-                reason='Validation Error: member `checksum` must be a dict with a sha512 hash',
-                file=apihandler.files_url
-            )
-            return False
-
-        elif not self.is_valid_sha512(metadata['checksum']['sha512']):
+        # CHECKSSUM.SHA512
+        if not self.is_valid_sha512(metadata['checksum']['sha512']):
             # force to use SHA512
             apihandler.send_error(
                 400,
@@ -103,15 +185,14 @@ class Validation:
             )
             return False
 
-        elif ((not isinstance(metadata['locations'], list))
-              or (not metadata['locations'])
-              or not all(loc for loc in metadata['locations'])):
-            # locations needs to be a non-empty list
+        # LOCATIONS LIST & ITS ENTRIES
+        if not self.is_valid_location_list(metadata['locations']):
             apihandler.send_error(
                 400,
-                reason='Validation Error: member `locations` must be a list with at least one entry',
+                reason=self.INVALID_LOCATIONS_LIST_MESSAGE,
                 file=apihandler.files_url
             )
             return False
 
         return True
+        # fmt: on

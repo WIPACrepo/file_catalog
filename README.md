@@ -77,10 +77,10 @@ Obtain list of files
 ##### REST-Query Parameters
   * [`limit`](#limit)
   * [`start`](#start)
-  * [`path` *or* `logical_name`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
-  * [`directory`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
-  * [`filename`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
-  * [`path-regex`](#shortcut-parameters-path-regex-path-logical_name-directory-filename) *(shortcut parameter)*
+  * [`logical_name`](#shortcut-parameters-logical-name-regex-logical_name-directory-filename) *(shortcut parameter)*
+  * [`directory`](#shortcut-parameters-logical-name-regex-logical_name-directory-filename) *(shortcut parameter)*
+  * [`filename`](#shortcut-parameters-logical-name-regex-logical_name-directory-filename) *(shortcut parameter)*
+  * [`logical-name-regex`](#shortcut-parameters-logical-name-regex-logical_name-directory-filename) *(shortcut parameter)*
   * [`run_number`](#shortcut-parameter-run_number) *(shortcut parameter)*
   * [`dataset`](#shortcut-parameter-dataset) *(shortcut parameter)*
   * [`event_id`](#shortcut-parameter-event_id) *(shortcut parameter)*
@@ -110,7 +110,7 @@ Create a new file or add a replica
   * `200`: Replica has been added. Response contains link to file resource
   * `201`: Response contains link to newly created file resource
   * `400`: Bad request (metadata failed validation)
-  * `409`: Conflict (if the file already exists); includes link to existing file
+  * `409`: Conflict (if the file-version already exists); includes link to existing file
   * `429`: Too many requests (if server is being hammered)
   * `500`: Unspecified server error
   * `503`: Service unavailable (maintenance, etc.)
@@ -214,13 +214,13 @@ Partially update/replace file metadata information
 - overrides the default timeout of 600000 ms (10 minutes)
 - `None` indicates no timeout (this can hang the server -- you have been warned)
 
-##### Shortcut Parameters: `path-regex`, `path`, `logical_name`, `directory`, `filename`
+##### Shortcut Parameters: `logical-name-regex`, `logical_name`, `directory`, `filename`
 *In decreasing order of precedence...*
-- `path-regex`
+- `logical-name-regex`
   - query by regex pattern (at your own risk... performance-wise)
   - equivalent to: `query: {"logical_name": {"$regex": p}}`
 
-- `path` *or* `logical_name`
+- `logical_name`
   - equivalent to: `query["logical_name"]`
 
 - `directory`

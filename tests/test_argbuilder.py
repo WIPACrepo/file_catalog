@@ -25,17 +25,11 @@ def test_00_path_args() -> None:
             "kwargs_after": {"an-extra-argument": [12, 34, 56]},
             "ret": None,
         },
-        # only "path-regex"
+        # only "logical-name-regex"
         {
-            "kwargs_in": {"path-regex": r"/reg-ex/this.*/(file/)?path"},
+            "kwargs_in": {"logical-name-regex": r"/reg-ex/this.*/(file/)?path"},
             "kwargs_after": {},
             "ret": {"$regex": r"/reg-ex/this.*/(file/)?path"},
-        },
-        # only "path"
-        {
-            "kwargs_in": {"an-extra-argument": [12, 34, 56], "path": "PATH"},
-            "kwargs_after": {"an-extra-argument": [12, 34, 56]},
-            "ret": "PATH",
         },
         # only "logical_name"
         {
@@ -78,7 +72,7 @@ def test_00_path_args() -> None:
     for ktd in kwargs_test_dicts:
         pprint.pprint(ktd)
         print()
-        assert argbuilder._resolve_path_args(ktd["kwargs_in"]) == ktd["ret"]
+        assert argbuilder._resolve_name_args(ktd["kwargs_in"]) == ktd["ret"]
         assert ktd["kwargs_in"] == ktd["kwargs_after"]
 
     # test multiple path-args (each loop pops the arg of the highest precedence)
@@ -86,12 +80,11 @@ def test_00_path_args() -> None:
         ("directory", "/path/to/dir/", {"$regex": r"^/path/to/dir/(.*/)?.*$"}),
         # not testing "filename" b/c that is equal to "directory" in precedence
         ("logical_name", "LOGICAL_NAME", "LOGICAL_NAME"),
-        ("path", "PATH", "PATH"),
-        ("path-regex", r"this.*is?a.path", {"$regex": r"this.*is?a.path"}),
+        ("logical-name-regex", r"this.*is?a.path", {"$regex": r"this.*is?a.path"}),
     ]
     while args:
         kwargs = {k: v for (k, v, _) in args}
         pprint.pprint(kwargs)
-        assert argbuilder._resolve_path_args(kwargs) == args[0][2]
+        assert argbuilder._resolve_name_args(kwargs) == args[0][2]
         assert not kwargs  # everything was popped
         args.pop(0)

@@ -720,10 +720,25 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
         # decode the JSON provided in the POST body
         body = json_decode(self.request.body)
         try:
-            site = body["site"]
-            path = body["path"]
+            site = body.pop("site")
+            path = body.pop("path")
         except KeyError:
             self.send_error(400, reason="POST body requires 'site' & 'path' fields")
+            return
+        if body:
+            # REASONING:
+            # If client defines (site=X, path=Y, archive=True)
+            # - does this match (site=X, path=Y)?
+            # - or (site=X, path=Y, archive=False)?
+            # - or only (site=X, path=Y, archive=True)?
+            # What if they don't define archive at all? (site=X, path=Y)
+            # - does this match (site=X, path=Y, archive=True)?
+            # It's unclear, so better fail fast
+            self.send_error(
+                400,
+                reason=f"Extra POST body fields detected: {list(body.keys())} "
+                       f"('site' & 'path' are required)"
+            )
             return
 
         def is_location_match(loc: types.LocationEntry) -> bool:

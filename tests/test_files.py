@@ -1879,8 +1879,56 @@ class TestFilesAPI(TestServerAPI):
 
     def test_82_files_uuid_actions_remove_location__bad_args__error(self) -> None:
         """Test that there's an error when the given invalid args."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the file to be created
+        wipac_path = u'/blah/data/exp/IceCube/blah.dat'
+        metadata1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': wipac_path}]
+        }
+
+        # create the file the first time; should be OK
+        data, url, uuid = _post_and_assert(r, metadata1)
+        data = _assert_in_fc(r, uuid)
+
         # missing args(s)
+        with self.assertRaises(Exception) as cm:
+            r.request_seq(
+                'POST',
+                f'/api/files/{uuid}/actions/remove_location',
+                {'site': 'WIPAC'}
+            )
+        _assert_httperror(
+            cm.exception,
+            400,
+            "POST body requires 'site' & 'path' fields"
+        )
+        # check that nothing has changed
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata1
+
         # non-mandatory location-field args(s), like "archive"
+        with self.assertRaises(Exception) as cm:
+            r.request_seq(
+                'POST',
+                f'/api/files/{uuid}/actions/remove_location',
+                {'site': 'WIPAC', 'path': wipac_path, 'archive': False}
+            )
+        _assert_httperror(
+            cm.exception,
+            400,
+            f"Extra POST body fields detected: {['archive']} "
+            f"('site' & 'path' are required)"
+        )
+        # check that nothing has changed
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata1
+
         # other bogus args(s)
         pass
 

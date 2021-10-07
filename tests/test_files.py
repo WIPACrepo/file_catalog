@@ -10,7 +10,7 @@ import hashlib
 import itertools
 import os
 import unittest
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
 from file_catalog.schema import types
@@ -27,6 +27,12 @@ def hex(data: Any) -> str:
     if isinstance(data, str):
         data = data.encode("utf-8")
     return hashlib.sha512(data).hexdigest()
+
+
+def copy_without_rest_response_keys(data: StrDict) -> StrDict:
+    """Return copy of `data` without the keys inserted by REST in a response."""
+    response_keys = ['_links', 'meta_modify_date', 'uuid']
+    return {k: v for k, v in copy.deepcopy(data).items() if k not in response_keys}
 
 
 # -----------------------------------------------------------------------------
@@ -69,14 +75,26 @@ def _patch_and_assert(r: RestClient, patch: StrDict, uuid: str) -> StrDict:
     return data  # type: ignore[no-any-return]
 
 
-def _assert_in_fc(r: RestClient, uuid: str, files_in_fc: int = 1) -> StrDict:
+def _assert_in_fc(
+    r: RestClient, uuids: Union[str, List[str]], all_keys: bool = False
+) -> StrDict:
     """Also return data."""
-    data = r.request_seq('GET', '/api/files')
+    if isinstance(uuids, str):
+        uuids = [uuids]
+
+    if all_keys:
+        data = r.request_seq('GET', '/api/files', {'all-keys': True})
+    else:
+        data = r.request_seq('GET', '/api/files')
+
     assert '_links' in data
     assert 'self' in data['_links']
     assert 'files' in data
-    assert len(data['files']) == files_in_fc
-    assert any(uuid == f['uuid'] for f in data['files'])
+
+    assert len(data['files']) == len(uuids)
+    for f in data['files']:
+        assert f['uuid'] in uuids
+
     return data  # type: ignore[no-any-return]
 
 
@@ -725,14 +743,14 @@ class TestFilesAPI(TestServerAPI):
             u'locations': [{u'site': u'SOUTH-POLE', u'path': u'/blah/data/exp/IceCube/blah.dat'}]
         }
 
-        data, url, uuid = _post_and_assert(r, metadata1)
-        data = _assert_in_fc(r, uuid)
+        data, url, uuid1 = _post_and_assert(r, metadata1)
+        data = _assert_in_fc(r, uuid1)
 
-        data, url, uuid = _post_and_assert(r, metadata_same_logical_name)
-        data = _assert_in_fc(r, uuid, files_in_fc=2)
+        data, url, uuid2 = _post_and_assert(r, metadata_same_logical_name)
+        data = _assert_in_fc(r, [uuid1, uuid2])
 
-        data, url, uuid = _post_and_assert(r, metadata_same_checksum)
-        data = _assert_in_fc(r, uuid, files_in_fc=3)
+        data, url, uuid3 = _post_and_assert(r, metadata_same_checksum)
+        data = _assert_in_fc(r, [uuid1, uuid2, uuid3])
 
     # # # PUT w/ File-Version # # #
     def test_52a_put_files_uuid__immutable_file_version__error(self) -> None:
@@ -1744,6 +1762,226 @@ class TestFilesAPI(TestServerAPI):
         self.assertNotIn(loc1b, rec2["locations"])
         self.assertIn(loc1c, rec2["locations"])
         self.assertNotIn(loc1d, rec2["locations"])
+
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+
+    def test_80a_files_uuid_actions_remove_location__keep_record__okay(self) -> None:
+        """Test removing a location from a record with multiple locations."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the file to be created
+        wipac_path = u'/blah/data/exp/IceCube/blah.dat'
+        nersc_path = u'/blah/data/exp/IceCube/blah.dat'
+        metadata1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [
+                {u'site': u'WIPAC', u'path': wipac_path},
+                {u'site': u'NERSC', u'path': nersc_path}
+            ]
+        }
+
+        # create the file the first time; should be OK
+        data, url, uuid = _post_and_assert(r, metadata1)
+        data = _assert_in_fc(r, uuid)
+
+        # remove WIPAC location
+        data = r.request_seq(
+            'POST',
+            f'/api/files/{uuid}/actions/remove_location',
+            {'site': 'WIPAC', 'path': wipac_path}
+        )
+        metadata_without_wipac = copy.deepcopy(metadata1)
+        metadata_without_wipac['locations'] = [{u'site': u'NERSC', u'path': nersc_path}]
+        assert copy_without_rest_response_keys(data) == metadata_without_wipac
+
+        # double-check FC
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata_without_wipac
+
+    def test_80b_files_uuid_actions_remove_location__keep_record__okay(self) -> None:
+        """Test removing a location from a record with multiple locations.
+
+        This time check that only the mandatory fields are needed to match.
+        """
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the file to be created
+        wipac_path = u'/blah/data/exp/IceCube/blah.dat'
+        nersc_path = u'/blah/data/exp/IceCube/blah.dat'
+        metadata1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [
+                {u'site': u'WIPAC', u'path': wipac_path},
+                {u'site': u'NERSC', u'path': nersc_path, 'archive': True}
+            ]
+        }
+
+        # create the file the first time; should be OK
+        data, url, uuid = _post_and_assert(r, metadata1)
+        data = _assert_in_fc(r, uuid)
+
+        # remove NERSC location -- BUT don't include "archive"
+        data = r.request_seq(
+            'POST',
+            f'/api/files/{uuid}/actions/remove_location',
+            {'site': 'NERSC', 'path': nersc_path}
+        )
+        metadata_without_nersc = copy.deepcopy(metadata1)
+        metadata_without_nersc['locations'] = [{u'site': u'WIPAC', u'path': wipac_path}]
+        assert copy_without_rest_response_keys(data) == metadata_without_nersc
+
+        # double-check FC
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata_without_nersc
+
+    def test_81_files_uuid_actions_remove_location__delete_record__okay(self) -> None:
+        """Test removing a location from a record with only one location.
+
+        Will also delete the record.
+        """
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the file to be created
+        wipac_path = u'/blah/data/exp/IceCube/blah.dat'
+        metadata1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': wipac_path}]
+        }
+
+        # create the file the first time; should be OK
+        data, url, uuid = _post_and_assert(r, metadata1)
+        data = _assert_in_fc(r, uuid)
+
+        # remove sole location
+        data = r.request_seq(
+            'POST',
+            f'/api/files/{uuid}/actions/remove_location',
+            {'site': 'WIPAC', 'path': wipac_path}
+        )
+        assert data == {}
+
+        # double-check FC is empty
+        data = _assert_in_fc(r, [])
+
+    def test_82_files_uuid_actions_remove_location__bad_args__error(self) -> None:
+        """Test that there's an error when the given invalid args."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the file to be created
+        wipac_path = u'/blah/data/exp/IceCube/blah.dat'
+        metadata1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': wipac_path}]
+        }
+
+        # create the file the first time; should be OK
+        data, url, uuid = _post_and_assert(r, metadata1)
+        data = _assert_in_fc(r, uuid)
+
+        # missing args(s)
+        with self.assertRaises(Exception) as cm:
+            r.request_seq(
+                'POST',
+                f'/api/files/{uuid}/actions/remove_location',
+                {'site': 'WIPAC'}
+            )
+        _assert_httperror(
+            cm.exception,
+            400,
+            "POST body requires 'site' & 'path' fields"
+        )
+        # check that nothing has changed
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata1
+
+        # non-mandatory location-field args(s), like "archive"
+        with self.assertRaises(Exception) as cm:
+            r.request_seq(
+                'POST',
+                f'/api/files/{uuid}/actions/remove_location',
+                {'site': 'WIPAC', 'path': wipac_path, 'archive': False}
+            )
+        _assert_httperror(
+            cm.exception,
+            400,
+            f"Extra POST body fields detected: {['archive']} "
+            f"('site' & 'path' are required)"
+        )
+        # check that nothing has changed
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata1
+
+        # other bogus args(s)
+        pass
+
+    def test_83_files_uuid_actions_remove_location__location_404__error(self) -> None:
+        """Test that there's an error when the given location is not in the record."""
+        self.start_server()
+        token = self.get_token()
+        r = RestClient(self.address, token, timeout=1, retries=1)
+
+        # define the file to be created
+        wipac_path = u'/blah/data/exp/IceCube/blah.dat'
+        metadata1 = {
+            'logical_name': '/blah/data/exp/IceCube/blah.dat',
+            'checksum': {'sha512': hex('foo bar')},
+            'file_size': 1,
+            u'locations': [{u'site': u'WIPAC', u'path': wipac_path}]
+        }
+
+        # create the file the first time; should be OK
+        data, url, uuid = _post_and_assert(r, metadata1)
+        data = _assert_in_fc(r, uuid)
+
+        # bogus path
+        with self.assertRaises(Exception) as cm:
+            r.request_seq(
+                'POST',
+                f'/api/files/{uuid}/actions/remove_location',
+                {'site': 'WIPAC', 'path': wipac_path + '!'}
+            )
+        _assert_httperror(
+            cm.exception,
+            404,
+            f"Location entry not found for site='WIPAC' & path='{wipac_path + '!'}'"
+        )
+        # check that nothing has changed
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata1
+
+        # bogus site
+        with self.assertRaises(Exception) as cm:
+            r.request_seq(
+                'POST',
+                f'/api/files/{uuid}/actions/remove_location',
+                {'site': 'WIPAC!', 'path': wipac_path}
+            )
+        _assert_httperror(
+            cm.exception,
+            404,
+            f"Location entry not found for site='WIPAC!' & path='{wipac_path}'"
+        )
+        # check that nothing has changed
+        data = _assert_in_fc(r, uuid, all_keys=True)
+        assert copy_without_rest_response_keys(data['files'][0]) == metadata1
 
 
 if __name__ == '__main__':

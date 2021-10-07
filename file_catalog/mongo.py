@@ -204,15 +204,18 @@ class Mongo:
 
     async def update_file(self, uuid: str, update: Metadata) -> Metadata:
         """Update file and return the updated file."""
-        doc: Optional[Metadata] = await self.client.files.example.find_one_and_update(
+        doc: Optional[Metadata] = await self.client.files.find_one_and_update(
             {"uuid": uuid},
             {"$set": update},
+            projection={"_id": False},
+            max_time_ms=DEFAULT_MAX_TIME_MS,
             return_document=pymongo.ReturnDocument.AFTER,
         )
 
         if doc is None:
-            logger.warning(f"Document ({uuid}) was not updated")
-            raise FileNotFoundError()
+            msg = f"Record ({uuid}) was not found, so it was not updated"
+            logger.warning(msg)
+            raise FileNotFoundError(msg)
         else:
             return doc
 

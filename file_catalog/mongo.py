@@ -13,7 +13,7 @@ import pymongo  # type: ignore[import]
 from motor.motor_tornado import MotorClient  # type: ignore[import]
 from motor.motor_tornado import MotorCursor
 
-from .schema import types
+from .schema.types import Metadata
 
 logger = logging.getLogger("mongo")
 
@@ -177,9 +177,7 @@ class Mongo:
 
         return cast(int, ret)
 
-    async def create_file(
-        self, metadata: types.Metadata
-    ) -> pymongo.results.InsertOneResult:
+    async def create_file(self, metadata: Metadata) -> pymongo.results.InsertOneResult:
         """Insert file metadata.
 
         Return uuid.
@@ -195,30 +193,30 @@ class Mongo:
 
     async def get_file(
         self, filters: Dict[str, Any], max_time_ms: Optional[int] = DEFAULT_MAX_TIME_MS
-    ) -> Optional[types.Metadata]:
+    ) -> Optional[Metadata]:
         """Get file matching filters."""
         file = await self.client.files.find_one(
             filters, {"_id": False}, max_time_ms=max_time_ms
         )
         if file:
-            return cast(types.Metadata, file)
+            return cast(Metadata, file)
         return None
 
-    async def update_file(self, uuid: str, metadata: types.Metadata) -> None:
-        """Update file."""
-        result = await self.client.files.update_one({"uuid": uuid}, {"$set": metadata})
+    async def update_file(self, uuid: str, update: Metadata) -> Metadata:
+        """Update file and return the updated file."""
+        doc: Optional[Metadata] = await self.client.files.example.find_one_and_update(
+            {"uuid": uuid},
+            {"$set": update},
+            return_document=pymongo.ReturnDocument.AFTER,
+        )
 
-        if result.modified_count is None:
-            logger.warning(
-                "Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s",
-                result.matched_count,
-            )
-        elif result.modified_count != 1:
-            msg = f"updated {result.modified_count} files with id {uuid}"
-            logger.warning(msg)
-            raise Exception(msg)
+        if doc is None:
+            logger.warning(f"Document ({uuid}) was not updated")
+            raise FileNotFoundError()
+        else:
+            return doc
 
-    async def replace_file(self, metadata: types.Metadata) -> None:
+    async def replace_file(self, metadata: Metadata) -> None:
         """Replace file.
 
         Metadata must include 'uuid'.

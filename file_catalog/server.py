@@ -631,7 +631,7 @@ class SingleFileHandler(APIHandler):
         # we have to validate `db_file` b/c `metadata` may not have all the required fields
         if not self.validation.validate_metadata_schema_typing(self, db_file):
             return
-        await self.db.update_file(uuid, metadata)
+        db_file = await self.db.update_file(uuid, metadata)
         db_file['_links'] = {
             'self': {'href': os.path.join(self.files_url, uuid)},
             'parent': {'href': self.files_url},
@@ -757,13 +757,7 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
             return
         # remove location! -- there are remaining locations after filtering
         elif after:
-            await self.db.update_file(uuid, {'locations': after})
-            # re-read the updated record from the database
-            db_file = await self.db.get_file({'uuid': uuid})
-            if not db_file:
-                self.send_error(404, reason='File was deleted in a race condition',
-                                file=os.path.join(self.files_url, uuid))
-                return
+            db_file = await self.db.update_file(uuid, {'locations': after})
             # send the record back to the caller
             db_file['_links'] = {
                 'self': {'href': os.path.join(self.files_url, uuid)},

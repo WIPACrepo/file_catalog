@@ -202,11 +202,13 @@ class Mongo:
             return cast(Metadata, file)
         return None
 
-    async def update_file(self, uuid: str, update: Metadata) -> Metadata:
-        """Update file and return the updated file."""
+    async def _find_file_and_update(
+        self, uuid: str, update_query: Dict[str, Any]
+    ) -> Metadata:
+        """Wrap `find_one_and_update()`."""
         doc: Optional[Metadata] = await self.client.files.find_one_and_update(
             {"uuid": uuid},
-            {"$set": update},
+            update_query,
             projection={"_id": False},
             max_time_ms=DEFAULT_MAX_TIME_MS,
             return_document=pymongo.ReturnDocument.AFTER,
@@ -218,6 +220,13 @@ class Mongo:
             raise FileNotFoundError(msg)
         else:
             return doc
+
+    async def update_file(self, uuid: str, update: Metadata) -> Metadata:
+        """Update file using `update` subset.
+
+        Return the updated file document.
+        """
+        return await self._find_file_and_update(uuid, {"$set": update})
 
     async def replace_file(self, metadata: Metadata) -> None:
         """Replace file.
@@ -337,8 +346,11 @@ class Mongo:
 
     async def append_distinct_elements_to_file(
         self, uuid: str, metadata: Dict[str, Any]
-    ) -> None:
-        """Append distinct elements to arrays within a file document."""
+    ) -> Metadata:
+        """Append distinct elements to arrays within a file document.
+
+        Return the updated file document.
+        """
         # build the query to update the file document
         update_query: Dict[str, Any] = {"$addToSet": {}}
         for key in metadata:
@@ -349,15 +361,4 @@ class Mongo:
 
         # update the file document
         update_query["$set"] = {"meta_modify_date": str(datetime.datetime.utcnow())}
-        result = await self.client.files.update_one({"uuid": uuid}, update_query)
-
-        # log and/or throw if the update results are surprising
-        if result.modified_count is None:
-            logger.warning(
-                "Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s",
-                result.matched_count,
-            )
-        elif result.modified_count != 1:
-            msg = f"updated {result.modified_count} files with id {uuid}"
-            logger.warning(msg)
-            raise Exception(msg)
+        return await self._find_file_and_update(uuid, update_query)

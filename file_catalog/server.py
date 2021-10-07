@@ -836,16 +836,11 @@ class SingleFileLocationsHandler(APIHandler):
                 # so add it to our list of new locations
                 new_locations.append(loc)
 
-        # if there are new locations to append
+        # if there are new locations to append, update the file in the database
         if new_locations:
-            # update the file in the database
-            await self.db.append_distinct_elements_to_file(uuid, {'locations': new_locations})
-            # re-read the updated file from the database
-            db_file = await self.db.get_file({'uuid': uuid})
-            if not db_file:
-                self.send_error(404, reason='File was deleted in a race condition',
-                                file=os.path.join(self.files_url, uuid))
-                return
+            db_file = await self.db.append_distinct_elements_to_file(
+                uuid, {"locations": new_locations}
+            )
 
         # send the record back to the caller
         db_file['_links'] = {

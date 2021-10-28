@@ -72,7 +72,7 @@ class Mongo:
 
         # all .i3 files
         await self.client.files.create_index('content_status', sparse=True, background=True)
-        await self.client.files.create_index('processing_level', sparse=True, background=True)
+        await self.client.files.create_index([('processing_level', 1), ('offline_processing_metadata.season', 1), ('locations.archive', 1)], sparse=True, background=True)
         await self.client.files.create_index('data_type', sparse=True, background=True)
 
         # data_type=real files

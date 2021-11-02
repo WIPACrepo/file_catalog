@@ -10,6 +10,7 @@ coloredlogs>=15.0.1
 cryptography>=3.4.7
 docutils>=0.17.1
 git+https://github.com/WIPACrepo/rest-tools@v1.1.13#egg=rest_tools
+git+https://github.com/WIPACrepo/wipac-telemetry-prototype@v0.1.19#egg=wipac_telemetry
 idna>=2.10
 imagesize>=1.2.0
 Jinja2>=3.0.1

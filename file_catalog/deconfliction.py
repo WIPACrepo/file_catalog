@@ -3,6 +3,8 @@
 import os
 from typing import Any, AsyncGenerator, List, Optional, Tuple
 
+from wipac_telemetry import tracing_tools as wtt
+
 from .mongo import Mongo
 from .schema import types
 
@@ -34,6 +36,7 @@ class FileVersion:
         except KeyError as e:
             raise IndeterminateFileVersionError() from e
 
+    @wtt.spanned(all_args=True)
     async def is_in_db(self, apihandler: Any, skip: Optional[str] = None) -> bool:
         """Return whether the file-version is already in the database.
 
@@ -65,6 +68,7 @@ class FileVersion:
         return False
 
 
+@wtt.spanned(all_args=True)
 async def find_each_location_in_db(
     db: Mongo,
     locations: List[types.LocationEntry],
@@ -88,6 +92,7 @@ def send_location_conflict_error(
     )
 
 
+@wtt.spanned(all_args=True)
 async def any_location_in_db(
     apihandler: Any,
     locations: Optional[List[types.LocationEntry]],

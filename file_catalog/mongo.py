@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Union, cast
 import pymongo  # type: ignore[import]
 from motor.motor_tornado import MotorClient  # type: ignore[import]
 from motor.motor_tornado import MotorCursor
+from wipac_telemetry import tracing_tools as wtt
 
 from .schema.types import Metadata
 
@@ -58,6 +59,7 @@ class Mongo:
         logger.info("done setting up Mongo")
 
     # fmt: off
+    @wtt.spanned(all_args=True)
     async def create_indexes(self) -> None:
         """Create indexes for all file-catalog mongo collections."""
         # all files (a.k.a. required fields)
@@ -131,6 +133,7 @@ class Mongo:
             results = await cursor.skip(start).to_list(None)
         return cast(List[Dict[str, Any]], results)
 
+    @wtt.spanned(all_args=True)
     async def find_files(
         self,
         query: Optional[Dict[str, Any]] = None,
@@ -164,6 +167,7 @@ class Mongo:
 
         return results
 
+    @wtt.spanned(all_args=True)
     async def count_files(  # pylint: disable=W0613
         self,
         query: Optional[Dict[str, Any]] = None,
@@ -177,6 +181,7 @@ class Mongo:
 
         return cast(int, ret)
 
+    @wtt.spanned(all_args=True)
     async def create_file(self, metadata: Metadata) -> pymongo.results.InsertOneResult:
         """Insert file metadata.
 
@@ -191,6 +196,7 @@ class Mongo:
 
         return result
 
+    @wtt.spanned(all_args=True)
     async def get_file(
         self, filters: Dict[str, Any], max_time_ms: Optional[int] = DEFAULT_MAX_TIME_MS
     ) -> Optional[Metadata]:
@@ -221,6 +227,7 @@ class Mongo:
         else:
             return doc
 
+    @wtt.spanned(all_args=True)
     async def update_file(self, uuid: str, update: Metadata) -> Metadata:
         """Update file using `update` subset.
 
@@ -228,6 +235,7 @@ class Mongo:
         """
         return await self._find_file_and_update(uuid, {"$set": update})
 
+    @wtt.spanned(all_args=True)
     async def replace_file(self, metadata: Metadata) -> None:
         """Replace file.
 
@@ -247,6 +255,7 @@ class Mongo:
             logger.warning(msg)
             raise Exception(msg)
 
+    @wtt.spanned(all_args=True)
     async def delete_file(self, filters: Dict[str, Any]) -> None:
         """Delete file matching filters."""
         result = await self.client.files.delete_one(filters)
@@ -344,6 +353,7 @@ class Mongo:
         snapshot = await self.client.snapshots.find_one(filters, {"_id": False})
         return cast(Dict[str, Any], snapshot)
 
+    @wtt.spanned(all_args=True)
     async def append_distinct_elements_to_file(
         self, uuid: str, metadata: Dict[str, Any]
     ) -> Metadata:

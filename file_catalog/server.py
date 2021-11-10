@@ -21,8 +21,7 @@ from uuid import uuid1
 import pymongo.errors  # type: ignore[import]
 import tornado.ioloop
 import tornado.web
-from rest_tools.server import Auth  # type: ignore[import]
-from rest_tools.server import RestHandler, handler  # type: ignore
+from rest_tools.server import Auth, RestHandler, handler
 from tornado.escape import json_decode, json_encode
 from tornado.httputil import url_concat
 
@@ -178,8 +177,8 @@ class Server:
 # --------------------------------------------------------------------------------------
 
 
-class MainHandler(tornado.web.RequestHandler):
-    """Main HTML handler."""
+class MainHandler(RestHandler):
+    """Main REST handler."""
 
     def initialize(  # pylint: disable=C0116,W0201
         self,
@@ -333,8 +332,8 @@ def validate_auth(method: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-class APIHandler(tornado.web.RequestHandler):
-    """Base class for API handlers."""
+class APIHandler(RestHandler):
+    """Base class for API REST handlers."""
 
     def initialize(  # pylint: disable=C0116,W0201
         self,

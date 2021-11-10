@@ -22,6 +22,7 @@ import pymongo.errors  # type: ignore[import]
 import tornado.ioloop
 import tornado.web
 from rest_tools.server import Auth  # type: ignore[import]
+from rest_tools.server import RestHandler, handler  # type: ignore
 from tornado.escape import json_decode, json_encode
 from tornado.httputil import url_concat
 

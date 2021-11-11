@@ -12,16 +12,15 @@ import os
 import random
 import sys
 from collections import OrderedDict
-from functools import wraps
 from importlib.abc import Loader
 from pkgutil import get_loader
-from typing import Any, Callable, Dict, Optional, Union, cast
+from typing import Any, Dict, Optional, cast
 from uuid import uuid1
 
 import pymongo.errors  # type: ignore[import]
 import tornado.ioloop
 import tornado.web
-from rest_tools.server import Auth  # type: ignore[import]
+from rest_tools.server import Auth, RestHandler, handler
 from tornado.escape import json_decode, json_encode
 from tornado.httputil import url_concat
 
@@ -36,6 +35,11 @@ from .schema.validation import Validation
 logger = logging.getLogger('server')
 
 StrDict = Dict[str, Any]
+
+
+# --------------------------------------------------------------------------------------
+# Utils
+# --------------------------------------------------------------------------------------
 
 
 def get_pkgdata_filename(package: str, resource: str) -> Optional[str]:
@@ -89,6 +93,9 @@ def set_last_modification_date(metadata: types.Metadata) -> None:
 
 
 # --------------------------------------------------------------------------------------
+# Server Setup
+# --------------------------------------------------------------------------------------
+# NOTE - future dev can replace with `rest_tools.handler.RestHandlerSetup/RestServer` if needed
 
 
 class Server:
@@ -123,10 +130,19 @@ class Server:
         redacted_config['MONGODB_AUTH_PASS'] = 'REDACTED'
         logger.info('redacted config: %r', redacted_config)
 
+        auth: Optional[Auth] = None
+        if 'TOKEN_KEY' in config:
+            auth = Auth(
+                algorithm=config['TOKEN_ALGORITHM'],
+                secret=config['TOKEN_KEY'],
+                issuer=config['TOKEN_URL']
+            )
+
         main_args = {
             'base_url': '/api',
             'debug': debug,
             'config': config,
+            'auth': auth
         }
 
         api_args = main_args.copy()
@@ -175,6 +191,8 @@ class Server:
 
 
 # --------------------------------------------------------------------------------------
+# Main Routes (unused)
+# --------------------------------------------------------------------------------------
 
 
 class MainHandler(tornado.web.RequestHandler):
@@ -185,17 +203,13 @@ class MainHandler(tornado.web.RequestHandler):
         config: Dict[str, Any],
         base_url: str = "/",
         debug: bool = False,
+        auth: Optional[Auth] = None,
     ) -> None:  # noqa: D102
         self.base_url = base_url
         self.debug = debug
         self.config = config
-        if 'TOKEN_KEY' in self.config:
-            self.auth = Auth(algorithm=self.config['TOKEN_ALGORITHM'],
-                             secret=self.config['TOKEN_KEY'],
-                             issuer=self.config['TOKEN_URL'])
-            self.auth_key: Optional[bytes] = None
-        else:
-            self.auth = None
+        self.auth = auth
+        self.auth_key: Optional[bytes] = None
         self.current_user_secure = None
         self.address = config['FC_PUBLIC_URL']
 
@@ -210,14 +224,15 @@ class MainHandler(tornado.web.RequestHandler):
         try:
             token = self.get_secure_cookie('token')
             logger.info('token: %r', token)
-            data = self.auth.validate(token, audience=['ANY'])
+            # if `auth` is None -> raise Exception
+            data = self.auth.validate(token, audience=['ANY'])  # type: ignore[union-attr]
             self.auth_key = token
             return cast(str, data['sub'])
         except Exception:  # pylint: disable=W0703
             logger.warning('failed auth', exc_info=True)
         return None
 
-    def get(self) -> None:
+    async def get(self) -> None:
         """Handle GET requests."""
         try:
             self.render('index.html')
@@ -240,30 +255,11 @@ class MainHandler(tornado.web.RequestHandler):
         self.finish()
 
 
-# --------------------------------------------------------------------------------------
-
-
-def catch_error(method: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorate to catch and handle errors on api handlers."""
-    @wraps(method)
-    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-        try:
-            return method(self, *args, **kwargs)
-        except Exception as e:  # pylint: disable=W0703
-            logger.warning('Error in api handler', exc_info=True)
-            kwargs = {'message': 'Internal error in ' + self.__class__.__name__}
-            if self.debug:
-                kwargs['exception'] = str(e)
-            self.send_error(**kwargs)
-            return None
-    return wrapper
-
-
 class LoginHandler(MainHandler):
     """Login HTML handler."""
 
-    @catch_error
-    def get(self) -> None:
+    @handler.catch_error  # type: ignore[misc]
+    async def get(self) -> None:
         """Handle GET requests."""
         if not self.get_argument('access', ''):
             url = url_concat(self.config['TOKEN_URL'] + '/token', {
@@ -282,14 +278,11 @@ class LoginHandler(MainHandler):
         self.redirect(redirect)
 
 
-# --------------------------------------------------------------------------------------
-
-
 class AccountHandler(MainHandler):
     """Account HTML handler."""
 
-    @catch_error
-    def get(self) -> None:
+    @handler.catch_error  # type: ignore[misc]
+    async def get(self) -> None:
         """Handle Handle GET requests."""
         if not self.get_argument('access', ''):
             url = url_concat(self.config['TOKEN_URL'] + '/token', {
@@ -305,104 +298,35 @@ class AccountHandler(MainHandler):
 
 
 # --------------------------------------------------------------------------------------
+# API Routes - the canonical/used File Catalog
+# --------------------------------------------------------------------------------------
 
 
-def validate_auth(method: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorate to check auth key on api handlers."""
-    @wraps(method)
-    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-        if not self.auth:  # skip auth if not present
-            return method(self, *args, **kwargs)
-        try:
-            auth_key = self.request.headers['Authorization'].split(' ', 1)
-            if not auth_key[0].lower() == 'bearer':
-                raise Exception('not a bearer token')
-            # logger.info('validate_auth token: %r', auth_key[1])
-            self.auth.validate(auth_key[1], audience=['ANY'])
-            self.auth_key = auth_key[1]
-        except Exception as e:  # pylint: disable=W0703
-            logger.warning('auth error', exc_info=True)
-            kwargs = {'message': 'Authorization error', 'status_code': 403}
-            if self.debug:
-                kwargs['exception'] = str(e)
-            self.send_error(**kwargs)
-            return None
-        else:
-            return method(self, *args, **kwargs)
-    return wrapper
+class APIHandler(RestHandler):
+    """Base class for API REST handlers."""
 
-
-class APIHandler(tornado.web.RequestHandler):
-    """Base class for API handlers."""
-
-    def initialize(  # pylint: disable=C0116,W0201
+    def initialize(  # type: ignore[override]  # pylint: disable=W0201,W0221
         self,
         config: Dict[str, Any],
         db: Optional[Mongo] = None,
         base_url: str = "/",
-        debug: bool = False,
-        rate_limit: int = 10,
+        **kwargs: Any,
     ) -> None:
         """Initialize handler."""
+        super().initialize(**kwargs)
+
         if db is None:
             raise Exception('Mongo instance is None: `db`')
-
         self.db = db
         self.base_url = base_url
-        self.debug = debug
         self.config = config
         self.validation = Validation(self.config)
-
-        if 'TOKEN_KEY' in self.config:
-            self.auth = Auth(algorithm=self.config['TOKEN_ALGORITHM'],
-                             secret=self.config['TOKEN_KEY'],
-                             issuer=self.config['TOKEN_URL'])
-            self.auth_key = None
-        else:
-            self.auth = None
-
-        # subtract 1 to test before current connection is added
-        self.rate_limit = rate_limit - 1
-        self.rate_limit_data: Dict[str, int] = {}
 
     def check_xsrf_cookie(self) -> None:  # noqa: D102
         pass
 
     def set_default_headers(self) -> None:  # noqa: D102
         self.set_header('Content-Type', 'application/hal+json; charset=UTF-8')
-
-    def prepare(self) -> None:  # noqa: D102
-        # implement rate limiting
-        ip = self.request.remote_ip
-        if ip in self.rate_limit_data:
-            if self.rate_limit_data[ip] > self.rate_limit:
-                self.send_error(429, reason='Rate limit exceeded for IP address')
-            else:
-                self.rate_limit_data[ip] += 1
-        else:
-            self.rate_limit_data[ip] = 1
-
-    def on_finish(self) -> None:  # noqa: D102
-        ip = self.request.remote_ip
-        self.rate_limit_data[ip] -= 1
-        if self.rate_limit_data[ip] <= 0:
-            del self.rate_limit_data[ip]
-
-    def write(self, chunk: Union[str, bytes, StrDict]) -> None:
-        """Write chunk to output buffer."""
-        # override write so we don't output a json header
-        if isinstance(chunk, dict):
-            chunk = sort_dict(chunk)
-            chunk = json_encode(chunk)
-        super().write(chunk)
-
-    def write_error(self, status_code: int, **kwargs: Any) -> None:
-        """Write out custom error page."""
-        logger.debug(f"{status_code}-ERROR: kwargs={kwargs}")
-        kwargs.pop('exc_info', None)
-        if kwargs:
-            self.write(kwargs)
-        self.finish()
 
 
 # --------------------------------------------------------------------------------------
@@ -424,8 +348,8 @@ class HATEOASHandler(APIHandler):
             'files': {'href': os.path.join(self.base_url, 'files')},
         }
 
-    @catch_error
-    def get(self) -> None:
+    @handler.catch_error  # type: ignore[misc]
+    async def get(self) -> None:
         """Handle Handle GET requests."""
         self.write(self.data)
 
@@ -442,8 +366,8 @@ class FilesHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle GET requests."""
         try:
@@ -467,8 +391,8 @@ class FilesHandler(APIHandler):
             'files': files,
         })
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def post(self) -> None:
         """Handle POST request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -527,8 +451,8 @@ class FilesCountHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle GET request."""
         try:
@@ -562,8 +486,8 @@ class SingleFileHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def get(self, uuid: str) -> None:
         """Handle GET request."""
         try:
@@ -581,8 +505,8 @@ class SingleFileHandler(APIHandler):
         except pymongo.errors.InvalidId:
             self.send_error(400, reason='Not a valid uuid')
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def delete(self, uuid: str) -> None:
         """Handle DELETE request."""
         try:
@@ -594,8 +518,8 @@ class SingleFileHandler(APIHandler):
         else:
             self.set_status(204)
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def patch(self, uuid: str) -> None:
         """Handle PATCH request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -638,8 +562,8 @@ class SingleFileHandler(APIHandler):
         }
         self.write(cast(StrDict, db_file))
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def put(self, uuid: str) -> None:
         """Handle PUT request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -699,8 +623,8 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def post(self, uuid: str) -> None:
         """Handle POST request.
 
@@ -785,8 +709,8 @@ class SingleFileLocationsHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def post(self, uuid: str) -> None:
         """Handle POST request.
 
@@ -850,7 +774,8 @@ class SingleFileLocationsHandler(APIHandler):
         self.write(cast(StrDict, db_file))
 
 
-# Collections #
+# --------------------------------------------------------------------------------------
+# Collections (unused)
 # --------------------------------------------------------------------------------------
 
 
@@ -871,8 +796,8 @@ class CollectionBaseHandler(APIHandler):
 class CollectionsHandler(CollectionBaseHandler):
     """Initialize a handler for collection requests."""
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle GET request."""
         try:
@@ -895,8 +820,8 @@ class CollectionsHandler(CollectionBaseHandler):
             'collections': collections,
         })
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def post(self) -> None:
         """Handle POST request."""
         metadata = json_decode(self.request.body)
@@ -948,8 +873,8 @@ class CollectionsHandler(CollectionBaseHandler):
 class SingleCollectionHandler(CollectionBaseHandler):
     """Initialize a handler for single collection requests."""
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -973,8 +898,8 @@ class SingleCollectionHandler(CollectionBaseHandler):
 class SingleCollectionFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's files."""
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -1012,8 +937,8 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
 class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's snapshots."""
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -1044,8 +969,8 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             'snapshots': snapshots,
         })
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def post(self, uid: str) -> None:
         """Handle POST request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -1100,13 +1025,15 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 
 
 # --------------------------------------------------------------------------------------
+# Snapshots (unused)
+# --------------------------------------------------------------------------------------
 
 
 class SingleSnapshotHandler(CollectionBaseHandler):
     """Initialize a handler for requesting single snapshots."""
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_snapshot({'uuid': uid})
@@ -1128,8 +1055,8 @@ class SingleSnapshotHandler(CollectionBaseHandler):
 class SingleSnapshotFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single snapshot's files."""
 
-    @validate_auth
-    @catch_error
+    @handler.authenticated  # type: ignore[misc]
+    @handler.catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_snapshot({'uuid': uid})

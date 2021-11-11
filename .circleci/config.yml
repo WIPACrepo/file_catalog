@@ -22,10 +22,11 @@ jobs:
             - checkout
             - run: ./setupenv.sh
             - run: |
-                . env/bin/activate &&
-                export WIPACTEL_EXPORT_STDOUT=True
-                resources/enable_profiling.py &&
-                pytest -vvvvv --tb=short &&
+                . env/bin/activate
+                export WIPACTEL_EXPORT_STDOUT=False
+                resources/enable_profiling.py
+                pip install pytest
+                pytest -vvvvv --tb=short
                 resources/profile_queries.py
 
     mypy:
@@ -34,9 +35,10 @@ jobs:
         steps:
             - checkout
             - run: |
-                ./setupenv.sh &&
-                . env/bin/activate &&
-                pip install -r requirements.txt -r requirements-dev.txt &&
+                ./setupenv.sh
+                . env/bin/activate
+                pip install -r requirements.txt
+                pip install mypy
                 mypy file_catalog/
 
 

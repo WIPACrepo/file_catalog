@@ -123,14 +123,13 @@ class Server:
         redacted_config['MONGODB_AUTH_PASS'] = 'REDACTED'
         logger.info('redacted config: %r', redacted_config)
 
+        auth: Optional[Auth] = None
         if 'TOKEN_KEY' in config:
             auth = Auth(
                 algorithm=config['TOKEN_ALGORITHM'],
                 secret=config['TOKEN_KEY'],
                 issuer=config['TOKEN_URL']
             )
-        else:
-            auth = None
 
         main_args = {
             'base_url': '/api',
@@ -216,7 +215,8 @@ class MainHandler(tornado.web.RequestHandler):
         try:
             token = self.get_secure_cookie('token')
             logger.info('token: %r', token)
-            data = self.auth.validate(token, audience=['ANY'])
+            # if `auth` is None -> raise Exception
+            data = self.auth.validate(token, audience=['ANY'])  # type: ignore[union-attr]
             self.auth_key = token
             return cast(str, data['sub'])
         except Exception:  # pylint: disable=W0703
@@ -341,18 +341,15 @@ def validate_auth(method: Callable[..., Any]) -> Callable[..., Any]:
 class APIHandler(RestHandler):
     """Base class for API REST handlers."""
 
-    def initialize(  # pylint: disable=C0116,W0201
+    def initialize(  # type: ignore[override]  # pylint: disable=W0201,W0221
         self,
         config: Dict[str, Any],
         db: Optional[Mongo] = None,
         base_url: str = "/",
-        debug: bool = False,
-        rate_limit: int = 10,
-        auth: Optional[Auth] = None,
+        **kwargs: Any,
     ) -> None:
         """Initialize handler."""
-        super().initialize(debug=debug, auth=auth)
-        self.debug = debug
+        super().initialize(**kwargs)
 
         if db is None:
             raise Exception('Mongo instance is None: `db`')

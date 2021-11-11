@@ -223,7 +223,7 @@ class MainHandler(tornado.web.RequestHandler):
             logger.warning('failed auth', exc_info=True)
         return None
 
-    def get(self) -> None:
+    async def get(self) -> None:
         """Handle GET requests."""
         try:
             self.render('index.html')
@@ -296,31 +296,6 @@ class AccountHandler(MainHandler):
 
 # --------------------------------------------------------------------------------------
 
-# TODO - replace w/ rest_tools.handler's auth wrapper(s)
-def validate_auth(method: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorate to check auth key on api handlers."""
-    @wraps(method)
-    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-        if not self.auth:  # skip auth if not present
-            return method(self, *args, **kwargs)
-        try:
-            auth_key = self.request.headers['Authorization'].split(' ', 1)
-            if not auth_key[0].lower() == 'bearer':
-                raise Exception('not a bearer token')
-            # logger.info('validate_auth token: %r', auth_key[1])
-            self.auth.validate(auth_key[1], audience=['ANY'])
-            self.auth_key = auth_key[1]
-        except Exception as e:  # pylint: disable=W0703
-            logger.warning('auth error', exc_info=True)
-            kwargs = {'message': 'Authorization error', 'status_code': 403}
-            if self.debug:
-                kwargs['exception'] = str(e)
-            self.send_error(**kwargs)
-            return None
-        else:
-            return method(self, *args, **kwargs)
-    return wrapper
-
 
 class APIHandler(RestHandler):
     """Base class for API REST handlers."""
@@ -386,7 +361,7 @@ class FilesHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle GET requests."""
@@ -411,7 +386,7 @@ class FilesHandler(APIHandler):
             'files': files,
         })
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def post(self) -> None:
         """Handle POST request."""
@@ -471,7 +446,7 @@ class FilesCountHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle GET request."""
@@ -506,7 +481,7 @@ class SingleFileHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def get(self, uuid: str) -> None:
         """Handle GET request."""
@@ -525,7 +500,7 @@ class SingleFileHandler(APIHandler):
         except pymongo.errors.InvalidId:
             self.send_error(400, reason='Not a valid uuid')
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def delete(self, uuid: str) -> None:
         """Handle DELETE request."""
@@ -538,7 +513,7 @@ class SingleFileHandler(APIHandler):
         else:
             self.set_status(204)
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def patch(self, uuid: str) -> None:
         """Handle PATCH request."""
@@ -582,7 +557,7 @@ class SingleFileHandler(APIHandler):
         }
         self.write(cast(StrDict, db_file))
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def put(self, uuid: str) -> None:
         """Handle PUT request."""
@@ -643,7 +618,7 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def post(self, uuid: str) -> None:
         """Handle POST request.
@@ -729,7 +704,7 @@ class SingleFileLocationsHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def post(self, uuid: str) -> None:
         """Handle POST request.
@@ -815,7 +790,7 @@ class CollectionBaseHandler(APIHandler):
 class CollectionsHandler(CollectionBaseHandler):
     """Initialize a handler for collection requests."""
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle GET request."""
@@ -839,7 +814,7 @@ class CollectionsHandler(CollectionBaseHandler):
             'collections': collections,
         })
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def post(self) -> None:
         """Handle POST request."""
@@ -892,7 +867,7 @@ class CollectionsHandler(CollectionBaseHandler):
 class SingleCollectionHandler(CollectionBaseHandler):
     """Initialize a handler for single collection requests."""
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
@@ -917,7 +892,7 @@ class SingleCollectionHandler(CollectionBaseHandler):
 class SingleCollectionFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's files."""
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
@@ -956,7 +931,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
 class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's snapshots."""
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
@@ -988,7 +963,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             'snapshots': snapshots,
         })
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def post(self, uid: str) -> None:
         """Handle POST request."""
@@ -1049,7 +1024,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 class SingleSnapshotHandler(CollectionBaseHandler):
     """Initialize a handler for requesting single snapshots."""
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
@@ -1072,7 +1047,7 @@ class SingleSnapshotHandler(CollectionBaseHandler):
 class SingleSnapshotFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single snapshot's files."""
 
-    @validate_auth
+    @handler.authenticated  # type: ignore[misc]
     @handler.catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""

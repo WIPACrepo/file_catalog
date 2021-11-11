@@ -365,45 +365,6 @@ class APIHandler(RestHandler):
         self.rate_limit = rate_limit - 1
         self.rate_limit_data: Dict[str, int] = {}
 
-    def check_xsrf_cookie(self) -> None:  # noqa: D102
-        pass
-
-    def set_default_headers(self) -> None:  # noqa: D102
-        self.set_header('Content-Type', 'application/hal+json; charset=UTF-8')
-
-    def prepare(self) -> None:  # noqa: D102
-        # implement rate limiting
-        ip = self.request.remote_ip
-        if ip in self.rate_limit_data:
-            if self.rate_limit_data[ip] > self.rate_limit:
-                self.send_error(429, reason='Rate limit exceeded for IP address')
-            else:
-                self.rate_limit_data[ip] += 1
-        else:
-            self.rate_limit_data[ip] = 1
-
-    def on_finish(self) -> None:  # noqa: D102
-        ip = self.request.remote_ip
-        self.rate_limit_data[ip] -= 1
-        if self.rate_limit_data[ip] <= 0:
-            del self.rate_limit_data[ip]
-
-    def write(self, chunk: Union[str, bytes, StrDict]) -> None:
-        """Write chunk to output buffer."""
-        # override write so we don't output a json header
-        if isinstance(chunk, dict):
-            chunk = sort_dict(chunk)
-            chunk = json_encode(chunk)
-        super().write(chunk)
-
-    def write_error(self, status_code: int, **kwargs: Any) -> None:
-        """Write out custom error page."""
-        logger.debug(f"{status_code}-ERROR: kwargs={kwargs}")
-        kwargs.pop('exc_info', None)
-        if kwargs:
-            self.write(kwargs)
-        self.finish()
-
 
 # --------------------------------------------------------------------------------------
 

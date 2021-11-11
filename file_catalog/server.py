@@ -95,7 +95,7 @@ def set_last_modification_date(metadata: types.Metadata) -> None:
 # --------------------------------------------------------------------------------------
 # Server Setup
 # --------------------------------------------------------------------------------------
-# NOTE - future dev can replace with `rest_tools.handler.RestHandlerSetup` if needed
+# NOTE - future dev can replace with `rest_tools.handler.RestHandlerSetup/RestServer` if needed
 
 
 class Server:

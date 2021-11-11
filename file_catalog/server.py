@@ -12,10 +12,9 @@ import os
 import random
 import sys
 from collections import OrderedDict
-from functools import wraps
 from importlib.abc import Loader
 from pkgutil import get_loader
-from typing import Any, Callable, Dict, Optional, Union, cast
+from typing import Any, Dict, Optional, cast
 from uuid import uuid1
 
 import pymongo.errors  # type: ignore[import]
@@ -36,6 +35,11 @@ from .schema.validation import Validation
 logger = logging.getLogger('server')
 
 StrDict = Dict[str, Any]
+
+
+# --------------------------------------------------------------------------------------
+# Utils
+# --------------------------------------------------------------------------------------
 
 
 def get_pkgdata_filename(package: str, resource: str) -> Optional[str]:
@@ -89,6 +93,9 @@ def set_last_modification_date(metadata: types.Metadata) -> None:
 
 
 # --------------------------------------------------------------------------------------
+# Server Setup
+# --------------------------------------------------------------------------------------
+# NOTE - future dev can replace with `rest_tools.handler.RestHandlerSetup` if needed
 
 
 class Server:
@@ -184,6 +191,8 @@ class Server:
 
 
 # --------------------------------------------------------------------------------------
+# Main Routes (unused)
+# --------------------------------------------------------------------------------------
 
 
 class MainHandler(tornado.web.RequestHandler):
@@ -246,9 +255,6 @@ class MainHandler(tornado.web.RequestHandler):
         self.finish()
 
 
-# --------------------------------------------------------------------------------------
-
-
 class LoginHandler(MainHandler):
     """Login HTML handler."""
 
@@ -272,9 +278,6 @@ class LoginHandler(MainHandler):
         self.redirect(redirect)
 
 
-# --------------------------------------------------------------------------------------
-
-
 class AccountHandler(MainHandler):
     """Account HTML handler."""
 
@@ -294,6 +297,8 @@ class AccountHandler(MainHandler):
         self.render('account.html', authkey=refresh, tempkey=access)
 
 
+# --------------------------------------------------------------------------------------
+# API Routes - the canonical/used File Catalog
 # --------------------------------------------------------------------------------------
 
 
@@ -769,7 +774,8 @@ class SingleFileLocationsHandler(APIHandler):
         self.write(cast(StrDict, db_file))
 
 
-# Collections #
+# --------------------------------------------------------------------------------------
+# Collections (unused)
 # --------------------------------------------------------------------------------------
 
 
@@ -1018,6 +1024,8 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             })
 
 
+# --------------------------------------------------------------------------------------
+# Snapshots (unused)
 # --------------------------------------------------------------------------------------
 
 

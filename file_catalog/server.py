@@ -177,8 +177,8 @@ class Server:
 # --------------------------------------------------------------------------------------
 
 
-class MainHandler(RestHandler):
-    """Main REST handler."""
+class MainHandler(tornado.web.RequestHandler):
+    """Main HTML handler."""
 
     def initialize(  # pylint: disable=C0116,W0201
         self,

@@ -246,10 +246,29 @@ class MainHandler(tornado.web.RequestHandler):
         self.finish()
 
 
+# --------------------------------------------------------------------------------------
+
+
+def catch_error(method: Callable[..., Any]) -> Callable[..., Any]:
+    """Decorate to catch and handle errors on api handlers."""
+    @wraps(method)
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+        try:
+            return method(self, *args, **kwargs)
+        except Exception as e:  # pylint: disable=W0703
+            logger.warning('Error in api handler', exc_info=True)
+            kwargs = {'message': 'Internal error in ' + self.__class__.__name__}
+            if self.debug:
+                kwargs['exception'] = str(e)
+            self.send_error(**kwargs)
+            return None
+    return wrapper
+
+
 class LoginHandler(MainHandler):
     """Login HTML handler."""
 
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     def get(self) -> None:
         """Handle GET requests."""
         if not self.get_argument('access', ''):
@@ -269,10 +288,13 @@ class LoginHandler(MainHandler):
         self.redirect(redirect)
 
 
+# --------------------------------------------------------------------------------------
+
+
 class AccountHandler(MainHandler):
     """Account HTML handler."""
 
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     def get(self) -> None:
         """Handle Handle GET requests."""
         if not self.get_argument('access', ''):
@@ -363,7 +385,7 @@ class HATEOASHandler(APIHandler):
             'files': {'href': os.path.join(self.base_url, 'files')},
         }
 
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     def get(self) -> None:
         """Handle Handle GET requests."""
         self.write(self.data)
@@ -382,7 +404,7 @@ class FilesHandler(APIHandler):
         self.files_url = os.path.join(self.base_url, 'files')
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def get(self) -> None:
         """Handle GET requests."""
         try:
@@ -407,7 +429,7 @@ class FilesHandler(APIHandler):
         })
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def post(self) -> None:
         """Handle POST request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -467,7 +489,7 @@ class FilesCountHandler(APIHandler):
         self.files_url = os.path.join(self.base_url, 'files')
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def get(self) -> None:
         """Handle GET request."""
         try:
@@ -502,7 +524,7 @@ class SingleFileHandler(APIHandler):
         self.files_url = os.path.join(self.base_url, 'files')
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def get(self, uuid: str) -> None:
         """Handle GET request."""
         try:
@@ -521,7 +543,7 @@ class SingleFileHandler(APIHandler):
             self.send_error(400, reason='Not a valid uuid')
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def delete(self, uuid: str) -> None:
         """Handle DELETE request."""
         try:
@@ -534,7 +556,7 @@ class SingleFileHandler(APIHandler):
             self.set_status(204)
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def patch(self, uuid: str) -> None:
         """Handle PATCH request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -578,7 +600,7 @@ class SingleFileHandler(APIHandler):
         self.write(cast(StrDict, db_file))
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def put(self, uuid: str) -> None:
         """Handle PUT request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -639,7 +661,7 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
         self.files_url = os.path.join(self.base_url, 'files')
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def post(self, uuid: str) -> None:
         """Handle POST request.
 
@@ -725,7 +747,7 @@ class SingleFileLocationsHandler(APIHandler):
         self.files_url = os.path.join(self.base_url, 'files')
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def post(self, uuid: str) -> None:
         """Handle POST request.
 
@@ -811,7 +833,7 @@ class CollectionsHandler(CollectionBaseHandler):
     """Initialize a handler for collection requests."""
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def get(self) -> None:
         """Handle GET request."""
         try:
@@ -835,7 +857,7 @@ class CollectionsHandler(CollectionBaseHandler):
         })
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def post(self) -> None:
         """Handle POST request."""
         metadata = json_decode(self.request.body)
@@ -888,7 +910,7 @@ class SingleCollectionHandler(CollectionBaseHandler):
     """Initialize a handler for single collection requests."""
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -913,7 +935,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's files."""
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -952,7 +974,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's snapshots."""
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -984,7 +1006,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
         })
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def post(self, uid: str) -> None:
         """Handle POST request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -1045,7 +1067,7 @@ class SingleSnapshotHandler(CollectionBaseHandler):
     """Initialize a handler for requesting single snapshots."""
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_snapshot({'uuid': uid})
@@ -1068,7 +1090,7 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single snapshot's files."""
 
     @validate_auth
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_snapshot({'uuid': uid})

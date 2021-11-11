@@ -361,10 +361,6 @@ class APIHandler(RestHandler):
         self.config = config
         self.validation = Validation(self.config)
 
-        # subtract 1 to test before current connection is added
-        self.rate_limit = rate_limit - 1
-        self.rate_limit_data: Dict[str, int] = {}
-
     def check_xsrf_cookie(self) -> None:  # noqa: D102
         pass
 

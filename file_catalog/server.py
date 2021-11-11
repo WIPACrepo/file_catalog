@@ -365,6 +365,12 @@ class APIHandler(RestHandler):
         self.rate_limit = rate_limit - 1
         self.rate_limit_data: Dict[str, int] = {}
 
+    def check_xsrf_cookie(self) -> None:  # noqa: D102
+        pass
+
+    def set_default_headers(self) -> None:  # noqa: D102
+        self.set_header('Content-Type', 'application/hal+json; charset=UTF-8')
+
 
 # --------------------------------------------------------------------------------------
 

@@ -303,7 +303,7 @@ class TestFilesAPI(TestServerAPI):
         r2 = RestClient(self.address, 'blah', timeout=1, retries=1)
         with self.assertRaises(Exception) as cm:
             r2.request_seq('POST', '/api/files', metadata)
-        _assert_httperror(cm.exception, 403, "Forbidden")
+        _assert_httperror(cm.exception, 403, "authentication failed")
 
         data, url, _ = _post_and_assert(r, metadata)
 
@@ -329,7 +329,7 @@ class TestFilesAPI(TestServerAPI):
         r2 = RestClient(self.address, 'blah', timeout=1, retries=1)
         with self.assertRaises(Exception) as cm:
             r2.request_seq('POST', '/api/files', metadata)
-        _assert_httperror(cm.exception, 403, "Forbidden")
+        _assert_httperror(cm.exception, 403, "authentication failed")
 
         data, url, _ = _post_and_assert(r, metadata)
 

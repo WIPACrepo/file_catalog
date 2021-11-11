@@ -123,10 +123,20 @@ class Server:
         redacted_config['MONGODB_AUTH_PASS'] = 'REDACTED'
         logger.info('redacted config: %r', redacted_config)
 
+        if 'TOKEN_KEY' in config:
+            auth = Auth(
+                algorithm=config['TOKEN_ALGORITHM'],
+                secret=config['TOKEN_KEY'],
+                issuer=config['TOKEN_URL']
+            )
+        else:
+            auth = None
+
         main_args = {
             'base_url': '/api',
             'debug': debug,
             'config': config,
+            'auth': auth
         }
 
         api_args = main_args.copy()
@@ -185,17 +195,13 @@ class MainHandler(tornado.web.RequestHandler):
         config: Dict[str, Any],
         base_url: str = "/",
         debug: bool = False,
+        auth: Optional[Auth] = None,
     ) -> None:  # noqa: D102
         self.base_url = base_url
         self.debug = debug
         self.config = config
-        if 'TOKEN_KEY' in self.config:
-            self.auth = Auth(algorithm=self.config['TOKEN_ALGORITHM'],
-                             secret=self.config['TOKEN_KEY'],
-                             issuer=self.config['TOKEN_URL'])
-            self.auth_key: Optional[bytes] = None
-        else:
-            self.auth = None
+        self.auth = auth
+        self.auth_key: Optional[bytes] = None
         self.current_user_secure = None
         self.address = config['FC_PUBLIC_URL']
 
@@ -342,24 +348,18 @@ class APIHandler(RestHandler):
         base_url: str = "/",
         debug: bool = False,
         rate_limit: int = 10,
+        auth: Optional[Auth] = None,
     ) -> None:
         """Initialize handler."""
+        super().initialize(debug=debug, auth=auth)
+        self.debug = debug
+
         if db is None:
             raise Exception('Mongo instance is None: `db`')
-
         self.db = db
         self.base_url = base_url
-        self.debug = debug
         self.config = config
         self.validation = Validation(self.config)
-
-        if 'TOKEN_KEY' in self.config:
-            self.auth = Auth(algorithm=self.config['TOKEN_ALGORITHM'],
-                             secret=self.config['TOKEN_KEY'],
-                             issuer=self.config['TOKEN_URL'])
-            self.auth_key = None
-        else:
-            self.auth = None
 
         # subtract 1 to test before current connection is added
         self.rate_limit = rate_limit - 1

@@ -5,7 +5,6 @@
 
 from __future__ import absolute_import, division, print_function
 
-import os
 import unittest
 
 from rest_tools.client import RestClient
@@ -207,8 +206,3 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertEqual(len(data['files']), 1)
         self.assertEqual(data['files'][0]['uuid'], file_uid)
         self.assertEqual(data['files'][0]['checksum'], metadata['checksum'])
-
-
-if __name__ == '__main__':
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestStringMethods)
-    unittest.TextTestRunner(verbosity=2).run(suite)

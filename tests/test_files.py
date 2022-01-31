@@ -1982,8 +1982,3 @@ class TestFilesAPI(TestServerAPI):
         # check that nothing has changed
         data = _assert_in_fc(r, uuid, all_keys=True)
         assert copy_without_rest_response_keys(data['files'][0]) == metadata1
-
-
-if __name__ == '__main__':
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestStringMethods)
-    unittest.TextTestRunner(verbosity=2).run(suite)

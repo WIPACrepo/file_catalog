@@ -3,6 +3,7 @@ Import file catalog metadata from the IceProd v2 simulation database.
 """
 
 # fmt:off
+# flake8:noqa
 
 import argparse
 import hashlib

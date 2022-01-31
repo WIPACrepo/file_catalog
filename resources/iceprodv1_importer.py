@@ -2,7 +2,8 @@
 Import file catalog metadata from the IceProd v1 simulation database.
 """
 
-import os
+# fmt:off
+
 import argparse
 import hashlib
 
@@ -16,6 +17,8 @@ level_types = {
     'L3': ['level3'],
     'L4': ['level4'],
 }
+
+
 def get_level(path):
     """transforn path to processing level"""
     path = path.lower()
@@ -24,10 +27,13 @@ def get_level(path):
             return k
     return 'unknown'
 
+
 generator_types = {
     'corsika': ['corsika'],
     'nugen': ['nugen','neutrino','numu','nue','nutau'],
 }
+
+
 def get_generator(path):
     """transform path to generator"""
     path = path.lower()
@@ -35,6 +41,7 @@ def get_generator(path):
         if any(g in path for g in generator_types[k]):
             return k
     return 'unknown'
+
 
 def main():
     parser = argparse.ArgumentParser(description='IceProd v1 simulation importer')
@@ -60,7 +67,6 @@ def main():
         'content_status':'good',
     }
     fakesha512sum = hashlib.sha512('dummysum').hexdigest()
-
 
     sql = """select urlpath.name, urlpath.path, urlpath.dataset_id, urlpath.queue_id,
                     urlpath.md5sum, urlpath.size, job.job_id, job.status_changed from urlpath
@@ -105,6 +111,7 @@ def main():
         })
         r = s.post(args.fc_host+'/api/files', json=data)
         r.raise_for_status()
+
 
 if __name__ == '__main__':
     main()

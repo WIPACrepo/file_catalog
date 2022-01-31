@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 
+# fmt:off
+
 from __future__ import print_function
 
 import hashlib
-import string
 import random
+import string
 import time
-from json import dumps as json_encode, loads as json_decode
+from json import dumps as json_encode
+from json import loads as json_decode
 
 import requests
+
 
 class FileCatalogLowLevel(object):
     """
@@ -96,13 +100,16 @@ class FileCatalogLowLevel(object):
             return
         raise Exception('server is too busy')
 
+
 def sha512sum(data):
     m = hashlib.sha512()
     m.update(data)
     return m.hexdigest()
 
+
 def make_data():
     return ''.join(random.choice(string.ascii_letters) for _ in range(random.randint(1,1000)))
+
 
 def benchmark(address,num):
     start = time.time()
@@ -117,6 +124,7 @@ def benchmark(address,num):
         del fc[str(i)]
     return time.time()-start
 
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description='benchmark file_catalog server')
@@ -127,6 +135,7 @@ def main():
     print('starting benchmark')
     t = benchmark(args.address, args.num)
     print('finished. took',t,'seconds')
+
 
 if __name__ == '__main__':
     main()

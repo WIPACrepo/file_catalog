@@ -1,7 +1,10 @@
 #!/usr/bin/env python
+
+# fmt:off
+
 import os
 
-import pymongo
+import pymongo  # type: ignore[import]
 from pymongo import MongoClient
 
 env = {

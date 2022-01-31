@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 # fmt:off
+# flake8:noqa
 
 import os
 

@@ -9,12 +9,11 @@ import copy
 import hashlib
 import itertools
 import os
-import unittest
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
 from file_catalog.schema import types
-from rest_tools.client import RestClient  # type: ignore[import]
+from rest_tools.client import RestClient
 from tornado.escape import json_encode
 
 from .test_server import TestServerAPI
@@ -118,7 +117,7 @@ class TestFilesAPI(TestServerAPI):
         }
         data, url, uuid = _post_and_assert(r, metadata)
 
-        data = _assert_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)  # noqa: F841
 
         for m in ('PUT','DELETE','PATCH'):
             with self.assertRaises(Exception) as cm:
@@ -166,7 +165,7 @@ class TestFilesAPI(TestServerAPI):
         assert "extra" not in data
         assert "supplemental" not in data
         url = data["file"]
-        uuid = url.split("/")[-1]
+        uuid = url.split("/")[-1]  # noqa: F841
 
         # w/o all-keys
         data = r.request_seq("GET", "/api/files")
@@ -709,7 +708,7 @@ class TestFilesAPI(TestServerAPI):
         )
 
         # check that the second file was not created
-        data = _assert_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)  # noqa: F841
 
     def test_51a_post_files__unique_file_version__okay(self) -> None:
         """Test that file-version (logical_name+checksum.sha512) is unique when creating a new file.
@@ -750,7 +749,7 @@ class TestFilesAPI(TestServerAPI):
         data = _assert_in_fc(r, [uuid1, uuid2])
 
         data, url, uuid3 = _post_and_assert(r, metadata_same_checksum)
-        data = _assert_in_fc(r, [uuid1, uuid2, uuid3])
+        data = _assert_in_fc(r, [uuid1, uuid2, uuid3])  # noqa: F841
 
     # # # PUT w/ File-Version # # #
     def test_52a_put_files_uuid__immutable_file_version__error(self) -> None:
@@ -876,7 +875,7 @@ class TestFilesAPI(TestServerAPI):
         # try to replace the first file with the second; should be OK
         metadata2 = copy.deepcopy(metadata)
         metadata2['file_size'] = 200
-        data = _put_and_assert(r, metadata2, uuid)
+        data = _put_and_assert(r, metadata2, uuid)  # noqa: F841
 
     def test_53b_put_files_uuid__with_addl_checksum_algos__okay(self) -> None:
         """Check that PUT still work when there's also non-sha512 checksums."""
@@ -900,7 +899,7 @@ class TestFilesAPI(TestServerAPI):
         metadata_with_addl_nonsha512 = copy.deepcopy(metadata)
         metadata_with_addl_nonsha512['checksum'].update({'abc123': hex('scoop')})  # type: ignore[attr-defined]
         data = _put_and_assert(r, metadata_with_addl_nonsha512, uuid)
-        data = _assert_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)  # noqa: F841
 
     # # # PATCH w/ File-Version # # #
     def test_54a_patch_files_uuid__immutable_file_version__error(self) -> None:
@@ -990,7 +989,7 @@ class TestFilesAPI(TestServerAPI):
         patch_w_file_version_wo_logical_name['file_size'] = 20000000
         patch_w_file_version_wo_logical_name.pop(u'locations')
         patch_w_file_version_wo_logical_name.pop(u'logical_name')
-        data = _patch_and_assert(r, patch_w_file_version_wo_logical_name, uuid)
+        data = _patch_and_assert(r, patch_w_file_version_wo_logical_name, uuid)  # noqa: F841
 
     def test_55b_patch_files_uuid__with_addl_checksum_algos__okay(self) -> None:
         """Check that PATCH still works when there's also non-sha512 checksums."""
@@ -1014,7 +1013,7 @@ class TestFilesAPI(TestServerAPI):
         patch_with_addl_nonsha512 = {'checksum': {'abc123': hex('scoop')}}
         patch_with_addl_nonsha512['checksum'].update(checksum_w_sha512)
         data = _patch_and_assert(r, patch_with_addl_nonsha512, uuid)
-        data = _assert_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)  # noqa: F841
 
     def test_55c_patch_files_uuid__without_file_version__okay(self) -> None:
         """Test that a file can be updated if it has a file-version."""
@@ -1035,7 +1034,7 @@ class TestFilesAPI(TestServerAPI):
 
         # try to replace the first file with the second; should be OK
         patch_file_size = {'file_size': 200}
-        data = _patch_and_assert(r, patch_file_size, uuid)
+        data = _patch_and_assert(r, patch_file_size, uuid)  # noqa: F841
 
     # -------------------------------------------------------------------------
     # -------------------------------------------------------------------------
@@ -1065,7 +1064,7 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata)
 
         # try to replace the first file with the second; should be OK
-        data = _put_and_assert(r, metadata2, uuid)
+        data = _put_and_assert(r, metadata2, uuid)  # noqa: F841
 
     def test_61a_patch_files_uuid__replace_locations__okay(self) -> None:
         """Test that a file can be updated with the same location."""
@@ -1108,8 +1107,8 @@ class TestFilesAPI(TestServerAPI):
         loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
         locs3a = [loc1a, loc1b, loc1c]
-        locs3b = [loc1b, loc1c, loc1d]
-        locs3c = [loc1a, loc1b, loc1d]
+        locs3b = [loc1b, loc1c, loc1d]  # noqa: F841
+        locs3c = [loc1a, loc1b, loc1d]  # noqa: F841
 
         # define the files to be created
         metadata = {
@@ -1129,7 +1128,7 @@ class TestFilesAPI(TestServerAPI):
         data, url, uuid = _post_and_assert(r, metadata)
 
         # check that the file was created properly
-        data = _assert_in_fc(r, uuid)
+        data = _assert_in_fc(r, uuid)  # noqa: F841
 
         # create the second file; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1151,9 +1150,9 @@ class TestFilesAPI(TestServerAPI):
         loc1b = {'site': 'DESY', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
-        locs3a = [loc1a, loc1b, loc1c]
+        locs3a = [loc1a, loc1b, loc1c]  # noqa: F841
         locs3b = [loc1b, loc1c, loc1d]
-        locs3c = [loc1a, loc1b, loc1d]
+        locs3c = [loc1a, loc1b, loc1d]  # noqa: F841
 
         # define the files to be created
         metadata = {
@@ -1176,7 +1175,7 @@ class TestFilesAPI(TestServerAPI):
         data = _assert_in_fc(r, uuid)
 
         # check that the file was created properly, part deux
-        data = r.request_seq('GET', '/api/files/' + uuid)
+        data = r.request_seq('GET', '/api/files/' + uuid)  # noqa: F841
 
         # create the second file; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1199,7 +1198,7 @@ class TestFilesAPI(TestServerAPI):
         loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
         locs3a = [loc1a, loc1b, loc1c]
-        locs3b = [loc1b, loc1c, loc1d]
+        locs3b = [loc1b, loc1c, loc1d]  # noqa: F841
         locs3c = [loc1a, loc1b, loc1d]
 
         # define the files to be created
@@ -1223,7 +1222,7 @@ class TestFilesAPI(TestServerAPI):
         data = _assert_in_fc(r, uuid)
 
         # check that the file was created properly, part deux
-        data = r.request_seq('GET', '/api/files/' + uuid)
+        data = r.request_seq('GET', '/api/files/' + uuid)  # noqa: F841
 
         # create the second file; should NOT be OK
         with self.assertRaises(Exception) as cm:
@@ -1245,8 +1244,8 @@ class TestFilesAPI(TestServerAPI):
         loc1b = {'site': 'DESY', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
-        locs3a = [loc1a, loc1b, loc1c]
-        locs3b = [loc1b, loc1c, loc1d]
+        locs3a = [loc1a, loc1b, loc1c]  # noqa: F841
+        locs3b = [loc1b, loc1c, loc1d]  # noqa: F841
         locs3c = [loc1a, loc1b, loc1d]
 
         # define the files to be created
@@ -1296,8 +1295,8 @@ class TestFilesAPI(TestServerAPI):
         loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
         locs3a = [loc1a, loc1b, loc1c]
-        locs3b = [loc1b, loc1c, loc1d]
-        locs3c = [loc1a, loc1b, loc1d]
+        locs3b = [loc1b, loc1c, loc1d]  # noqa: F841
+        locs3c = [loc1a, loc1b, loc1d]  # noqa: F841
 
         # define the files to be created
         metadata = {
@@ -1347,7 +1346,7 @@ class TestFilesAPI(TestServerAPI):
         loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
         locs3a = [loc1a, loc1b, loc1c]
         locs3b = [loc1b, loc1c, loc1d]
-        locs3c = [loc1a, loc1b, loc1d]
+        locs3c = [loc1a, loc1b, loc1d]  # noqa: F841
 
         # define the files to be created
         metadata = {
@@ -1395,8 +1394,8 @@ class TestFilesAPI(TestServerAPI):
         loc1b = {'site': 'DESY', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
-        locs3a = [loc1a, loc1b, loc1c]
-        locs3b = [loc1b, loc1c, loc1d]
+        locs3a = [loc1a, loc1b, loc1c]  # noqa: F841
+        locs3b = [loc1b, loc1c, loc1d]  # noqa: F841
         locs3c = [loc1a, loc1b, loc1d]
 
         # define the files to be created
@@ -1447,9 +1446,9 @@ class TestFilesAPI(TestServerAPI):
         loc1b = {'site': 'DESY', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
-        locs3a = [loc1a, loc1b, loc1c]
+        locs3a = [loc1a, loc1b, loc1c]  # noqa: F841
         locs3b = [loc1b, loc1c, loc1d]
-        locs3c = [loc1a, loc1b, loc1d]
+        locs3c = [loc1a, loc1b, loc1d]  # noqa: F841
 
         # define the files to be created
         metadata = {
@@ -1499,7 +1498,7 @@ class TestFilesAPI(TestServerAPI):
         loc1b = {'site': 'DESY', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1c = {'site': 'NERSC', 'path': '/data/test/exp/IceCube/foo.dat'}
         loc1d = {'site': 'OSG', 'path': '/data/test/exp/IceCube/foo.dat'}
-        locs3a = [loc1a, loc1b, loc1c]
+        locs3a = [loc1a, loc1b, loc1c]  # noqa: F841
         locs3b = [loc1b, loc1c, loc1d]
         locs3c = [loc1a, loc1b, loc1d]
 
@@ -1670,7 +1669,7 @@ class TestFilesAPI(TestServerAPI):
         # try to POST a second file location to the first file
         with self.assertRaises(Exception) as cm:
             conflicting_locations = {"locations": [loc1d]}
-            rec2 = r.request_seq('POST', '/api/files/' + uuid + '/locations', conflicting_locations)
+            rec2 = r.request_seq('POST', '/api/files/' + uuid + '/locations', conflicting_locations)  # noqa: F841
         _assert_httperror(
             cm.exception,
             409,

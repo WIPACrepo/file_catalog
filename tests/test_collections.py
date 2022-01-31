@@ -5,8 +5,6 @@
 
 from __future__ import absolute_import, division, print_function
 
-import unittest
-
 from rest_tools.client import RestClient
 
 from .test_files import hex
@@ -69,7 +67,7 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertIn('self', data['_links'])
         self.assertIn('collection', data)
         url = data['collection']
-        uid = url.split('/')[-1]
+        uid = url.split('/')[-1]  # noqa: F841
 
         data = r.request_seq('GET', '/api/collections/blah')
         for k in metadata:

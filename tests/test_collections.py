@@ -5,9 +5,6 @@
 
 from __future__ import absolute_import, division, print_function
 
-import os
-import unittest
-
 from rest_tools.client import RestClient
 
 from .test_files import hex
@@ -70,7 +67,7 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertIn('self', data['_links'])
         self.assertIn('collection', data)
         url = data['collection']
-        uid = url.split('/')[-1]
+        uid = url.split('/')[-1]  # noqa: F841
 
         data = r.request_seq('GET', '/api/collections/blah')
         for k in metadata:
@@ -207,8 +204,3 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertEqual(len(data['files']), 1)
         self.assertEqual(data['files'][0]['uuid'], file_uid)
         self.assertEqual(data['files'][0]['checksum'], metadata['checksum'])
-
-
-if __name__ == '__main__':
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestStringMethods)
-    unittest.TextTestRunner(verbosity=2).run(suite)

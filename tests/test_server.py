@@ -5,7 +5,6 @@
 
 from __future__ import absolute_import, division, print_function
 
-import hashlib
 import os
 import random
 import shutil
@@ -14,13 +13,9 @@ import tempfile
 import time
 import unittest
 from functools import partial
-from threading import Thread
 
 import requests
-from file_catalog.urlargparse import encode as jquery_encode
-from pymongo import MongoClient
-from tornado.escape import json_decode, json_encode
-from tornado.ioloop import IOLoop
+from pymongo import MongoClient  # type: ignore[import]
 
 
 class TestServerAPI(unittest.TestCase):
@@ -89,8 +84,3 @@ class TestServerAPI(unittest.TestCase):
         self.start_server()
         r = requests.get(self.address+'/login')
         r.raise_for_status()
-
-
-if __name__ == '__main__':
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestStringMethods)
-    unittest.TextTestRunner(verbosity=2).run(suite)

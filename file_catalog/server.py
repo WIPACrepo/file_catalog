@@ -55,7 +55,10 @@ def get_pkgdata_filename(package: str, resource: str) -> Optional[str]:
     # signature - an os.path format "filename" starting with the dirname of
     # the package's __file__
     parts = resource.split('/')
-    parts.insert(0, os.path.dirname(mod.__file__))
+    fname = mod.__file__
+    if not fname:
+        return None
+    parts.insert(0, os.path.dirname(fname))
     return os.path.join(*parts)
 
 

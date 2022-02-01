@@ -2,16 +2,17 @@
 Import file catalog metadata from the IceProd v2 simulation database.
 """
 
-import sys
-import os
+# fmt:off
+# flake8:noqa
+
 import argparse
 import hashlib
+import sys
 
-import pymysql
 import requests
 
 try:
-    from crawler import generate_files, stat
+    from crawler import generate_files, stat  # type: ignore[import]
 except ImportError:
     print('Requires file_crawler in PYTHONPATH')
     sys.exit(1)
@@ -23,6 +24,8 @@ level_types = {
     'L3': ['level3'],
     'L4': ['level4'],
 }
+
+
 def get_level(path):
     """transforn path to processing level"""
     path = path.lower()
@@ -31,10 +34,13 @@ def get_level(path):
             return k
     return 'unknown'
 
+
 generator_types = {
     'corsika': ['corsika'],
     'nugen': ['nugen','neutrino','numu','nue','nutau'],
 }
+
+
 def get_generator(path):
     """transform path to generator"""
     path = path.lower()
@@ -42,6 +48,7 @@ def get_generator(path):
         if any(g in path for g in generator_types[k]):
             return k
     return 'unknown'
+
 
 def get_dataset(path):
     """get dataset num"""
@@ -53,6 +60,7 @@ def get_dataset(path):
         except Exception:
             continue
     raise Exception('cannot find dataset')
+
 
 def get_job(path):
     """get job num"""
@@ -68,6 +76,7 @@ def get_job(path):
         except Exception:
             continue
     raise Exception('cannot find job')
+
 
 def main():
     parser = argparse.ArgumentParser(description='IceProd v2 simulation importer')
@@ -91,7 +100,7 @@ def main():
         if dataset_num < 20000:
             continue
         #dataset_id = get_dataset_id(name)
-        
+
         # check if existing
         r = s.get(args.fc_host+'/api/files', params={'logical_name':name})
         r.raise_for_status()
@@ -126,6 +135,7 @@ def main():
         })
         r = s.post(args.fc_host+'/api/files', json=data)
         r.raise_for_status()
+
 
 if __name__ == '__main__':
     main()

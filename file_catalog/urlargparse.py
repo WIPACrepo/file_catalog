@@ -10,10 +10,10 @@ from tornado.escape import url_escape, url_unescape
 def get_type(val):
     try:
         return int(val)
-    except:
+    except:  # noqa: E722
         try:
             return float(val)
-        except:
+        except:  # noqa: E722
             return val
 
 
@@ -53,6 +53,7 @@ def parse(data: str) -> Dict[str, Any]:
 def encode(args):
     """Encode data using the jQuery.param() syntax."""
     ret = []
+
     def recurse(obj,prefix=''):
         if isinstance(obj,dict):
             for k in obj:
@@ -65,6 +66,7 @@ def encode(args):
                     recurse(v,prefix+'[]')
         else:
             ret.append(url_escape(prefix)+'='+url_escape(str(obj)))
+
     for k in args:
         recurse(args[k],k)
     return '&'.join(ret)

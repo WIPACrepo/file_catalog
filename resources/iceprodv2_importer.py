@@ -12,7 +12,7 @@ import sys
 import requests
 
 try:
-    from crawler import generate_files, stat
+    from crawler import generate_files, stat  # type: ignore[import]
 except ImportError:
     print('Requires file_crawler in PYTHONPATH')
     sys.exit(1)

@@ -7,6 +7,4 @@ RUN pip install /usr/src/file_catalog
 RUN useradd -m -U app
 USER app
 
-ENV PYTHONPATH=/usr/src/file_catalog
-WORKDIR /usr/src/file_catalog
 CMD ["python3", "-m", "file_catalog"]

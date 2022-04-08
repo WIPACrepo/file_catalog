@@ -1,6 +1,6 @@
 FROM python:3.8
 
-COPY README.md requirements.txt setup.cfg setup.py /usr/src/file_catalog/
+COPY README.md setup.cfg setup.py /usr/src/file_catalog/
 COPY file_catalog /usr/src/file_catalog/file_catalog
 RUN pip install /usr/src/file_catalog
 

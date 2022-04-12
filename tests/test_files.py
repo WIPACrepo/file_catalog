@@ -9,7 +9,7 @@ import copy
 import hashlib
 import itertools
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import requests
 from file_catalog.schema import types
@@ -415,7 +415,7 @@ class TestFilesAPI(TestServerAPI):
             u'file_size': 1,
             u'locations': [{u'site': u'test', u'path': u'blah.dat'}]
         }
-        r.request_seq('POST', '/api/files', metadata)
+        r.request_seq('POST', '/api/files', cast(Dict[str, Any], metadata))
 
         metadata_404 = copy.deepcopy(metadata)
         metadata_404['uuid'] = 'n0t-a-R3al-Uu1d'
@@ -427,12 +427,12 @@ class TestFilesAPI(TestServerAPI):
 
         # PUT
         with self.assertRaises(Exception) as cm:
-            r.request_seq('PUT', '/api/files/' + metadata_404['uuid'], metadata_404)
+            r.request_seq('PUT', '/api/files/' + metadata_404['uuid'], cast(Dict[str, Any], metadata_404))
         _assert_httperror(cm.exception, 404, "File uuid not found")
 
         # PATCH
         with self.assertRaises(Exception) as cm:
-            r.request_seq('PATCH', '/api/files/' + metadata_404['uuid'], metadata_404)
+            r.request_seq('PATCH', '/api/files/' + metadata_404['uuid'], cast(Dict[str, Any], metadata_404))
         _assert_httperror(cm.exception, 404, "File uuid not found")
 
         # DELETE

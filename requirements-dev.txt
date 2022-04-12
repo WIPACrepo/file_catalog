@@ -1,3 +1,5 @@
 crawler
 flake8
+more-itertools
 mypy
+pytest

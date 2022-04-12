@@ -20,7 +20,8 @@ from uuid import uuid1
 import pymongo.errors  # type: ignore[import]
 import tornado.ioloop
 import tornado.web
-from rest_tools.server import Auth, RestHandler, handler
+from rest_tools.server import RestHandler, handler
+from rest_tools.utils import Auth
 from tornado.escape import json_decode, json_encode
 from tornado.httputil import url_concat
 

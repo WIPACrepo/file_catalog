@@ -2,6 +2,10 @@
 
 from __future__ import absolute_import, division, print_function
 
+from . import schema
+
+__all__ = ["schema"]
+
 # version is a human-readable version number.
 
 # version_info is a four-tuple for programmatic comparison. The first
@@ -10,4 +14,9 @@ from __future__ import absolute_import, division, print_function
 # or negative for a release candidate or beta (after the base version
 # number has been incremented)
 __version__ = "1.9.0"
-version_info = (int(__version__.split('.')[0]), int(__version__.split('.')[1]), int(__version__.split('.')[2]), 0)
+version_info = (
+    int(__version__.split(".")[0]),
+    int(__version__.split(".")[1]),
+    int(__version__.split(".")[2]),
+    0,
+)

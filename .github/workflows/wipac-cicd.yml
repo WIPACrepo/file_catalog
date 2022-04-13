@@ -58,6 +58,7 @@ jobs:
       - run: |
           pip install --upgrade pip wheel setuptools
           pip install .
+          python -c 'import file_catalog'
 
   release:
     if: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' }}

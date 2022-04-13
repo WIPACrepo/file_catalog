@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-      - uses: WIPACrepo/wipac-dev-py-setup-action@v1.3
+      - uses: WIPACrepo/wipac-dev-py-setup-action@rely-on-find
 
   py-versions:
     needs: [py-setup]

@@ -61,7 +61,7 @@ protobuf==3.20.0
     #   opentelemetry-proto
 pyasn1==0.4.8
     # via ldap3
-pyjwt==2.3.0
+pyjwt==2.4.0
     # via wipac-rest-tools
 pymongo==3.12.3
     # via

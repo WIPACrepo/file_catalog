@@ -1,6 +1,8 @@
 """Utilities for parsing url args."""
 
 # fmt: off
+# flake8: noqa
+# mypy: ignore-errors
 
 from typing import Any, Dict
 

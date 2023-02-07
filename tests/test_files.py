@@ -111,15 +111,15 @@ class TestFilesAPI(TestServerAPI):
 
         metadata = {
             'logical_name': 'blah',
-            'checksum': {'sha512':hex('foo bar')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
+            u'locations': [{u'site': u'test', u'path': u'blah.dat'}]
         }
         data, url, uuid = _post_and_assert(r, metadata)
 
         data = _assert_in_fc(r, uuid)  # noqa: F841
 
-        for m in ('PUT','DELETE','PATCH'):
+        for m in ('PUT', 'DELETE', 'PATCH'):
             with self.assertRaises(Exception) as cm:
                 r.request_seq(m, '/api/files')
             _assert_httperror(cm.exception, 405, "Method Not Allowed")
@@ -132,9 +132,9 @@ class TestFilesAPI(TestServerAPI):
 
         metadata = {
             'logical_name': 'blah',
-            'checksum': {'sha512':hex('foo bar')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
+            u'locations': [{u'site': u'test', u'path': u'blah.dat'}]
         }
         data, url, uuid = _post_and_assert(r, metadata)
 
@@ -289,15 +289,15 @@ class TestFilesAPI(TestServerAPI):
 
         Override/set the `SECRET` environment variable.
         """
-        self.start_server(config_override={'SECRET':'secret'})
+        self.start_server(config_override={'SECRET': 'secret'})
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
 
         metadata = {
             'logical_name': 'blah',
-            'checksum': {'sha512':hex('foo bar')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
+            u'locations': [{u'site': u'test', u'path': u'blah.dat'}]
         }
         r2 = RestClient(self.address, 'blah', timeout=1, retries=1)
         with self.assertRaises(Exception) as cm:
@@ -321,9 +321,9 @@ class TestFilesAPI(TestServerAPI):
 
         metadata = {
             'logical_name': 'blah',
-            'checksum': {'sha512':hex('foo bar')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
+            u'locations': [{u'site': u'test', u'path': u'blah.dat'}]
         }
         r2 = RestClient(self.address, 'blah', timeout=1, retries=1)
         with self.assertRaises(Exception) as cm:
@@ -344,9 +344,9 @@ class TestFilesAPI(TestServerAPI):
 
         metadata = {
             u'logical_name': u'blah',
-            u'checksum': {u'sha512':hex('foo bar')},
+            u'checksum': {u'sha512': hex('foo bar')},
             u'file_size': 1,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
+            u'locations': [{u'site': u'test', u'path': u'blah.dat'}]
         }
         data = r.request_seq('POST', '/api/files', metadata)
 
@@ -452,15 +452,15 @@ class TestFilesAPI(TestServerAPI):
 
         metadata = {
             u'logical_name': u'blah',
-            u'checksum': {u'sha512':hex('foo bar')},
+            u'checksum': {u'sha512': hex('foo bar')},
             u'file_size': 1,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
+            u'locations': [{u'site': u'test', u'path': u'blah.dat'}]
         }
         metadata2 = {
             u'logical_name': u'blah2',
-            u'checksum': {u'sha512':hex('foo bar baz')},
+            u'checksum': {u'sha512': hex('foo bar baz')},
             u'file_size': 2,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat',u'archive':True}]
+            u'locations': [{u'site': u'test', u'path': u'blah.dat', u'archive': True}]
         }
         data = r.request_seq('POST', '/api/files', metadata)
         url = data['file']
@@ -472,7 +472,7 @@ class TestFilesAPI(TestServerAPI):
         data = _assert_in_fc(r, uuid)
         self.assertFalse(any(uuid2 == f['uuid'] for f in data['files']))
 
-        data = r.request_seq('GET', '/api/files', {'query':json_encode({'locations.archive':True})})
+        data = r.request_seq('GET', '/api/files', {'query': json_encode({'locations.archive': True})})
         self.assertIn('_links', data)
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)
@@ -480,7 +480,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertFalse(any(uuid == f['uuid'] for f in data['files']))
         self.assertTrue(any(uuid2 == f['uuid'] for f in data['files']))
 
-        data = r.request_seq('GET', '/api/files', {'query':json_encode({'locations.archive':False})})
+        data = r.request_seq('GET', '/api/files', {'query': json_encode({'locations.archive': False})})
         self.assertIn('_links', data)
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)
@@ -488,15 +488,15 @@ class TestFilesAPI(TestServerAPI):
 
         metadata3 = {
             u'logical_name': u'blah3',
-            u'checksum': {u'sha512':hex('1234')},
+            u'checksum': {u'sha512': hex('1234')},
             u'file_size': 3,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat',u'archive':False}]
+            u'locations': [{u'site': u'test', u'path': u'blah.dat', u'archive': False}]
         }
         data = r.request_seq('POST', '/api/files', metadata3)
         url3 = data['file']
         uid3 = url3.split('/')[-1]
 
-        data = r.request_seq('GET', '/api/files', {'query':json_encode({'locations.archive':False})})
+        data = r.request_seq('GET', '/api/files', {'query': json_encode({'locations.archive': False})})
         self.assertIn('_links', data)
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)
@@ -566,7 +566,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
         self.assertTrue(any(uuid2 == f['uuid'] for f in data['files']))
 
-        data = r.request_seq('GET', '/api/files', {'processing_level':'level2'})
+        data = r.request_seq('GET', '/api/files', {'processing_level': 'level2'})
         self.assertIn('_links', data)
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)
@@ -574,7 +574,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
         self.assertTrue(any(uuid2 == f['uuid'] for f in data['files']))
 
-        data = r.request_seq('GET', '/api/files', {'run_number':12345})
+        data = r.request_seq('GET', '/api/files', {'run_number': 12345})
         self.assertIn('_links', data)
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)
@@ -582,7 +582,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
         self.assertFalse(any(uuid2 == f['uuid'] for f in data['files']))
 
-        data = r.request_seq('GET', '/api/files', {'dataset':23454})
+        data = r.request_seq('GET', '/api/files', {'dataset': 23454})
         self.assertIn('_links', data)
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)
@@ -590,7 +590,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertFalse(any(uuid == f['uuid'] for f in data['files']))
         self.assertTrue(any(uuid2 == f['uuid'] for f in data['files']))
 
-        data = r.request_seq('GET', '/api/files', {'event_id':400})
+        data = r.request_seq('GET', '/api/files', {'event_id': 400})
         self.assertIn('_links', data)
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)
@@ -598,7 +598,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
         self.assertFalse(any(uuid2 == f['uuid'] for f in data['files']))
 
-        data = r.request_seq('GET', '/api/files', {'season':2017})
+        data = r.request_seq('GET', '/api/files', {'season': 2017})
         self.assertIn('_links', data)
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)
@@ -606,7 +606,7 @@ class TestFilesAPI(TestServerAPI):
         self.assertTrue(any(uuid == f['uuid'] for f in data['files']))
         self.assertTrue(any(uuid2 == f['uuid'] for f in data['files']))
 
-        data = r.request_seq('GET', '/api/files', {'event_id':400, 'keys':'|'.join(['checksum','file_size','uuid'])})
+        data = r.request_seq('GET', '/api/files', {'event_id': 400, 'keys': '|'.join(['checksum', 'file_size', 'uuid'])})
         self.assertIn('_links', data)
         self.assertIn('self', data['_links'])
         self.assertIn('files', data)

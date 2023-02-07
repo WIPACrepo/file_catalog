@@ -3,11 +3,11 @@ Import file catalog metadata from the IceProd v2 simulation database.
 """
 
 # fmt:off
-# flake8:noqa
 
 import argparse
 import hashlib
 import sys
+from typing import Any, Dict
 
 import requests
 
@@ -26,22 +26,22 @@ level_types = {
 }
 
 
-def get_level(path):
+def get_level(path: str) -> str:
     """transforn path to processing level"""
     path = path.lower()
     for k in level_types:
-        if any(l in path for l in level_types[k]):
+        if any(x in path for x in level_types[k]):
             return k
     return 'unknown'
 
 
 generator_types = {
     'corsika': ['corsika'],
-    'nugen': ['nugen','neutrino','numu','nue','nutau'],
+    'nugen': ['nugen', 'neutrino', 'numu', 'nue', 'nutau'],
 }
 
 
-def get_generator(path):
+def get_generator(path: str) -> str:
     """transform path to generator"""
     path = path.lower()
     for k in generator_types:
@@ -50,7 +50,7 @@ def get_generator(path):
     return 'unknown'
 
 
-def get_dataset(path):
+def get_dataset(path: str) -> int:
     """get dataset num"""
     name = path.rsplit('/')[-1]
     for part in name.split('.'):
@@ -62,7 +62,7 @@ def get_dataset(path):
     raise Exception('cannot find dataset')
 
 
-def get_job(path):
+def get_job(path: str) -> int:
     """get job num"""
     name = path.rsplit('/')[-1]
     next = False
@@ -71,14 +71,14 @@ def get_job(path):
             if next:
                 return int(part)
             if part.startswith('02') or part.startswith('01'):
-                p = int(part)
+                _ = int(part)
                 next = True
         except Exception:
             continue
     raise Exception('cannot find job')
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description='IceProd v2 simulation importer')
     parser.add_argument('--fc_host', default=None, help='file catalog address')
     parser.add_argument('--fc_auth_token', default=None, help='file catalog auth token')
@@ -87,28 +87,28 @@ def main():
 
     s = requests.Session()
     if args.fc_auth_token:
-        s.headers.update({'Authorization': 'JWT '+args.fc_auth_token})
+        s.headers.update({'Authorization': 'JWT ' + args.fc_auth_token})
 
-    data_template = {
-        'data_type':'simulation',
-        'content_status':'good',
+    data_template: Dict[str, Any] = {
+        'data_type': 'simulation',
+        'content_status': 'good',
     }
-    fakesha512sum = hashlib.sha512('dummysum').hexdigest()
+    fakesha512sum = hashlib.sha512(bytearray('dummysum', 'utf-8')).hexdigest()
 
     for name in generate_files(args.path):
         dataset_num = get_dataset(name)
         if dataset_num < 20000:
             continue
-        #dataset_id = get_dataset_id(name)
+        # dataset_id = get_dataset_id(name)
 
         # check if existing
-        r = s.get(args.fc_host+'/api/files', params={'logical_name':name})
+        r = s.get(args.fc_host + '/api/files', params={'logical_name': name})
         r.raise_for_status()
         if r.json()['files']:
-            print('skipping',name)
+            print('skipping', name)
             continue
 
-        print('adding',name)
+        print('adding', name)
         row = stat(name)
         data = data_template.copy()
         data.update({
@@ -122,18 +122,18 @@ def main():
             },
             'create_date': row['ctime'],
             'processing_level': get_level(name),
-            'iceprod':{
+            'iceprod': {
                 'dataset': dataset_num,
-                #'dataset_id': dataset_id,
+                # 'dataset_id': dataset_id,
                 'job': get_job(name),
-                #'job_id': get_job_id(name),
-                #'config': 'https://iceprod2.icecube.wisc.edu/config?dataset_id='+str(dataset_id),
+                # 'job_id': get_job_id(name),
+                # 'config': 'https://iceprod2.icecube.wisc.edu/config?dataset_id='+str(dataset_id),
             },
             'simulation': {
                 'generator': get_generator(name),
             },
         })
-        r = s.post(args.fc_host+'/api/files', json=data)
+        r = s.post(args.fc_host + '/api/files', json=data)
         r.raise_for_status()
 
 

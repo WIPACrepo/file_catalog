@@ -5,6 +5,7 @@ from __future__ import absolute_import, division, print_function
 import argparse
 import logging
 from pprint import pprint
+from typing import cast, Optional
 
 import coloredlogs  # type: ignore[import]
 
@@ -12,7 +13,7 @@ from file_catalog.config import Config
 from file_catalog.server import Server
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description='File catalog')
     parser.add_argument('--show-config-spec', action='store_true',
                         help='Print configuration specification, including defaults, and exit')
@@ -29,14 +30,15 @@ def main():
 
     try:
         Server(config,
-               port=config['FC_PORT'],
-               debug=config['DEBUG'],
-               db_host=config.get('MONGODB_HOST', None),
-               db_port=config.get('MONGODB_PORT', None),
-               db_auth_source=config['MONGODB_AUTH_SOURCE_DB'],
-               db_user=config.get('MONGODB_AUTH_USER', None),
-               db_pass=config.get('MONGODB_AUTH_PASS', None),
-               db_uri=config.get('MONGODB_URI', None)).run()
+               port           = cast(int,           config['FC_PORT']),                      # noqa: E221, E241, E251
+               debug          = cast(bool,          config['DEBUG']),                        # noqa: E221, E241, E251
+               db_host        = cast(str,           config.get('MONGODB_HOST', None)),       # noqa: E221, E241, E251
+               db_port        = cast(int,           config.get('MONGODB_PORT', None)),       # noqa: E221, E241, E251
+               db_auth_source = cast(str,           config['MONGODB_AUTH_SOURCE_DB']),       # noqa: E221, E241, E251
+               db_user        = cast(Optional[str], config.get('MONGODB_AUTH_USER', None)),  # noqa: E221, E241, E251
+               db_pass        = cast(Optional[str], config.get('MONGODB_AUTH_PASS', None)),  # noqa: E221, E241, E251
+               db_uri         = cast(Optional[str], config.get('MONGODB_URI', None))         # noqa: E221, E241, E251
+               ).run()
     except Exception:
         logging.fatal('Server error', exc_info=True)
         raise

@@ -12,15 +12,13 @@ import os
 import random
 import sys
 from collections import OrderedDict
-from importlib.abc import Loader
 from pkgutil import get_loader
 from typing import Any, Dict, Optional, cast
 from uuid import uuid1
 
-import pymongo.errors  # type: ignore[import]
 import tornado.ioloop
 import tornado.web
-from rest_tools.server import RestHandler, handler
+from rest_tools.server import authenticated, catch_error, RestHandler
 from rest_tools.utils import Auth
 from tornado.escape import json_decode, json_encode
 from tornado.httputil import url_concat
@@ -28,7 +26,7 @@ from tornado.httputil import url_concat
 # local imports
 import file_catalog
 
-from . import argbuilder, deconfliction, urlargparse
+from . import argbuilder, deconfliction, urlargparse2
 from .mongo import Mongo
 from .schema import types
 from .schema.validation import Validation
@@ -45,7 +43,7 @@ StrDict = Dict[str, Any]
 
 def get_pkgdata_filename(package: str, resource: str) -> Optional[str]:
     """Get a filename for a resource bundled within the package."""
-    loader = cast(Optional[Loader], get_loader(package))
+    loader = get_loader(package)
     if loader is None or not hasattr(loader, 'get_data'):
         return None
     mod = sys.modules.get(package) or loader.load_module(package)
@@ -136,7 +134,7 @@ class Server:
 
         auth: Optional[Auth] = None
         if 'TOKEN_KEY' in config:
-            auth = Auth(
+            auth = Auth(  # type: ignore[no-untyped-call]
                 algorithm=config['TOKEN_ALGORITHM'],
                 secret=config['TOKEN_KEY'],
                 issuer=config['TOKEN_URL']
@@ -262,7 +260,7 @@ class MainHandler(tornado.web.RequestHandler):
 class LoginHandler(MainHandler):
     """Login HTML handler."""
 
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle GET requests."""
         if not self.get_argument('access', ''):
@@ -285,7 +283,7 @@ class LoginHandler(MainHandler):
 class AccountHandler(MainHandler):
     """Account HTML handler."""
 
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle Handle GET requests."""
         if not self.get_argument('access', ''):
@@ -317,7 +315,7 @@ class APIHandler(RestHandler):
         **kwargs: Any,
     ) -> None:
         """Initialize handler."""
-        super().initialize(**kwargs)
+        super().initialize(**kwargs)  # type: ignore[no-untyped-call]
 
         if db is None:
             raise Exception('Mongo instance is None: `db`')
@@ -352,7 +350,7 @@ class HATEOASHandler(APIHandler):
             'files': {'href': os.path.join(self.base_url, 'files')},
         }
 
-    @handler.catch_error  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle Handle GET requests."""
         self.write(self.data)
@@ -370,12 +368,12 @@ class FilesHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle GET requests."""
         try:
-            kwargs = urlargparse.parse(self.request.query)
+            kwargs = urlargparse2.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
             argbuilder.build_start(kwargs)
             argbuilder.build_files_query(kwargs)
@@ -395,8 +393,8 @@ class FilesHandler(APIHandler):
             'files': files,
         })
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def post(self) -> None:
         """Handle POST request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -455,12 +453,12 @@ class FilesCountHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle GET request."""
         try:
-            kwargs = urlargparse.parse(self.request.query)
+            kwargs = urlargparse2.parse(self.request.query)
             argbuilder.build_files_query(kwargs)
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
@@ -490,50 +488,40 @@ class SingleFileHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self, uuid: str) -> None:
         """Handle GET request."""
-        try:
-            db_file = await self.db.get_file({'uuid': uuid})
+        db_file = await self.db.get_file({'uuid': uuid})
+        if not db_file:
+            self.send_error(404, reason='File uuid not found')
+            return
 
-            if db_file:
-                db_file['_links'] = {
-                    'self': {'href': os.path.join(self.files_url, uuid)},
-                    'parent': {'href': self.files_url},
-                }
+        db_file['_links'] = {
+            'self': {'href': os.path.join(self.files_url, uuid)},
+            'parent': {'href': self.files_url},
+        }
+        self.write(cast(StrDict, db_file))
 
-                self.write(cast(StrDict, db_file))
-            else:
-                self.send_error(404, reason='File uuid not found')
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
-
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def delete(self, uuid: str) -> None:
         """Handle DELETE request."""
         try:
             await self.db.delete_file({'uuid': uuid})
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
         except Exception:  # pylint: disable=W0703
             self.send_error(404, reason='File uuid not found')
         else:
             self.set_status(204)
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def patch(self, uuid: str) -> None:
         """Handle PATCH request."""
         metadata: types.Metadata = json_decode(self.request.body)
 
         # Find Matching File
-        try:
-            db_file = await self.db.get_file({'uuid': uuid})
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
-            return
+        db_file = await self.db.get_file({'uuid': uuid})
         if not db_file:
             self.send_error(404, reason='File uuid not found')
             return
@@ -566,19 +554,15 @@ class SingleFileHandler(APIHandler):
         }
         self.write(cast(StrDict, db_file))
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def put(self, uuid: str) -> None:
         """Handle PUT request."""
         metadata: types.Metadata = json_decode(self.request.body)
         metadata['uuid'] = uuid
 
         # Find Matching File
-        try:
-            db_file = await self.db.get_file({'uuid': uuid})
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
-            return
+        db_file = await self.db.get_file({'uuid': uuid})
         if not db_file:
             self.send_error(404, reason='File uuid not found')
             return
@@ -627,8 +611,8 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def post(self, uuid: str) -> None:
         """Handle POST request.
 
@@ -636,11 +620,7 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
         and potentially the entire record.
         """
         # try to load the record from the file catalog by UUID
-        try:
-            db_file = await self.db.get_file({'uuid': uuid})
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
-            return
+        db_file = await self.db.get_file({'uuid': uuid})
         if not db_file:
             self.send_error(404, reason='File uuid not found')
             return
@@ -713,21 +693,15 @@ class SingleFileLocationsHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def post(self, uuid: str) -> None:
         """Handle POST request.
 
         Add location(s) to the record identified by the provided UUID.
         """
         # try to load the record from the file catalog by UUID
-        try:
-            db_file = await self.db.get_file({'uuid': uuid})
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
-            return
-
-        # if we didn't get a record
+        db_file = await self.db.get_file({'uuid': uuid})
         if not db_file:
             self.send_error(404, reason='File uuid not found')
             return
@@ -800,12 +774,12 @@ class CollectionBaseHandler(APIHandler):
 class CollectionsHandler(CollectionBaseHandler):
     """Initialize a handler for collection requests."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self) -> None:
         """Handle GET request."""
         try:
-            kwargs = urlargparse.parse(self.request.query)
+            kwargs = urlargparse2.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
             argbuilder.build_start(kwargs)
             argbuilder.build_keys(kwargs)
@@ -824,8 +798,8 @@ class CollectionsHandler(CollectionBaseHandler):
             'collections': collections,
         })
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def post(self) -> None:
         """Handle POST request."""
         metadata = json_decode(self.request.body)
@@ -877,8 +851,8 @@ class CollectionsHandler(CollectionBaseHandler):
 class SingleCollectionHandler(CollectionBaseHandler):
     """Initialize a handler for single collection requests."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -902,8 +876,8 @@ class SingleCollectionHandler(CollectionBaseHandler):
 class SingleCollectionFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's files."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -912,7 +886,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
 
         if ret:
             try:
-                kwargs = urlargparse.parse(self.request.query)
+                kwargs = urlargparse2.parse(self.request.query)
                 argbuilder.build_limit(kwargs, self.config)
                 argbuilder.build_start(kwargs)
                 kwargs['query'] = json_decode(ret['query'])
@@ -941,8 +915,8 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
 class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's snapshots."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -953,7 +927,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             return
 
         try:
-            kwargs = urlargparse.parse(self.request.query)
+            kwargs = urlargparse2.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
             argbuilder.build_start(kwargs)
             argbuilder.build_keys(kwargs)
@@ -973,8 +947,8 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             'snapshots': snapshots,
         })
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def post(self, uid: str) -> None:
         """Handle POST request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -1036,8 +1010,8 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 class SingleSnapshotHandler(CollectionBaseHandler):
     """Initialize a handler for requesting single snapshots."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_snapshot({'uuid': uid})
@@ -1059,15 +1033,15 @@ class SingleSnapshotHandler(CollectionBaseHandler):
 class SingleSnapshotFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single snapshot's files."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @authenticated  # type: ignore[misc]
+    @catch_error  # type: ignore[misc]
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_snapshot({'uuid': uid})
 
         if ret:
             try:
-                kwargs = urlargparse.parse(self.request.query)
+                kwargs = urlargparse2.parse(self.request.query)
                 argbuilder.build_limit(kwargs, self.config)
                 argbuilder.build_start(kwargs)
                 kwargs['query'] = {'uuid': {'$in': ret['files']}}

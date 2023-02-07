@@ -1,7 +1,7 @@
-#!/bin/sh
+#!/usr/bin/env bash
 unset PYTHONPATH
-virtualenv -p python3 env
+python3 -m venv env
 echo "unset PYTHONPATH" >> env/bin/activate
-. env/bin/activate
+source env/bin/activate
 pip install --upgrade pip
-pip install .
+pip install -r requirements.txt -r requirements-dev.txt

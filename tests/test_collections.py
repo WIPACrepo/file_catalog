@@ -4,15 +4,18 @@
 # pylint: skip-file
 
 from __future__ import absolute_import, division, print_function
+from typing import Any, Dict
 
 from rest_tools.client import RestClient
 
 from .test_files import hex
 from .test_server import TestServerAPI
 
+FCDoc = Dict[str, Any]
+
 
 class TestCollectionsAPI(TestServerAPI):
-    def test_10_collections(self):
+    def test_10_collections(self) -> None:
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -30,9 +33,9 @@ class TestCollectionsAPI(TestServerAPI):
 
         data = r.request_seq('GET', '/api/collections')
         self.assertIn('collections', data)
-        self.assertIn(uid,{row['uuid'] for row in data['collections']})
+        self.assertIn(uid, {row['uuid'] for row in data['collections']})
 
-    def test_20_collection_by_id(self):
+    def test_20_collection_by_id(self) -> None:
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -53,7 +56,7 @@ class TestCollectionsAPI(TestServerAPI):
             self.assertIn(k, data)
             self.assertEqual(metadata[k], data[k])
 
-    def test_21_collection_by_name(self):
+    def test_21_collection_by_name(self) -> None:
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
@@ -74,12 +77,12 @@ class TestCollectionsAPI(TestServerAPI):
             self.assertIn(k, data)
             self.assertEqual(metadata[k], data[k])
 
-    def test_30_collection_files(self):
+    def test_30_collection_files(self) -> None:
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
 
-        metadata = {
+        metadata: FCDoc = {
             'collection_name': 'blah',
             'owner': 'foo',
         }
@@ -96,9 +99,9 @@ class TestCollectionsAPI(TestServerAPI):
         # add a file
         metadata = {
             'logical_name': 'blah',
-            'checksum': {'sha512':hex('foo bar')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
+            u'locations': [{u'site': u'test', u'path': u'blah.dat'}]
         }
         data = r.request_seq('POST', '/api/files', metadata)
         self.assertIn('_links', data)
@@ -108,17 +111,17 @@ class TestCollectionsAPI(TestServerAPI):
         uid = url.split('/')[-1]
 
         data = r.request_seq('GET', '/api/collections/blah/files',
-                             {'keys':'uuid|logical_name|checksum|locations'})
+                             {'keys': 'uuid|logical_name|checksum|locations'})
         self.assertEqual(len(data['files']), 1)
         self.assertEqual(data['files'][0]['uuid'], uid)
         self.assertEqual(data['files'][0]['checksum'], metadata['checksum'])
 
-    def test_70_snapshot_create(self):
+    def test_70_snapshot_create(self) -> None:
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
 
-        metadata = {
+        metadata: FCDoc = {
             'collection_name': 'blah',
             'owner': 'foo',
         }
@@ -145,12 +148,12 @@ class TestCollectionsAPI(TestServerAPI):
         self.assertEqual(len(data['snapshots']), 1)
         self.assertEqual(data['snapshots'][0]['uuid'], snap_uid)
 
-    def test_71_snapshot_find(self):
+    def test_71_snapshot_find(self) -> None:
         self.start_server()
         token = self.get_token()
         r = RestClient(self.address, token, timeout=1, retries=1)
 
-        metadata = {
+        metadata: FCDoc = {
             'collection_name': 'blah',
             'owner': 'foo',
         }
@@ -176,9 +179,9 @@ class TestCollectionsAPI(TestServerAPI):
         # add a file
         metadata = {
             'logical_name': 'blah',
-            'checksum': {'sha512':hex('foo bar')},
+            'checksum': {'sha512': hex('foo bar')},
             'file_size': 1,
-            u'locations': [{u'site':u'test',u'path':u'blah.dat'}]
+            u'locations': [{u'site': u'test', u'path': u'blah.dat'}]
         }
         data = r.request_seq('POST', '/api/files', metadata)
         self.assertIn('_links', data)
@@ -200,7 +203,7 @@ class TestCollectionsAPI(TestServerAPI):
         snap_uid = url.split('/')[-1]
 
         data = r.request_seq('GET', '/api/snapshots/{}/files'.format(snap_uid),
-                             {'keys':'uuid|logical_name|checksum|locations'})
+                             {'keys': 'uuid|logical_name|checksum|locations'})
         self.assertEqual(len(data['files']), 1)
         self.assertEqual(data['files'][0]['uuid'], file_uid)
         self.assertEqual(data['files'][0]['checksum'], metadata['checksum'])

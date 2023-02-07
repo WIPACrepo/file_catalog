@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+export BROWSER=${BROWSER:="firefox"}  # use 'firefox' if BROWSER isn't set
+
+function check {
+    python -m resources.check_requirements
+}
+
+function clean {
+    rm -fr .coverage
+    rm -fr .mypy_cache
+    rm -fr .pytest_cache
+    rm -fr build
+    rm -fr dist
+    find file_catalog -name __pycache__ -exec rm -fr {} +
+    find file_catalog -name __init__.pyc -exec rm -fr {} +
+    rm -fr htmlcov
+    find resources -name __pycache__ -exec rm -fr {} +
+    find resources -name __init__.pyc -exec rm -fr {} +
+    find tests -name __pycache__ -exec rm -fr {} +
+    find tests -name __init__.pyc -exec rm -fr {} +
+    rm -fr wipac_file_catalog.egg-info
+}
+
+function coverage {
+    clean
+    pytest --cov=file_catalog --cov-report=html --no-cov-on-fail ${2:-'tests'}  # use 'tests' if a module wasn't provided
+    ${BROWSER} --new-tab htmlcov/index.html
+}
+
+function lint {
+    flake8 file_catalog
+    mypy --strict --allow-subclassing-any --namespace-packages file_catalog
+    flake8 resources
+    mypy --strict --allow-subclassing-any resources
+    flake8 tests
+    mypy --strict --allow-subclassing-any tests
+}
+
+function rebuild {
+    clean
+    lint
+    test
+}
+
+function test {
+    # See: https://docs.pytest.org/en/7.1.x/how-to/usage.html#specifying-which-tests-to-run
+    # $0   $1   $2                  $3
+    # suru test tests/test_files.py test_10_files
+    if [[ ! -z "$3" ]]; then
+        export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} -k $3"
+    fi
+
+    pytest ${2:-'tests'}  # use 'tests' if a module wasn't provided
+}
+
+case "$1" in
+    check)    check         ;;
+    clean)    clean         ;;
+    coverage) coverage "$@" ;;  # pass all command line args to coverage function
+    lint)     lint          ;;
+    rebuild)  rebuild       ;;
+    test)     test "$@"     ;;  # pass all command line args to test function
+    *)
+        echo "Usage: $0 {check|clean|coverage|lint|rebuild|test}"
+        exit 1
+esac
+
+exit 0

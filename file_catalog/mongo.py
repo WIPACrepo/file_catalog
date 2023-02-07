@@ -9,9 +9,10 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Union, cast
 
-import pymongo  # type: ignore[import]
 from motor.motor_tornado import MotorClient  # type: ignore[import]
 from motor.motor_tornado import MotorCursor
+import pymongo
+from pymongo.results import InsertOneResult
 from wipac_telemetry import tracing_tools as wtt
 
 from .schema.types import Metadata
@@ -182,12 +183,12 @@ class Mongo:
         return cast(int, ret)
 
     @wtt.spanned(all_args=True)
-    async def create_file(self, metadata: Metadata) -> pymongo.results.InsertOneResult:
+    async def create_file(self, metadata: Metadata) -> InsertOneResult:
         """Insert file metadata.
 
         Return uuid.
         """
-        result = await self.client.files.insert_one(metadata)
+        result: InsertOneResult = self.client.files.insert_one(metadata)
 
         if (not result) or (not result.inserted_id):
             msg = "did not insert new file"

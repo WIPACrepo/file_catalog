@@ -2,8 +2,9 @@
 
 # fmt:off
 
-import os
 from collections import namedtuple
+import os
+from typing import Any, Dict, Optional, Union
 
 
 class ConfigValidationError(Exception):
@@ -13,7 +14,7 @@ class ConfigValidationError(Exception):
 ConfigParamSpec = namedtuple('ConfigParamSpec', 'default env_adapter description')
 
 
-class Config(dict):
+class Config(Dict[str, Optional[Union[bool, int, str]]]):
     SPEC = {
         'DEBUG': ConfigParamSpec(
             False, bool, 'debug mode (set to "" or unset to disable)'
@@ -55,17 +56,17 @@ class Config(dict):
         ),
     }
 
-    def __init__(self):
-        super().__init__([(name, spec.default) for name,spec in self.SPEC.items()])
+    def __init__(self) -> None:
+        super().__init__([(name, spec.default) for name, spec in self.SPEC.items()])
 
-    def update_from_env(self, env=None):
+    def update_from_env(self, env: Optional[os._Environ[str]] = None) -> None:
         if env is None:
             env = os.environ
-        for name,spec in self.SPEC.items():
+        for name, spec in self.SPEC.items():
             if name in env:
                 self[name] = spec.env_adapter(env[name])
 
-    def __setitem__(self, key, val):
+    def __setitem__(self, key: str, val: Any) -> None:
         if key not in self.SPEC:
             raise ConfigValidationError('%s is not a valid configuration parameter')
         else:

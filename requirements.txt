@@ -18,7 +18,7 @@ coloredlogs==15.0.1
     # via
     #   wipac-file-catalog (setup.py)
     #   wipac-telemetry
-cryptography==38.0.4
+cryptography==39.0.1
     # via pyjwt
 deprecated==1.2.13
     # via opentelemetry-api

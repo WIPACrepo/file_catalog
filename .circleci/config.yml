@@ -2,6 +2,7 @@ version: 2
 jobs:
     test:
         docker:
+            - image: circleci/mongo:3.7.9-ram
             - image: circleci/python:3.8
               environment:
                 CI_TEST_ENV: true
@@ -10,8 +11,6 @@ jobs:
                 TEST_DATABASE_HOST: localhost
                 TEST_DATABASE_PORT: 27017
                 PYTEST_ADDOPTS: tests/
-            - image: circleci/mongo:3.7.9-ram
-              command: [python, test_server.py]
         steps:
             - checkout
             - run: ./setupenv.sh
@@ -19,7 +18,6 @@ jobs:
                 source env/bin/activate
                 export WIPACTEL_EXPORT_STDOUT=False
                 resources/enable_profiling.py
-                pip install -r requirements.txt -r requirements-dev.txt
                 pytest -vvvvv --tb=short
                 resources/profile_queries.py
 

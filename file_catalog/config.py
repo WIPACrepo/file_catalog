@@ -4,7 +4,7 @@
 
 from collections import namedtuple
 import os
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, MutableMapping, Optional, Union
 
 
 class ConfigValidationError(Exception):
@@ -16,6 +16,12 @@ ConfigParamSpec = namedtuple('ConfigParamSpec', 'default env_adapter description
 
 class Config(Dict[str, Optional[Union[bool, int, str]]]):
     SPEC = {
+        'AUTH_AUDIENCE': ConfigParamSpec(
+            None, str, 'keycloak auth audience'
+        ),
+        'AUTH_OPENID_URL': ConfigParamSpec(
+            None, str, 'keycloak auth service url'
+        ),
         'DEBUG': ConfigParamSpec(
             False, bool, 'debug mode (set to "" or unset to disable)'
         ),
@@ -45,21 +51,12 @@ class Config(Dict[str, Optional[Union[bool, int, str]]]):
         'MONGODB_HOST': ConfigParamSpec('localhost', str, 'MongoDB host'),
         'MONGODB_PORT': ConfigParamSpec(27017, int, 'MongoDB port'),
         'MONGODB_URI': ConfigParamSpec(None, str, 'MongoDB URI'),
-        'TOKEN_ALGORITHM': ConfigParamSpec('RS512', str, 'Token signature algorithm'),
-        'TOKEN_KEY': ConfigParamSpec(
-            None,
-            str,
-            'Token signature verification key, e.g. public or symmetric key of the token service',
-        ),
-        'TOKEN_URL': ConfigParamSpec(
-            None, str, 'Token service URL, e.g. https://tokens.icecube.wisc.edu'
-        ),
     }
 
     def __init__(self) -> None:
         super().__init__([(name, spec.default) for name, spec in self.SPEC.items()])
 
-    def update_from_env(self, env: Optional[os._Environ[str]] = None) -> None:
+    def update_from_env(self, env: Optional[MutableMapping[str, str]] = None) -> None:
         if env is None:
             env = os.environ
         for name, spec in self.SPEC.items():

@@ -1,5 +1,5 @@
 <!--- Top of README Badges (automated) --->
-[![CircleCI](https://img.shields.io/circleci/build/github/WIPACrepo/file_catalog)](https://app.circleci.com/pipelines/github/WIPACrepo/file_catalog?branch=master&filter=all) [![PyPI](https://img.shields.io/pypi/v/wipac-file-catalog)](https://pypi.org/project/wipac-file-catalog/) [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/WIPACrepo/file_catalog?include_prereleases)](https://github.com/WIPACrepo/file_catalog/) [![PyPI - License](https://img.shields.io/pypi/l/wipac-file-catalog)](https://github.com/WIPACrepo/file_catalog/blob/master/LICENSE) [![Lines of code](https://img.shields.io/tokei/lines/github/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/) [![GitHub issues](https://img.shields.io/github/issues/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/issues?q=is%3Aissue+sort%3Aupdated-desc+is%3Aopen) [![GitHub pull requests](https://img.shields.io/github/issues-pr/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/pulls?q=is%3Apr+sort%3Aupdated-desc+is%3Aopen) 
+[![CircleCI](https://img.shields.io/circleci/build/github/WIPACrepo/file_catalog)](https://app.circleci.com/pipelines/github/WIPACrepo/file_catalog?branch=master&filter=all) [![PyPI](https://img.shields.io/pypi/v/wipac-file-catalog)](https://pypi.org/project/wipac-file-catalog/) [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/WIPACrepo/file_catalog?include_prereleases)](https://github.com/WIPACrepo/file_catalog/) [![PyPI - License](https://img.shields.io/pypi/l/wipac-file-catalog)](https://github.com/WIPACrepo/file_catalog/blob/master/LICENSE) [![Lines of code](https://img.shields.io/tokei/lines/github/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/) [![GitHub issues](https://img.shields.io/github/issues/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/issues?q=is%3Aissue+sort%3Aupdated-desc+is%3Aopen) [![GitHub pull requests](https://img.shields.io/github/issues-pr/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/pulls?q=is%3Apr+sort%3Aupdated-desc+is%3Aopen)
 <!--- End of README Badges (automated) --->
 # file_catalog
 Store file metadata information in a file catalog
@@ -272,30 +272,17 @@ Follow these steps to get a development environment for the File Catalog:
     cd ~/projects
     git clone git@github.com:WIPACrepo/file_catalog.git
     cd file_catalog
-    python3.7 -m venv ./env
-    source env/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
+    ./setupenv.sh
 
-### Vagrant
-To use Vagrant to set up a VM to run a File Catalog:
+### MongoDB Instance for Testing
+This command will spin up a disposable MongoDB instance using Docker:
 
-    vagrant up
-    vagrant ssh
-    cd file_catalog
-    scl enable rh-python36 bash
-    python -m venv ./env
-    source env/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-
-To use the VM in future sessions:
-
-    vagrant up
-    vagrant ssh
-    cd file_catalog
-    source env/bin/activate
-    python -m file_catalog
+    docker run \
+        --detach \
+        --name test-mongo \
+        --network=host \
+        --rm \
+        circleci/mongo:latest-ram
 
 ### Unit testing
 In case it comes in handy, the following command can be used to run

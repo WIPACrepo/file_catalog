@@ -2,6 +2,12 @@
 
 export BROWSER=${BROWSER:="firefox"}  # use 'firefox' if BROWSER isn't set
 
+export CI_TEST_ENV=${CI_TEST_ENV:="TRUE"}  # disable keycloak_role_auth in testing
+
+export TEST_DATABASE_HOST=${TEST_DATABASE_HOST:="localhost"}
+export TEST_DATABASE_NAME=${TEST_DATABASE_NAME:="file_catalog"}
+export TEST_DATABASE_PORT=${TEST_DATABASE_PORT:="27017"}
+
 function check {
     python -m resources.check_requirements
 }
@@ -23,7 +29,6 @@ function clean {
 }
 
 function coverage {
-    clean
     pytest --cov=file_catalog --cov-report=html --no-cov-on-fail ${2:-'tests'}  # use 'tests' if a module wasn't provided
     ${BROWSER} --new-tab htmlcov/index.html
 }
@@ -35,6 +40,17 @@ function lint {
     mypy --strict --allow-subclassing-any resources
     flake8 tests
     mypy --strict --allow-subclassing-any tests
+}
+
+function mongo {
+    docker stop test-mongo
+    docker pull circleci/mongo:latest-ram
+    docker run \
+        --detach \
+        --name test-mongo \
+        --network=host \
+        --rm \
+        circleci/mongo:latest-ram
 }
 
 function rebuild {
@@ -51,7 +67,7 @@ function test {
         export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} -k $3"
     fi
 
-    pytest ${2:-'tests'}  # use 'tests' if a module wasn't provided
+    pytest -ra ${2:-'tests'}  # use 'tests' if a module wasn't provided
 }
 
 case "$1" in
@@ -59,10 +75,11 @@ case "$1" in
     clean)    clean         ;;
     coverage) coverage "$@" ;;  # pass all command line args to coverage function
     lint)     lint          ;;
+    mongo)    mongo         ;;
     rebuild)  rebuild       ;;
     test)     test "$@"     ;;  # pass all command line args to test function
     *)
-        echo "Usage: $0 {check|clean|coverage|lint|rebuild|test}"
+        echo "Usage: $0 {check|clean|coverage|lint|mongo|rebuild|test}"
         exit 1
 esac
 

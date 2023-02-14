@@ -1,45 +1,57 @@
+# server.py
 """File Catalog REST Server Interface."""
 
 # fmt: off
 # pylint: disable=R0913,R0903
 
-from __future__ import absolute_import, division, print_function
-
-import copy
 import datetime
 import logging
 import os
 import random
 import sys
-from collections import OrderedDict
 from pkgutil import get_loader
-from typing import Any, Dict, Optional, cast
+from typing import Any, Callable, Dict, Optional, cast
 from uuid import uuid1
 
-import tornado.ioloop
-import tornado.web
-from rest_tools.server import authenticated, catch_error, RestHandler
-from rest_tools.utils import Auth
+from rest_tools.server import keycloak_role_auth, RestHandler, RestHandlerSetup, RestServer
 from tornado.escape import json_decode, json_encode
-from tornado.httputil import url_concat
-
-# local imports
-import file_catalog
 
 from . import argbuilder, deconfliction, urlargparse2
 from .mongo import Mongo
 from .schema import types
 from .schema.validation import Validation
 
-logger = logging.getLogger('server')
+logger = logging.getLogger(__name__)
 
 StrDict = Dict[str, Any]
+
+CONFIG_LOGGING_DENY_LIST = ["FC_COOKIE_SECRET", "MONGODB_AUTH_PASS"]
+
+FC_AUTH_PREFIX = "resource_access.file-catalog.roles"
+FC_AUTH_ROLES = ["system"]
+
+
+# --------------------------------------------------------------------------------------
+# Auth
+# --------------------------------------------------------------------------------------
+
+if bool(os.environ.get('CI_TEST_ENV', False)):
+    def fc_auth(**_auth: Any) -> Callable[..., Any]:
+        def make_wrapper(method: Callable[..., Any]) -> Any:
+            async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+                # warn the user about authentication being disabled in testing
+                logger.warning("TESTING: auth disabled")
+                # go ahead and run the handler
+                return await method(self, *args, **kwargs)
+            return wrapper
+        return make_wrapper
+else:
+    fc_auth = keycloak_role_auth
 
 
 # --------------------------------------------------------------------------------------
 # Utils
 # --------------------------------------------------------------------------------------
-
 
 def get_pkgdata_filename(package: str, resource: str) -> Optional[str]:
     """Get a filename for a resource bundled within the package."""
@@ -74,21 +86,6 @@ def tornado_logger(handler: Any) -> None:
                handler._request_summary(), request_time)
 
 
-def sort_dict(dict_: Dict[str, Any]) -> 'OrderedDict[str, Any]':
-    """Create an OrderedDict by taking `dict` (`dict_`) and orders its keys.
-
-    If a key contains a `dict` it will call this function recursively.
-    """
-    odict = OrderedDict(sorted(dict_.items()))
-
-    # check for dicts in values
-    for key in odict:
-        if isinstance(odict[key], dict):
-            odict[key] = sort_dict(odict[key])
-
-    return odict
-
-
 def set_last_modification_date(metadata: types.Metadata) -> None:
     """Set the `"meta_modify_date"` field."""
     metadata['meta_modify_date'] = str(datetime.datetime.utcnow())
@@ -97,212 +94,194 @@ def set_last_modification_date(metadata: types.Metadata) -> None:
 # --------------------------------------------------------------------------------------
 # Server Setup
 # --------------------------------------------------------------------------------------
-# NOTE - future dev can replace with `rest_tools.handler.RestHandlerSetup/RestServer` if needed
 
-
-class Server:
-    """A file_catalog server instance."""
-
-    def __init__(  # pylint: disable=R0914
-        self,
-        config: Dict[str, Any],
-        port: int = 8888,
-        debug: bool = False,
-        db_host: str = "localhost",
-        db_port: int = 27017,
-        db_auth_source: str = "admin",
-        db_user: Optional[str] = None,
-        db_pass: Optional[str] = None,
-        db_uri: Optional[str] = None,
-    ) -> None:
-        static_path = get_pkgdata_filename('file_catalog', 'data/www')
-        if static_path is None:
-            raise Exception('bad static path')
-        template_path = get_pkgdata_filename('file_catalog', 'data/www_templates')
-        if template_path is None:
-            raise Exception('bad template path')
-
-        logger.info('db host: %s', db_host)
-        logger.info('db port: %s', db_port)
-        logger.info('db auth source: %s', db_auth_source)
-        logger.info('db user: %s', db_user)
-        logger.info('server port: %r', port)
-        logger.info('debug: %r', debug)
-        redacted_config = copy.deepcopy(config)
-        redacted_config['MONGODB_AUTH_PASS'] = 'REDACTED'
-        logger.info('redacted config: %r', redacted_config)
-
-        auth: Optional[Auth] = None
-        if 'TOKEN_KEY' in config:
-            auth = Auth(  # type: ignore[no-untyped-call]
-                algorithm=config['TOKEN_ALGORITHM'],
-                secret=config['TOKEN_KEY'],
-                issuer=config['TOKEN_URL']
-            )
-
-        main_args = {
-            'base_url': '/api',
-            'debug': debug,
-            'config': config,
-            'auth': auth
-        }
-
-        api_args = main_args.copy()
-        api_args.update({
-            'db': Mongo(host=db_host, port=db_port, authSource=db_auth_source,
-                        username=db_user, password=db_pass, uri=db_uri),
-            'config': config,
-        })
-
-        if config['FC_COOKIE_SECRET'] is not None:
-            cookie_secret = config['FC_COOKIE_SECRET']
+def create(config: Dict[str, Any],
+           mongo: Mongo,
+           port: int = 8888,
+           debug: bool = False) -> RestServer:
+    """Create an instance of the File Catalog server."""
+    for key in config:
+        if key not in CONFIG_LOGGING_DENY_LIST:
+            logger.info(f"config: {key} => '{config[key]}'")
         else:
-            cookie_secret = ''.join(chr(random.randint(0, 128)) for _ in range(16))
+            logger.info(f"config: {key} => 'REDACTED'")
+    logger.info(f"port: {port}")
+    logger.info(f"debug: {debug}")
 
-        app = tornado.web.Application(
-            [
-                (r"/", MainHandler, main_args),
-                (r"/login", LoginHandler, main_args),
-                (r"/account", AccountHandler, main_args),
-                (r"/api", HATEOASHandler, api_args),
-                (r"/api/files", FilesHandler, api_args),
-                (r"/api/files/count", FilesCountHandler, api_args),
-                (r"/api/files/([^\/]+)", SingleFileHandler, api_args),
-                (r"/api/files/([^\/]+)/actions/remove_location", SingleFileActionsRemoveLocationHandler, api_args),
-                (r"/api/files/([^\/]+)/locations", SingleFileLocationsHandler, api_args),
-                (r"/api/collections", CollectionsHandler, api_args),
-                (r"/api/collections/([^\/]+)", SingleCollectionHandler, api_args),
-                (r"/api/collections/([^\/]+)/files", SingleCollectionFilesHandler, api_args),
-                (r"/api/collections/([^\/]+)/snapshots", SingleCollectionSnapshotsHandler, api_args),
-                (r"/api/snapshots/([^\/]+)", SingleSnapshotHandler, api_args),
-                (r"/api/snapshots/([^\/]+)/files", SingleSnapshotFilesHandler, api_args),
-            ],
-            static_path=static_path,
-            template_path=template_path,
-            log_function=tornado_logger,
-            login_url='/login',
-            xsrf_cookies=True,
-            cookie_secret=cookie_secret,
-            debug=debug,
-        )
-        app.listen(port)
+    static_path = get_pkgdata_filename('file_catalog', 'data/www')
+    if static_path is None:
+        raise Exception('bad static path')
 
-    def run(self) -> None:  # pylint: disable=R0201
-        """Start IO loop."""
-        tornado.ioloop.IOLoop.current().start()
+    template_path = get_pkgdata_filename('file_catalog', 'data/www_templates')
+    if template_path is None:
+        raise Exception('bad template path')
+
+    args_dict = {
+        "auth": {
+            "audience": config["AUTH_AUDIENCE"],
+            "openid_url": config["AUTH_OPENID_URL"],
+        },
+        "base_url": "/api",
+        "config": config,
+        "db": mongo,
+        "debug": debug,
+    }
+    if bool(os.environ.get('CI_TEST_ENV', False)):
+        del args_dict["auth"]
+    args = RestHandlerSetup(args_dict)  # type: ignore
+    args["config"] = config
+    args["db"] = mongo
+
+    cookie_secret = ''.join(random.choice('0123456789abcdef') for _ in range(64))
+    if 'FC_COOKIE_SECRET' in config:
+        cookie_secret = config['FC_COOKIE_SECRET']
+    else:
+        logger.error("FC_COOKIE_SECRET not supplied; random 256-bit secret will not be saved")
+
+    server = RestServer(cookie_secret=cookie_secret,
+                        debug=debug,
+                        log_function=tornado_logger,
+                        login_url='/login',
+                        static_path=static_path,
+                        template_path=template_path,
+                        xsrf_cookies=True)  # type: ignore[no-untyped-call]
+
+    # server.add_route(r"/",                                           MainHandler,                            args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    # server.add_route(r"/account",                                    AccountHandler,                         args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+
+    server.add_route(r"/api",                                        HATEOASHandler,                         args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+
+    server.add_route(r"/api/collections",                            CollectionsHandler,                     args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/collections/([^\/]+)",                   SingleCollectionHandler,                args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/collections/([^\/]+)/files",             SingleCollectionFilesHandler,           args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/collections/([^\/]+)/snapshots",         SingleCollectionSnapshotsHandler,       args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+
+    server.add_route(r"/api/files",                                  FilesHandler,                           args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/files/count",                            FilesCountHandler,                      args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/files/([^\/]+)",                         SingleFileHandler,                      args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/files/([^\/]+)/actions/remove_location", SingleFileActionsRemoveLocationHandler, args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/files/([^\/]+)/locations",               SingleFileLocationsHandler,             args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+
+    server.add_route(r"/api/snapshots/([^\/]+)",                     SingleSnapshotHandler,                  args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/snapshots/([^\/]+)/files",               SingleSnapshotFilesHandler,             args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+
+    # server.add_route(r"/login",                                      LoginHandler,                           args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+
+    port = config["FC_PORT"]
+    server.startup(port=port)  # type: ignore[no-untyped-call]
+
+    return server
 
 
 # --------------------------------------------------------------------------------------
 # Main Routes (unused)
 # --------------------------------------------------------------------------------------
 
-
-class MainHandler(tornado.web.RequestHandler):
-    """Main HTML handler."""
-
-    def initialize(  # pylint: disable=C0116,W0201
-        self,
-        config: Dict[str, Any],
-        base_url: str = "/",
-        debug: bool = False,
-        auth: Optional[Auth] = None,
-    ) -> None:  # noqa: D102
-        self.base_url = base_url
-        self.debug = debug
-        self.config = config
-        self.auth = auth
-        self.auth_key: Optional[bytes] = None
-        self.current_user_secure = None
-        self.address = config['FC_PUBLIC_URL']
-
-    def get_template_namespace(self) -> Dict[str, Any]:
-        """Get the template namespace."""
-        namespace = super().get_template_namespace()
-        namespace['version'] = file_catalog.__version__
-        return namespace
-
-    def get_current_user(self) -> Optional[str]:
-        """Get the current user by parsing the token."""
-        try:
-            token = self.get_secure_cookie('token')
-            logger.info('token: %r', token)
-            # if `auth` is None -> raise Exception
-            data = self.auth.validate(token, audience=['ANY'])  # type: ignore[union-attr]
-            self.auth_key = token
-            return cast(str, data['sub'])
-        except Exception:  # pylint: disable=W0703
-            logger.warning('failed auth', exc_info=True)
-        return None
-
-    async def get(self) -> None:
-        """Handle GET requests."""
-        try:
-            self.render('index.html')
-        except Exception as e:  # pylint: disable=W0703
-            logger.warning('Error in main handler', exc_info=True)
-            message = 'Error generating page.'
-            if self.debug:
-                message += '\n' + str(e)
-            self.send_error(reason=message)
-
-    def write_error(self, status_code: int = 500, **kwargs: Any) -> None:
-        """Write out custom error page."""
-        self.set_status(status_code)
-        if status_code >= 500:
-            self.write('<h2>Internal Error</h2>')
-        else:
-            self.write('<h2>Request Error</h2>')
-        if 'message' in kwargs:
-            self.write('<br />'.join(kwargs['message'].split('\n')))
-        self.finish()
-
-
-class LoginHandler(MainHandler):
-    """Login HTML handler."""
-
-    @catch_error  # type: ignore[misc]
-    async def get(self) -> None:
-        """Handle GET requests."""
-        if not self.get_argument('access', ''):
-            url = url_concat(self.config['TOKEN_URL'] + '/token', {
-                'redirect': self.address + self.request.uri,
-                'state': self.get_argument('next', '/'),
-                'scope': 'file-catalog',
-            })
-            logging.info('redirect to %s', url)
-            self.redirect(url)
-            return
-
-        redirect = self.get_argument('state', '/')
-        access = self.get_argument('access')
-        self.set_secure_cookie('token', access)
-        logging.info('request: %r %r', redirect, access)
-        self.redirect(redirect)
-
-
-class AccountHandler(MainHandler):
-    """Account HTML handler."""
-
-    @catch_error  # type: ignore[misc]
-    async def get(self) -> None:
-        """Handle Handle GET requests."""
-        if not self.get_argument('access', ''):
-            url = url_concat(self.config['TOKEN_URL'] + '/token', {
-                'redirect': self.address + self.request.uri,
-                'scope': 'file-catalog',
-            })
-            self.redirect(url)
-            return
-
-        access = self.get_argument('access')
-        refresh = self.get_argument('refresh')
-        self.render('account.html', authkey=refresh, tempkey=access)
+# class MainHandler(tornado.web.RequestHandler):
+#     """Main HTML handler."""
+#
+#     def initialize(  # pylint: disable=C0116,W0201
+#         self,
+#         config: Dict[str, Any],
+#         base_url: str = "/",
+#         debug: bool = False,
+#         auth: Optional[Auth] = None,
+#     ) -> None:  # noqa: D102
+#         self.base_url = base_url
+#         self.debug = debug
+#         self.config = config
+#         self.auth = auth
+#         self.auth_key: Optional[bytes] = None
+#         self.current_user_secure = None
+#         self.address = config['FC_PUBLIC_URL']
+#
+#     def get_template_namespace(self) -> Dict[str, Any]:
+#         """Get the template namespace."""
+#         namespace = super().get_template_namespace()
+#         namespace['version'] = file_catalog.__version__
+#         return namespace
+#
+#     def get_current_user(self) -> Optional[str]:
+#         """Get the current user by parsing the token."""
+#         try:
+#             token = self.get_secure_cookie('token')
+#             logger.info('token: %r', token)
+#             # if `auth` is None -> raise Exception
+#             data = self.auth.validate(token, audience=['ANY'])  # type: ignore[union-attr]
+#             self.auth_key = token
+#             return cast(str, data['sub'])
+#         except Exception:  # pylint: disable=W0703
+#             logger.warning('failed auth', exc_info=True)
+#         return None
+#
+#     async def get(self) -> None:
+#         """Handle GET requests."""
+#         try:
+#             self.render('index.html')
+#         except Exception as e:  # pylint: disable=W0703
+#             logger.warning('Error in main handler', exc_info=True)
+#             message = 'Error generating page.'
+#             if self.debug:
+#                 message += '\n' + str(e)
+#             self.send_error(reason=message)
+#
+#     def write_error(self, status_code: int = 500, **kwargs: Any) -> None:
+#         """Write out custom error page."""
+#         self.set_status(status_code)
+#         if status_code >= 500:
+#             self.write('<h2>Internal Error</h2>')
+#         else:
+#             self.write('<h2>Request Error</h2>')
+#         if 'message' in kwargs:
+#             self.write('<br />'.join(kwargs['message'].split('\n')))
+#         self.finish()
+#
+#
+# class LoginHandler(MainHandler):
+#     """Login HTML handler."""
+#
+#     @catch_error  # type: ignore[misc]
+#     async def get(self) -> None:
+#         """Handle GET requests."""
+#         if not self.get_argument('access', ''):
+#             url = url_concat(self.config['TOKEN_URL'] + '/token', {
+#                 'redirect': self.address + self.request.uri,
+#                 'state': self.get_argument('next', '/'),
+#                 'scope': 'file-catalog',
+#             })
+#             logging.info('redirect to %s', url)
+#             self.redirect(url)
+#             return
+#
+#         redirect = self.get_argument('state', '/')
+#         access = self.get_argument('access')
+#         self.set_secure_cookie('token', access)
+#         logging.info('request: %r %r', redirect, access)
+#         self.redirect(redirect)
+#
+#
+# class AccountHandler(MainHandler):
+#     """Account HTML handler."""
+#
+#     @catch_error  # type: ignore[misc]
+#     async def get(self) -> None:
+#         """Handle Handle GET requests."""
+#         if not self.get_argument('access', ''):
+#             url = url_concat(self.config['TOKEN_URL'] + '/token', {
+#                 'redirect': self.address + self.request.uri,
+#                 'scope': 'file-catalog',
+#             })
+#             self.redirect(url)
+#             return
+#
+#         access = self.get_argument('access')
+#         refresh = self.get_argument('refresh')
+#         self.render('account.html', authkey=refresh, tempkey=access)
 
 
 # --------------------------------------------------------------------------------------
 # API Routes - the canonical/used File Catalog
 # --------------------------------------------------------------------------------------
-
 
 class APIHandler(RestHandler):
     """Base class for API REST handlers."""
@@ -311,7 +290,7 @@ class APIHandler(RestHandler):
         self,
         config: Dict[str, Any],
         db: Optional[Mongo] = None,
-        base_url: str = "/",
+        base_url: str = "/api",
         **kwargs: Any,
     ) -> None:
         """Initialize handler."""
@@ -350,7 +329,7 @@ class HATEOASHandler(APIHandler):
             'files': {'href': os.path.join(self.base_url, 'files')},
         }
 
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self) -> None:
         """Handle Handle GET requests."""
         self.write(self.data)
@@ -368,8 +347,7 @@ class FilesHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self) -> None:
         """Handle GET requests."""
         try:
@@ -393,8 +371,7 @@ class FilesHandler(APIHandler):
             'files': files,
         })
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def post(self) -> None:
         """Handle POST request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -453,8 +430,7 @@ class FilesCountHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self) -> None:
         """Handle GET request."""
         try:
@@ -488,8 +464,7 @@ class SingleFileHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uuid: str) -> None:
         """Handle GET request."""
         db_file = await self.db.get_file({'uuid': uuid})
@@ -503,8 +478,7 @@ class SingleFileHandler(APIHandler):
         }
         self.write(cast(StrDict, db_file))
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def delete(self, uuid: str) -> None:
         """Handle DELETE request."""
         try:
@@ -514,8 +488,7 @@ class SingleFileHandler(APIHandler):
         else:
             self.set_status(204)
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def patch(self, uuid: str) -> None:
         """Handle PATCH request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -554,8 +527,7 @@ class SingleFileHandler(APIHandler):
         }
         self.write(cast(StrDict, db_file))
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def put(self, uuid: str) -> None:
         """Handle PUT request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -611,8 +583,7 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def post(self, uuid: str) -> None:
         """Handle POST request.
 
@@ -693,8 +664,7 @@ class SingleFileLocationsHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def post(self, uuid: str) -> None:
         """Handle POST request.
 
@@ -756,7 +726,6 @@ class SingleFileLocationsHandler(APIHandler):
 # Collections (unused)
 # --------------------------------------------------------------------------------------
 
-
 class CollectionBaseHandler(APIHandler):
     """Initialize an abstract/base handler for collection-type requests."""
 
@@ -774,8 +743,7 @@ class CollectionBaseHandler(APIHandler):
 class CollectionsHandler(CollectionBaseHandler):
     """Initialize a handler for collection requests."""
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self) -> None:
         """Handle GET request."""
         try:
@@ -798,8 +766,7 @@ class CollectionsHandler(CollectionBaseHandler):
             'collections': collections,
         })
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def post(self) -> None:
         """Handle POST request."""
         metadata = json_decode(self.request.body)
@@ -851,8 +818,7 @@ class CollectionsHandler(CollectionBaseHandler):
 class SingleCollectionHandler(CollectionBaseHandler):
     """Initialize a handler for single collection requests."""
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -876,8 +842,7 @@ class SingleCollectionHandler(CollectionBaseHandler):
 class SingleCollectionFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's files."""
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -915,8 +880,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
 class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's snapshots."""
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -947,8 +911,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             'snapshots': snapshots,
         })
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def post(self, uid: str) -> None:
         """Handle POST request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -1010,8 +973,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 class SingleSnapshotHandler(CollectionBaseHandler):
     """Initialize a handler for requesting single snapshots."""
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_snapshot({'uuid': uid})
@@ -1033,8 +995,7 @@ class SingleSnapshotHandler(CollectionBaseHandler):
 class SingleSnapshotFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single snapshot's files."""
 
-    @authenticated  # type: ignore[misc]
-    @catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_snapshot({'uuid': uid})

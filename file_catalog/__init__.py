@@ -1,7 +1,5 @@
 """Init."""
 
-from __future__ import absolute_import, division, print_function
-
 from . import schema
 
 __all__ = ["schema"]

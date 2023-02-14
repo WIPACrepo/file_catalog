@@ -55,5 +55,5 @@ async def test_04_HATEOAS(rest: RestClient) -> None:
 
     for method in ["DELETE", "PATCH", "POST", "PUT"]:
         with pytest.raises(HTTPError) as cm:
-            res = await rest.request(method, "/api")
+            await rest.request(method, "/api")
         _assert_httperror(cm.value, 405, "Method Not Allowed")

@@ -85,6 +85,9 @@ async def test_30_collection_files(rest: RestClient) -> None:
     url = data['collection']
     uid = url.split('/')[-1]
 
+    data = await rest.request('GET', f'/api/collections/{uid}/files')
+    assert data['files'] == []
+
     data = await rest.request('GET', '/api/collections/blah/files')
     assert data['files'] == []
 
@@ -124,6 +127,9 @@ async def test_70_snapshot_create(rest: RestClient) -> None:
     uid = url.split('/')[-1]
 
     data = await rest.request('GET', '/api/collections/' + uid)
+    assert '_links' in data
+    assert 'self' in data['_links']
+    assert 'collection_name' in data
 
     data = await rest.request('POST', '/api/collections/{}/snapshots'.format(uid))
     assert '_links' in data
@@ -155,6 +161,9 @@ async def test_71_snapshot_find(rest: RestClient) -> None:
     uid = url.split('/')[-1]
 
     data = await rest.request('GET', '/api/collections/' + uid)
+    assert '_links' in data
+    assert 'self' in data['_links']
+    assert 'collection_name' in data
 
     data = await rest.request('POST', '/api/collections/{}/snapshots'.format(uid))
     assert '_links' in data

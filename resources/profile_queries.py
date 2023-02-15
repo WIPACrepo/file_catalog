@@ -49,14 +49,14 @@ unrealistic_queries = [
     {'locations.archive': False},
     {'locations.archive': None},
     {'locations.archive': None, 'run.first_event': {'$lte': 400}, 'run.last_event': {'$gte': 400}},
+    # the query to get the queries that we're profiling doesn't count!
+    {'op': {'$nin': ['command', 'insert']}},
 ]
 
 bad_queries = []
 ret = db.system.profile.find({'op': {'$nin': ['command', 'insert']}})
 for query in ret:
     try:
-        if 'find' in query['command'] and query['command']['find'] == 'collections':
-            continue
         # exclude unrealistic test queries
         if 'filter' in query['command'] and query['command']['filter'] in unrealistic_queries:
             continue

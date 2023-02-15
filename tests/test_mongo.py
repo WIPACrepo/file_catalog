@@ -89,20 +89,20 @@ async def test_05__limit_result_list(mongo: Mongo) -> None:
         uuid = str(uuid4())
         await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}]})
 
-    cursor = mongo.client.files.find({}, {"_id": False}, max_time_ms=10)
+    cursor = mongo.client.files.find({"locations.site": "WIPAC"}, {"_id": False}, max_time_ms=10)
     res = await Mongo._limit_result_list(cursor, limit=10)
     assert len(res) == 10
     for doc in res:
         assert doc["file_size"] >= 0
         assert doc["file_size"] < 10
 
-    cursor = mongo.client.files.find({}, {"_id": False}, max_time_ms=10)
+    cursor = mongo.client.files.find({"locations.site": "WIPAC"}, {"_id": False}, max_time_ms=10)
     res = await Mongo._limit_result_list(cursor, start=90)
     assert len(res) == 10
     for doc in res:
         assert doc["file_size"] >= 90
 
-    cursor = mongo.client.files.find({}, {"_id": False}, max_time_ms=10)
+    cursor = mongo.client.files.find({"locations.site": "WIPAC"}, {"_id": False}, max_time_ms=10)
     res = await Mongo._limit_result_list(cursor, start=10, limit=10)
     assert len(res) == 10
     for doc in res:
@@ -118,18 +118,18 @@ async def test_06_find_files(mongo: Mongo) -> None:
         uuid = str(uuid4())
         await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}]})
 
-    res = await mongo.find_files({}, ["file_size"], limit=10, max_time_ms=10)
+    res = await mongo.find_files({"locations.site": "WIPAC"}, ["file_size"], limit=10, max_time_ms=10)
     assert len(res) == 10
     for doc in res:
         assert doc["file_size"] >= 0
         assert doc["file_size"] < 10
 
-    res = await mongo.find_files({}, ["file_size"], start=90, max_time_ms=10)
+    res = await mongo.find_files({"locations.site": "WIPAC"}, ["file_size"], start=90, max_time_ms=10)
     assert len(res) == 10
     for doc in res:
         assert doc["file_size"] >= 90
 
-    res = await mongo.find_files({}, ["file_size"], start=10, limit=10, max_time_ms=10)
+    res = await mongo.find_files({"locations.site": "WIPAC"}, ["file_size"], start=10, limit=10, max_time_ms=10)
     assert len(res) == 10
     for doc in res:
         assert doc["file_size"] >= 10
@@ -144,19 +144,21 @@ async def test_07_count_files(mongo: Mongo) -> None:
         uuid = str(uuid4())
         await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}]})
 
-    assert await mongo.count_files({}, max_time_ms=10) == 100
+    assert await mongo.count_files({"locations.site": "WIPAC"}, max_time_ms=10) == 100
 
 
 @pytest.mark.asyncio
 async def test_08_create_file(mongo: Mongo) -> None:
     """Use create_file to create documents in the files collection."""
-    await mongo.create_file({"_id": "blah blah blah"})  # type: ignore[typeddict-item]
-    res = await mongo.find_files({"_id": "blah blah blah"}, ["_id"], max_time_ms=10)
+    uuid1 = str(uuid4())
+
+    await mongo.create_file({"uuid": f"{uuid1}"})
+    res = await mongo.find_files({"uuid": f"{uuid1}"}, ["uuid"], max_time_ms=10)
     assert len(res) == 1
-    assert res[0]["_id"] == "blah blah blah"
+    assert res[0]["uuid"] == f"{uuid1}"
 
     with pytest.raises(DuplicateKeyError):
-        await mongo.create_file({"_id": "blah blah blah"})  # type: ignore[typeddict-item]
+        await mongo.create_file({"uuid": f"{uuid1}"})
 
 
 @pytest.mark.asyncio

@@ -65,6 +65,11 @@ async def test_21_collection_by_name(rest: RestClient) -> None:
     url = data['collection']
     uid = url.split('/')[-1]  # noqa: F841
 
+    data = await rest.request('GET', f'/api/collections/{uid}')
+    for k in metadata:
+        assert k in data
+        assert metadata[k] == data[k]
+
     data = await rest.request('GET', '/api/collections/blah')
     for k in metadata:
         assert k in data

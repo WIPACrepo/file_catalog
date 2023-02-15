@@ -142,9 +142,10 @@ async def test_07_count_files(mongo: Mongo) -> None:
     # create some records so we have something to find
     for file_size in range(100):
         uuid = str(uuid4())
-        await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}]})
+        await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}], "data_type": "RAW"})
 
-    assert await mongo.count_files({"locations.site": "WIPAC"}, max_time_ms=10) == 100
+    assert await mongo.count_files({"data_type": "RAW"}, max_time_ms=10) == 100
+    assert await mongo.count_files() == 100
 
 
 @pytest.mark.asyncio

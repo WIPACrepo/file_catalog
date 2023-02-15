@@ -171,7 +171,7 @@ class Mongo:
     ) -> int:
         """Get count of files matching query."""
         if not query:
-            query = {}
+            query = {"uuid": {"$exists": True}}
 
         ret = await self.client.files.count_documents(query)
 
@@ -205,8 +205,6 @@ class Mongo:
             {"uuid": uuid},
             update_query,
             projection={"_id": False},
-            # pymongo.errors.OperationFailure: BSON field 'findAndModify.max_time_ms' is an unknown field., full error: {'ok': 0.0, 'errmsg': "BSON field 'findAndModify.max_time_ms' is an unknown field.", 'code': 40415, 'codeName': 'Location40415'}
-            # max_time_ms=DEFAULT_MAX_TIME_MS,
             maxTimeMS=DEFAULT_MAX_TIME_MS,
             return_document=pymongo.ReturnDocument.AFTER,
         )
@@ -234,24 +232,7 @@ class Mongo:
         """
         uuid = metadata["uuid"]
 
-        # note: result.matched_count == 1, even when more than one document matches
-        match_count = await self.count_files({"uuid": uuid})
-        if match_count > 1:
-            msg = f"id {uuid} matches {match_count} documents; preventing ambiguous replacement of files document"
-            logger.error(msg)
-            raise Exception(msg)
-
         result = await self.client.files.replace_one({"uuid": uuid}, metadata)
-
-        # if result.modified_count is None:
-        #     logger.warning(
-        #         "Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s",
-        #         result.matched_count,
-        #     )
-        # elif result.modified_count != 1:
-        #     msg = f"updated {result.modified_count} files with id {uuid}"
-        #     logger.warning(msg)
-        #     raise Exception(msg)
 
         if result.modified_count != 1:
             msg = f"updated {result.modified_count} files with id {uuid}"

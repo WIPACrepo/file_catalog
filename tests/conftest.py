@@ -75,7 +75,7 @@ def port() -> int:
     """Get an ephemeral port number."""
     # https://unix.stackexchange.com/a/132524
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(('', 0))
+    s.bind(('localhost', 0))
     addr = s.getsockname()
     ephemeral_port = addr[1]
     s.close()

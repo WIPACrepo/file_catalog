@@ -87,22 +87,22 @@ async def test_05__limit_result_list(mongo: Mongo) -> None:
     # create some records so we have something to start and limit
     for file_size in range(100):
         uuid = str(uuid4())
-        await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}]})
+        await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}], "data_type": "RAW"})
 
-    cursor = mongo.client.files.find({"locations.site": "WIPAC"}, {"_id": False}, max_time_ms=10)
+    cursor = mongo.client.files.find({"data_type": "RAW"}, {"_id": False}, max_time_ms=10)
     res = await Mongo._limit_result_list(cursor, limit=10)
     assert len(res) == 10
     for doc in res:
         assert doc["file_size"] >= 0
         assert doc["file_size"] < 10
 
-    cursor = mongo.client.files.find({"locations.site": "WIPAC"}, {"_id": False}, max_time_ms=10)
+    cursor = mongo.client.files.find({"data_type": "RAW"}, {"_id": False}, max_time_ms=10)
     res = await Mongo._limit_result_list(cursor, start=90)
     assert len(res) == 10
     for doc in res:
         assert doc["file_size"] >= 90
 
-    cursor = mongo.client.files.find({"locations.site": "WIPAC"}, {"_id": False}, max_time_ms=10)
+    cursor = mongo.client.files.find({"data_type": "RAW"}, {"_id": False}, max_time_ms=10)
     res = await Mongo._limit_result_list(cursor, start=10, limit=10)
     assert len(res) == 10
     for doc in res:
@@ -116,20 +116,20 @@ async def test_06_find_files(mongo: Mongo) -> None:
     # create some records so we have something to find
     for file_size in range(100):
         uuid = str(uuid4())
-        await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}]})
+        await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}], "data_type": "RAW"})
 
-    res = await mongo.find_files({"locations.site": "WIPAC"}, ["file_size"], limit=10, max_time_ms=10)
+    res = await mongo.find_files({"data_type": "RAW"}, ["file_size"], limit=10, max_time_ms=10)
     assert len(res) == 10
     for doc in res:
         assert doc["file_size"] >= 0
         assert doc["file_size"] < 10
 
-    res = await mongo.find_files({"locations.site": "WIPAC"}, ["file_size"], start=90, max_time_ms=10)
+    res = await mongo.find_files({"data_type": "RAW"}, ["file_size"], start=90, max_time_ms=10)
     assert len(res) == 10
     for doc in res:
         assert doc["file_size"] >= 90
 
-    res = await mongo.find_files({"locations.site": "WIPAC"}, ["file_size"], start=10, limit=10, max_time_ms=10)
+    res = await mongo.find_files({"data_type": "RAW"}, ["file_size"], start=10, limit=10, max_time_ms=10)
     assert len(res) == 10
     for doc in res:
         assert doc["file_size"] >= 10

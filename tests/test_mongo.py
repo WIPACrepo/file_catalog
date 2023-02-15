@@ -270,9 +270,9 @@ async def test_13_delete_file(mongo: Mongo) -> None:
 @pytest.mark.asyncio
 async def test_14_find_collections(mongo: Mongo) -> None:
     """Use find_collections to find documents in the collections collection."""
-    await mongo.create_collection({"uuid": "7e99b2c3-815e-4158-9c41-bed32412b47b", "a": 1})
-    await mongo.create_collection({"uuid": "4feb1d5b-0518-464b-b6b5-b7f5a6d44ddd", "b": 2})
-    await mongo.create_collection({"uuid": "9b6d2577-b107-4065-aa73-b125db342287", "c": 3})
+    await mongo.create_collection({"uuid": "7e99b2c3-815e-4158-9c41-bed32412b47b", "owner": "Alice"})
+    await mongo.create_collection({"uuid": "4feb1d5b-0518-464b-b6b5-b7f5a6d44ddd", "owner": "Alice"})
+    await mongo.create_collection({"uuid": "9b6d2577-b107-4065-aa73-b125db342287", "owner": "Alice"})
     res = await mongo.find_collections()
     assert len(res) == 3
 
@@ -280,23 +280,23 @@ async def test_14_find_collections(mongo: Mongo) -> None:
 @pytest.mark.asyncio
 async def test_15_create_collection(mongo: Mongo) -> None:
     """Use create_collection to create documents in the collections collection."""
-    await mongo.create_collection({"uuid": "1506ca1a-638d-4161-a261-8988fd674832", "a": 1})
-    await mongo.create_collection({"uuid": "9414dccd-fcf8-47ba-8473-bdf755a7dbd3", "b": 2})
+    await mongo.create_collection({"uuid": "1506ca1a-638d-4161-a261-8988fd674832", "owner": "Alice"})
+    await mongo.create_collection({"uuid": "9414dccd-fcf8-47ba-8473-bdf755a7dbd3", "owner": "Alice"})
     res = await mongo.find_collections()
     assert len(res) == 2
 
-    await mongo.create_collection({"_id": "blah", "uuid": "f637f88d-2020-469e-8133-8e2e3561837b"})
+    await mongo.create_collection({"uuid": "f637f88d-2020-469e-8133-8e2e3561837b", "owner": "Alice"})
     with pytest.raises(DuplicateKeyError):
-        await mongo.create_collection({"_id": "blah", "uuid": "fe9e2c6d-6e9d-456b-b9cb-26d6c739401f"})
+        await mongo.create_collection({"uuid": "f637f88d-2020-469e-8133-8e2e3561837b", "owner": "Bob"})
 
     with pytest.raises(KeyError, match="uuid"):
-        await mongo.create_collection({"a": 1})
+        await mongo.create_collection({"owner": "Alice"})
 
 
 @pytest.mark.asyncio
 async def test_16_get_collection(mongo: Mongo) -> None:
     """Use get_collection to find a documents in the collections collection."""
-    await mongo.create_collection({"uuid": "ba92c24c-bbdc-44e0-adfb-6ae256da29ad", "a": 1})
+    await mongo.create_collection({"uuid": "ba92c24c-bbdc-44e0-adfb-6ae256da29ad", "owner": "Alice"})
     res = await mongo.get_collection({"uuid": "ba92c24c-bbdc-44e0-adfb-6ae256da29ad"})
     assert "uuid" in res
     assert res["uuid"] == "ba92c24c-bbdc-44e0-adfb-6ae256da29ad"
@@ -305,33 +305,33 @@ async def test_16_get_collection(mongo: Mongo) -> None:
 @pytest.mark.asyncio
 async def test_17_find_snapshots(mongo: Mongo) -> None:
     """Use find_snapshots to find documents in the snapshots collection."""
-    await mongo.create_snapshot({"uuid": "7e99b2c3-815e-4158-9c41-bed32412b47b", "a": 1})
-    await mongo.create_snapshot({"uuid": "4feb1d5b-0518-464b-b6b5-b7f5a6d44ddd", "b": 2})
-    await mongo.create_snapshot({"uuid": "9b6d2577-b107-4065-aa73-b125db342287", "c": 3})
-    res = await mongo.find_snapshots()
+    await mongo.create_snapshot({"uuid": "7e99b2c3-815e-4158-9c41-bed32412b47b", "owner": "Alice"})
+    await mongo.create_snapshot({"uuid": "4feb1d5b-0518-464b-b6b5-b7f5a6d44ddd", "owner": "Alice"})
+    await mongo.create_snapshot({"uuid": "9b6d2577-b107-4065-aa73-b125db342287", "owner": "Alice"})
+    res = await mongo.find_snapshots({"owner": "Alice"})
     assert len(res) == 3
 
 
 @pytest.mark.asyncio
 async def test_18_create_snapshot(mongo: Mongo) -> None:
     """Use create_snapshot to create documents in the snapshots collection."""
-    await mongo.create_snapshot({"uuid": "1506ca1a-638d-4161-a261-8988fd674832", "a": 1})
-    await mongo.create_snapshot({"uuid": "9414dccd-fcf8-47ba-8473-bdf755a7dbd3", "b": 2})
-    res = await mongo.find_snapshots()
+    await mongo.create_snapshot({"uuid": "1506ca1a-638d-4161-a261-8988fd674832", "owner": "Alice"})
+    await mongo.create_snapshot({"uuid": "9414dccd-fcf8-47ba-8473-bdf755a7dbd3", "owner": "Alice"})
+    res = await mongo.find_snapshots({"owner": "Alice"})
     assert len(res) == 2
 
-    await mongo.create_snapshot({"_id": "blah", "uuid": "f637f88d-2020-469e-8133-8e2e3561837b"})
+    await mongo.create_snapshot({"uuid": "375c1b13-c575-475c-9dbb-fb8edb2478fc", "owner": "Alice"})
     with pytest.raises(DuplicateKeyError):
-        await mongo.create_snapshot({"_id": "blah", "uuid": "fe9e2c6d-6e9d-456b-b9cb-26d6c739401f"})
+        await mongo.create_snapshot({"uuid": "375c1b13-c575-475c-9dbb-fb8edb2478fc", "owner": "Bob"})
 
     with pytest.raises(KeyError, match="uuid"):
-        await mongo.create_snapshot({"a": 1})
+        await mongo.create_snapshot({"owner": "Alice"})
 
 
 @pytest.mark.asyncio
 async def test_19_get_snapshot(mongo: Mongo) -> None:
     """Use get_snapshot to create documents in the snapshots collection."""
-    await mongo.create_snapshot({"uuid": "ba92c24c-bbdc-44e0-adfb-6ae256da29ad", "a": 1})
+    await mongo.create_snapshot({"uuid": "ba92c24c-bbdc-44e0-adfb-6ae256da29ad", "owner": "Alice"})
     res = await mongo.get_snapshot({"uuid": "ba92c24c-bbdc-44e0-adfb-6ae256da29ad"})
     assert "uuid" in res
     assert res["uuid"] == "ba92c24c-bbdc-44e0-adfb-6ae256da29ad"

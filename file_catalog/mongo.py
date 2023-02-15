@@ -294,7 +294,7 @@ class Mongo:
             List of MongoDB collections
         """
         projection = Mongo._get_projection(keys)  # show all fields by default
-        cursor = self.client.collections.find({}, projection)
+        cursor = self.client.collections.find({"uuid": {"$exists": True}}, projection)
         results = await Mongo._limit_result_list(cursor, limit, start)
 
         return results

@@ -38,18 +38,20 @@ class Mongo:
         """Initialize the File Catalog's internal MongoDB client."""
         if uri:
             logger.info(f"MongoClient args: uri={uri}")
-            self.client = MotorClient(uri, authSource=authSource).file_catalog
+            self.close_me = MotorClient(uri, authSource=authSource)
+            self.client = self.close_me.file_catalog
         else:
             logger.info(
                 "MongoClient args: host=%s, port=%s, username=%s", host, port, username
             )
-            self.client = MotorClient(
+            self.close_me = MotorClient(
                 host=host,
                 port=port,
                 authSource=authSource,
                 username=username,
                 password=password,
-            ).file_catalog
+            )
+            self.client = self.close_me.file_catalog
 
         self.executor = ThreadPoolExecutor(max_workers=10)
         logger.info("done setting up Mongo")

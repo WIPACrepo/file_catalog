@@ -7,7 +7,6 @@ test in that package without needing to import them (pytest will
 automatically discover them).
 """
 
-import asyncio
 import logging
 import os
 import socket
@@ -27,10 +26,10 @@ logger = logging.getLogger(__name__)
 MonkeyPatch = pytest.MonkeyPatch
 
 
-@pytest.fixture
-def mongo() -> Mongo:
+@pytest_asyncio.fixture
+async def mongo() -> AsyncGenerator[Mongo, None]:
     """Provide an instance of the File Catalog's internal MongoDB client."""
-    # we'll connect to the provided MongoDB here
+    # setup_function
     mongo_host = os.environ["TEST_DATABASE_HOST"]
     mongo_port = int(os.environ["TEST_DATABASE_PORT"])
 
@@ -53,9 +52,22 @@ def mongo() -> Mongo:
         raise Exception("Unable to connect to MongoDB; do you have a MongoDB at TEST_DATABASE_{HOST,PORT}?")
 
     # create an instance of the File Catalog's internal MongoDB client
-    return Mongo(host=mongo_host,
-                 port=mongo_port,
-                 authSource="admin")
+    fc_mongo = Mongo(host=mongo_host,
+                     port=mongo_port,
+                     authSource="admin")
+    await fc_mongo.create_indexes()
+
+    try:
+        # provide the client as the fixture
+        yield fc_mongo
+
+    # -------------------------------------------------------------------------
+    # NOTE: *Your Unit Test Function Runs Here*
+    # -------------------------------------------------------------------------
+
+    # teardown_function
+    finally:
+        fc_mongo.close_me.close()
 
 
 @pytest.fixture
@@ -102,4 +114,3 @@ async def rest(monkeypatch: MonkeyPatch, mongo: Mongo, port: int) -> AsyncGenera
     finally:
         client.close()
         await rest_server.stop()  # type: ignore[no-untyped-call]
-        await asyncio.sleep(0.01)

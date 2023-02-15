@@ -6,6 +6,7 @@ import os
 import pytest
 import re
 from typing import Any, List, Tuple
+from uuid import uuid4
 
 from file_catalog.mongo import AllKeys, Mongo
 from motor import MotorCollection  # type: ignore[import]
@@ -35,8 +36,6 @@ def test_02_pytest_mongo_fixture(mongo: Mongo) -> None:
 @pytest.mark.asyncio
 async def test_03_create_indexes(mongo: Mongo) -> None:
     """Test that Mongo will create indexes."""
-    await mongo.create_indexes()
-
     async def assert_index(col: MotorCollection,
                            key: List[Tuple[Any, Any]]) -> None:
         """Assert that the provided index key exists in the provided collection."""
@@ -87,7 +86,8 @@ async def test_05__limit_result_list(mongo: Mongo) -> None:
     """Use start and limit to trim query results."""
     # create some records so we have something to start and limit
     for file_size in range(100):
-        await mongo.create_file({"file_size": file_size})
+        uuid = str(uuid4())
+        await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}]})
 
     cursor = mongo.client.files.find({}, {"_id": False}, max_time_ms=10)
     res = await Mongo._limit_result_list(cursor, limit=10)
@@ -115,7 +115,8 @@ async def test_06_find_files(mongo: Mongo) -> None:
     """Use find_files to obtain documents from the files collection."""
     # create some records so we have something to find
     for file_size in range(100):
-        await mongo.create_file({"file_size": file_size})
+        uuid = str(uuid4())
+        await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}]})
 
     res = await mongo.find_files({}, ["file_size"], limit=10, max_time_ms=10)
     assert len(res) == 10
@@ -140,7 +141,8 @@ async def test_07_count_files(mongo: Mongo) -> None:
     """Use find_files to obtain documents from the files collection."""
     # create some records so we have something to find
     for file_size in range(100):
-        await mongo.create_file({"file_size": file_size})
+        uuid = str(uuid4())
+        await mongo.create_file({"uuid": uuid, "file_size": file_size, "locations": [{"site": "WIPAC", "path": f"{uuid}.zip"}]})
 
     assert await mongo.count_files({}, max_time_ms=10) == 100
 
@@ -160,90 +162,107 @@ async def test_08_create_file(mongo: Mongo) -> None:
 @pytest.mark.asyncio
 async def test_09_get_file(mongo: Mongo) -> None:
     """Use get_file to find a document in the files collection."""
-    await mongo.create_file({"uuid": "f1941fae-6b34-45c1-99b9-6121a24eef17", "file_size": 0})
-    res = await mongo.get_file({"uuid": "f1941fae-6b34-45c1-99b9-6121a24eef17"})
+    uuid1 = str(uuid4())
+    uuid2 = str(uuid4())
+
+    await mongo.create_file({"uuid": f"{uuid1}", "file_size": 0, "locations": [{"site": "WIPAC", "path": f"{uuid1}.zip"}]})
+    res = await mongo.get_file({"uuid": f"{uuid1}"})
     assert res
     assert "uuid" in res
-    assert res["uuid"] == "f1941fae-6b34-45c1-99b9-6121a24eef17"
+    assert res["uuid"] == f"{uuid1}"
 
-    res = await mongo.get_file({"uuid": "6bbe9036-c2d9-4015-afd6-8e4fd0cb0148"})
+    res = await mongo.get_file({"uuid": f"{uuid2}"})
     assert not res
 
 
 @pytest.mark.asyncio
 async def test_10__find_file_and_update(mongo: Mongo) -> None:
     """Use _find_file_and_update to update a document in the files collection."""
-    await mongo.create_file({"uuid": "241381a7-2f8a-46fb-907c-3b7f04d64225", "file_size": 0})
-    res = await mongo._find_file_and_update("241381a7-2f8a-46fb-907c-3b7f04d64225", {"$set": {"file_size": 1}})
+    uuid1 = str(uuid4())
+    uuid2 = str(uuid4())
+    uuid3 = str(uuid4())
+
+    await mongo.create_file({"uuid": f"{uuid1}", "file_size": 0, "locations": [{"site": "WIPAC", "path": f"{uuid1}.zip"}]})
+    res = await mongo._find_file_and_update(f"{uuid1}", {"$set": {"file_size": 1}})
     assert "uuid" in res
-    assert res["uuid"] == "241381a7-2f8a-46fb-907c-3b7f04d64225"
+    assert res["uuid"] == f"{uuid1}"
     assert "file_size" in res
     assert res["file_size"] == 1
 
-    await mongo.create_file({"uuid": "d2896648-4fb5-411f-86e0-f7977f00feeb", "file_size": 0})
+    await mongo.create_file({"uuid": f"{uuid2}", "file_size": 0, "locations": [{"site": "WIPAC", "path": f"{uuid2}.zip"}]})
     with pytest.raises(ValueError, match=re.escape("update only works with $ operators")):
-        await mongo._find_file_and_update("d2896648-4fb5-411f-86e0-f7977f00feeb", {"file_size": 1})
+        await mongo._find_file_and_update(f"{uuid2}", {"file_size": 1})
 
-    with pytest.raises(FileNotFoundError, match=re.escape("Record (1958bcc9-8de1-4ab3-a2ca-58dee8ea8028) was not found, so it was not updated")):
-        await mongo._find_file_and_update("1958bcc9-8de1-4ab3-a2ca-58dee8ea8028", {"$set": {"file_size": 1}})
+    with pytest.raises(FileNotFoundError, match=re.escape(f"Record ({uuid3}) was not found, so it was not updated")):
+        await mongo._find_file_and_update(f"{uuid3}", {"$set": {"file_size": 1}})
 
 
 @pytest.mark.asyncio
 async def test_11_update_file(mongo: Mongo) -> None:
     """Use update_file to update a document in the files collection."""
-    await mongo.create_file({"uuid": "241381a7-2f8a-46fb-907c-3b7f04d64225", "file_size": 0})
-    res = await mongo.update_file("241381a7-2f8a-46fb-907c-3b7f04d64225", {"file_size": 1})
+    uuid1 = str(uuid4())
+    uuid2 = str(uuid4())
+
+    await mongo.create_file({"uuid": f"{uuid1}", "file_size": 0, "locations": [{"site": "WIPAC", "path": f"{uuid1}.zip"}]})
+    res = await mongo.update_file(f"{uuid1}", {"file_size": 1})
     assert "uuid" in res
-    assert res["uuid"] == "241381a7-2f8a-46fb-907c-3b7f04d64225"
+    assert res["uuid"] == f"{uuid1}"
     assert "file_size" in res
     assert res["file_size"] == 1
+    assert "locations" in res
+    assert len(res["locations"]) == 1
 
-    with pytest.raises(FileNotFoundError, match=re.escape("Record (1958bcc9-8de1-4ab3-a2ca-58dee8ea8028) was not found, so it was not updated")):
-        await mongo.update_file("1958bcc9-8de1-4ab3-a2ca-58dee8ea8028", {"file_size": 1})
+    with pytest.raises(FileNotFoundError, match=re.escape(f"Record ({uuid2}) was not found, so it was not updated")):
+        await mongo.update_file(f"{uuid2}", {"file_size": 1})
 
 
 @pytest.mark.asyncio
 async def test_12_replace_file(mongo: Mongo) -> None:
     """Use replace_file to update a document in the files collection."""
-    await mongo.create_file({"uuid": "0a7c6db3-5fe3-4033-8a91-199d502830e5", "file_size": 0})
-    await mongo.replace_file({"uuid": "0a7c6db3-5fe3-4033-8a91-199d502830e5", "file_size": 1})
-    res = await mongo.get_file({"uuid": "0a7c6db3-5fe3-4033-8a91-199d502830e5"})
+    uuid1 = str(uuid4())
+    uuid2 = str(uuid4())
+
+    await mongo.create_file({"uuid": f"{uuid1}", "file_size": 0, "locations": [{"site": "WIPAC", "path": f"{uuid1}.zip"}]})
+    await mongo.replace_file({"uuid": f"{uuid1}", "file_size": 1, "locations": [{"site": "WIPAC", "path": f"{uuid1}.zip"}]})
+    res = await mongo.get_file({"uuid": f"{uuid1}"})
     assert res
     assert "uuid" in res
-    assert res["uuid"] == "0a7c6db3-5fe3-4033-8a91-199d502830e5"
+    assert res["uuid"] == f"{uuid1}"
     assert "file_size" in res
     assert res["file_size"] == 1
+    assert "locations" in res
+    assert len(res["locations"]) == 1
 
     await mongo.create_file({"uuid": "d6912180-caa9-4700-a405-d891d74d6065", "file_size": 0})
     with pytest.raises(KeyError, match="uuid"):
         await mongo.replace_file({"file_size": 1})
 
-    await mongo.create_file({"uuid": "07236a3a-ca04-40ef-8797-35e6242fbf96", "file_size": 1})
-    await mongo.create_file({"uuid": "07236a3a-ca04-40ef-8797-35e6242fbf96", "file_size": 2})
-    await mongo.create_file({"uuid": "07236a3a-ca04-40ef-8797-35e6242fbf96", "file_size": 3})
-    with pytest.raises(Exception, match=re.escape("id 07236a3a-ca04-40ef-8797-35e6242fbf96 matches 3 documents; preventing ambiguous replacement of files document")):
-        await mongo.replace_file({"uuid": "07236a3a-ca04-40ef-8797-35e6242fbf96", "file_size": 4})
-
-    with pytest.raises(Exception, match=re.escape("updated 0 files with id db465f42-34a4-4db7-b6bb-11583dcb2be2")):
-        await mongo.replace_file({"uuid": "db465f42-34a4-4db7-b6bb-11583dcb2be2", "file_size": 4})
+    with pytest.raises(Exception, match=re.escape(f"updated 0 files with id {uuid2}")):
+        await mongo.replace_file({"uuid": f"{uuid2}", "file_size": 4, "locations": [{"site": "WIPAC", "path": f"{uuid2}.zip"}]})
 
 
 @pytest.mark.asyncio
 async def test_13_delete_file(mongo: Mongo) -> None:
     """Use delete_file to delete a document from the files collection."""
-    await mongo.create_file({"uuid": "2b5228f1-529e-471e-8b28-fd5971122730", "file_size": 0})
-    await mongo.delete_file({"uuid": "2b5228f1-529e-471e-8b28-fd5971122730"})
-    res = await mongo.get_file({"uuid": "2b5228f1-529e-471e-8b28-fd5971122730"})
+    uuid1 = str(uuid4())
+    uuid2 = str(uuid4())
+    uuid3 = str(uuid4())
+    uuid5 = str(uuid4())
+    uuid6 = str(uuid4())
+
+    await mongo.create_file({"uuid": f"{uuid1}", "file_size": 0, "locations": [{"site": "WIPAC", "path": f"{uuid1}.zip"}]})
+    await mongo.delete_file({"uuid": f"{uuid1}"})
+    res = await mongo.get_file({"uuid": f"{uuid1}"})
     assert not res
 
-    await mongo.create_file({"uuid": "1a95cca0-5a27-4773-aced-bee7401ebdca", "file_size": 1})
-    await mongo.create_file({"uuid": "1a95cca0-5a27-4773-aced-bee7401ebdca", "file_size": 2})
-    await mongo.create_file({"uuid": "1a95cca0-5a27-4773-aced-bee7401ebdca", "file_size": 3})
-    with pytest.raises(Exception, match=re.escape("filters {'uuid': '1a95cca0-5a27-4773-aced-bee7401ebdca'} matches 3 documents; preventing ambiguous delete of files document")):
-        await mongo.delete_file({"uuid": "1a95cca0-5a27-4773-aced-bee7401ebdca"})
+    await mongo.create_file({"uuid": f"{uuid2}", "file_size": 2, "locations": [{"site": "WIPAC", "path": f"{uuid2}.zip"}]})
+    await mongo.create_file({"uuid": f"{uuid3}", "file_size": 2, "locations": [{"site": "WIPAC", "path": f"{uuid3}.zip"}]})
+    await mongo.create_file({"uuid": f"{uuid5}", "file_size": 2, "locations": [{"site": "WIPAC", "path": f"{uuid5}.zip"}]})
+    with pytest.raises(Exception, match=re.escape("filters {'file_size': 2} matches 3 documents; preventing ambiguous delete of files document")):
+        await mongo.delete_file({"file_size": 2})
 
-    with pytest.raises(Exception, match=re.escape("deleted 0 files with filters {'uuid': '393985ee-83da-4230-a03c-76cb580accf3'}")):
-        await mongo.delete_file({"uuid": "393985ee-83da-4230-a03c-76cb580accf3"})
+    with pytest.raises(Exception, match=re.escape(f"deleted 0 files with filters {{'uuid': '{uuid6}'}}")):
+        await mongo.delete_file({"uuid": f"{uuid6}"})
 
 
 @pytest.mark.asyncio

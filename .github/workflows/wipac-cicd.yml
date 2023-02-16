@@ -80,8 +80,7 @@ jobs:
           TEST_DATABASE_PORT: 27017
         run: |
           pip install --upgrade pip wheel setuptools pytest
-          pip install -r requirements.txt -r requirements-dev.txt
-          pip install .
+          pip install .[dev]
           pytest -vvvv tests
 
   release:

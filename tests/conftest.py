@@ -56,17 +56,15 @@ async def mongo() -> AsyncGenerator[Mongo, None]:
                      authSource="admin")
     await fc_mongo.create_indexes()
 
-    try:
-        # provide the client as the fixture
-        yield fc_mongo
+    # provide the client as the fixture
+    yield fc_mongo
 
     # -------------------------------------------------------------------------
     # NOTE: *Your Unit Test Function Runs Here*
     # -------------------------------------------------------------------------
 
     # teardown_function
-    finally:
-        fc_mongo.close_me.close()
+    fc_mongo.close_me.close()
 
 
 @pytest.fixture
@@ -101,15 +99,15 @@ async def rest(monkeypatch: MonkeyPatch, mongo: Mongo, port: int) -> AsyncGenera
                          debug=True,
                          mongo=mongo)
 
-    try:
-        client = RestClient(f"http://localhost:{port}", timeout=5, retries=0)
-        yield client
+    client = RestClient(f"http://localhost:{port}", timeout=5, retries=0)
+
+    # provide the client as the fixture
+    yield client
 
     # -------------------------------------------------------------------------
     # NOTE: *Your Unit Test Function Runs Here*
     # -------------------------------------------------------------------------
 
     # teardown_function
-    finally:
-        client.close()
-        await rest_server.stop()  # type: ignore[no-untyped-call]
+    client.close()
+    await rest_server.stop()  # type: ignore[no-untyped-call]

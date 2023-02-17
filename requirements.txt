@@ -38,30 +38,30 @@ ldap3==2.9.1
     # via wipac-file-catalog (setup.py)
 motor==3.1.1
     # via wipac-file-catalog (setup.py)
-opentelemetry-api==1.15.0
+opentelemetry-api==1.16.0
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-sdk
     #   wipac-telemetry
-opentelemetry-exporter-jaeger==1.15.0
+opentelemetry-exporter-jaeger==1.16.0
     # via wipac-telemetry
-opentelemetry-exporter-jaeger-proto-grpc==1.15.0
+opentelemetry-exporter-jaeger-proto-grpc==1.16.0
     # via opentelemetry-exporter-jaeger
-opentelemetry-exporter-jaeger-thrift==1.15.0
+opentelemetry-exporter-jaeger-thrift==1.16.0
     # via opentelemetry-exporter-jaeger
-opentelemetry-exporter-otlp-proto-http==1.15.0
+opentelemetry-exporter-otlp-proto-http==1.16.0
     # via wipac-telemetry
-opentelemetry-proto==1.15.0
+opentelemetry-proto==1.16.0
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.15.0
+opentelemetry-sdk==1.16.0
     # via
     #   opentelemetry-exporter-jaeger-proto-grpc
     #   opentelemetry-exporter-jaeger-thrift
     #   opentelemetry-exporter-otlp-proto-http
     #   wipac-telemetry
-opentelemetry-semantic-conventions==0.36b0
+opentelemetry-semantic-conventions==0.37b0
     # via opentelemetry-sdk
 protobuf==3.20.3
     # via
@@ -114,11 +114,11 @@ typing-extensions==4.5.0
     #   wipac-telemetry
 urllib3==1.26.14
     # via requests
-wipac-dev-tools==1.6.10
+wipac-dev-tools==1.6.12
     # via
     #   wipac-rest-tools
     #   wipac-telemetry
-wipac-rest-tools[telemetry]==1.4.10
+wipac-rest-tools[telemetry]==1.4.12
     # via wipac-file-catalog (setup.py)
 wipac-telemetry==0.2.5
     # via wipac-rest-tools

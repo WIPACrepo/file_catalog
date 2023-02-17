@@ -15,6 +15,7 @@ from typing import Any, AsyncGenerator, cast, Dict
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 import pytest
+from pytest import MonkeyPatch
 import pytest_asyncio
 from rest_tools.client import RestClient
 
@@ -22,8 +23,6 @@ from file_catalog.mongo import Mongo
 from file_catalog.server import create
 
 logger = logging.getLogger(__name__)
-
-MonkeyPatch = pytest.MonkeyPatch
 
 
 @pytest_asyncio.fixture

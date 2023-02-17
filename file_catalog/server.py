@@ -7,7 +7,7 @@
 import datetime
 import logging
 import os
-import random
+import secrets
 import sys
 from pkgutil import get_loader
 from typing import Any, Callable, Dict, Optional, cast
@@ -35,7 +35,7 @@ FC_AUTH_ROLES = ["system"]
 # Auth
 # --------------------------------------------------------------------------------------
 
-if bool(os.environ.get('CI_TEST_ENV', False)):
+if 'CI_TEST_ENV' in os.environ:
     def fc_auth(**_auth: Any) -> Callable[..., Any]:
         def make_wrapper(method: Callable[..., Any]) -> Any:
             async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
@@ -116,7 +116,7 @@ def create(config: Dict[str, Any],
     if template_path is None:
         raise Exception('bad template path')
 
-    args_dict = {
+    handler_setup = {
         "auth": {
             "audience": config["AUTH_AUDIENCE"],
             "openid_url": config["AUTH_OPENID_URL"],
@@ -126,13 +126,13 @@ def create(config: Dict[str, Any],
         "db": mongo,
         "debug": debug,
     }
-    if bool(os.environ.get('CI_TEST_ENV', False)):
-        del args_dict["auth"]
-    args = RestHandlerSetup(args_dict)  # type: ignore
+    if 'CI_TEST_ENV' in os.environ:
+        del handler_setup["auth"]
+    args = RestHandlerSetup(handler_setup)  # type: ignore
     args["config"] = config
     args["db"] = mongo
 
-    cookie_secret = ''.join(random.choice('0123456789abcdef') for _ in range(64))
+    cookie_secret = secrets.token_hex(32)  # 32 bytes = 256-bits
     if 'FC_COOKIE_SECRET' in config:
         cookie_secret = config['FC_COOKIE_SECRET']
     else:
@@ -145,9 +145,6 @@ def create(config: Dict[str, Any],
                         static_path=static_path,
                         template_path=template_path,
                         xsrf_cookies=True)  # type: ignore[no-untyped-call]
-
-    # server.add_route(r"/",                                           MainHandler,                            args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
-    # server.add_route(r"/account",                                    AccountHandler,                         args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
 
     server.add_route(r"/api",                                        HATEOASHandler,                         args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
 
@@ -165,118 +162,10 @@ def create(config: Dict[str, Any],
     server.add_route(r"/api/snapshots/([^\/]+)",                     SingleSnapshotHandler,                  args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
     server.add_route(r"/api/snapshots/([^\/]+)/files",               SingleSnapshotFilesHandler,             args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
 
-    # server.add_route(r"/login",                                      LoginHandler,                           args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
-
     port = config["FC_PORT"]
     server.startup(port=port)  # type: ignore[no-untyped-call]
 
     return server
-
-
-# --------------------------------------------------------------------------------------
-# Main Routes (unused)
-# --------------------------------------------------------------------------------------
-
-# class MainHandler(tornado.web.RequestHandler):
-#     """Main HTML handler."""
-#
-#     def initialize(  # pylint: disable=C0116,W0201
-#         self,
-#         config: Dict[str, Any],
-#         base_url: str = "/",
-#         debug: bool = False,
-#         auth: Optional[Auth] = None,
-#     ) -> None:  # noqa: D102
-#         self.base_url = base_url
-#         self.debug = debug
-#         self.config = config
-#         self.auth = auth
-#         self.auth_key: Optional[bytes] = None
-#         self.current_user_secure = None
-#         self.address = config['FC_PUBLIC_URL']
-#
-#     def get_template_namespace(self) -> Dict[str, Any]:
-#         """Get the template namespace."""
-#         namespace = super().get_template_namespace()
-#         namespace['version'] = file_catalog.__version__
-#         return namespace
-#
-#     def get_current_user(self) -> Optional[str]:
-#         """Get the current user by parsing the token."""
-#         try:
-#             token = self.get_secure_cookie('token')
-#             logger.info('token: %r', token)
-#             # if `auth` is None -> raise Exception
-#             data = self.auth.validate(token, audience=['ANY'])  # type: ignore[union-attr]
-#             self.auth_key = token
-#             return cast(str, data['sub'])
-#         except Exception:  # pylint: disable=W0703
-#             logger.warning('failed auth', exc_info=True)
-#         return None
-#
-#     async def get(self) -> None:
-#         """Handle GET requests."""
-#         try:
-#             self.render('index.html')
-#         except Exception as e:  # pylint: disable=W0703
-#             logger.warning('Error in main handler', exc_info=True)
-#             message = 'Error generating page.'
-#             if self.debug:
-#                 message += '\n' + str(e)
-#             self.send_error(reason=message)
-#
-#     def write_error(self, status_code: int = 500, **kwargs: Any) -> None:
-#         """Write out custom error page."""
-#         self.set_status(status_code)
-#         if status_code >= 500:
-#             self.write('<h2>Internal Error</h2>')
-#         else:
-#             self.write('<h2>Request Error</h2>')
-#         if 'message' in kwargs:
-#             self.write('<br />'.join(kwargs['message'].split('\n')))
-#         self.finish()
-#
-#
-# class LoginHandler(MainHandler):
-#     """Login HTML handler."""
-#
-#     @catch_error  # type: ignore[misc]
-#     async def get(self) -> None:
-#         """Handle GET requests."""
-#         if not self.get_argument('access', ''):
-#             url = url_concat(self.config['TOKEN_URL'] + '/token', {
-#                 'redirect': self.address + self.request.uri,
-#                 'state': self.get_argument('next', '/'),
-#                 'scope': 'file-catalog',
-#             })
-#             logging.info('redirect to %s', url)
-#             self.redirect(url)
-#             return
-#
-#         redirect = self.get_argument('state', '/')
-#         access = self.get_argument('access')
-#         self.set_secure_cookie('token', access)
-#         logging.info('request: %r %r', redirect, access)
-#         self.redirect(redirect)
-#
-#
-# class AccountHandler(MainHandler):
-#     """Account HTML handler."""
-#
-#     @catch_error  # type: ignore[misc]
-#     async def get(self) -> None:
-#         """Handle Handle GET requests."""
-#         if not self.get_argument('access', ''):
-#             url = url_concat(self.config['TOKEN_URL'] + '/token', {
-#                 'redirect': self.address + self.request.uri,
-#                 'scope': 'file-catalog',
-#             })
-#             self.redirect(url)
-#             return
-#
-#         access = self.get_argument('access')
-#         refresh = self.get_argument('refresh')
-#         self.render('account.html', authkey=refresh, tempkey=access)
 
 
 # --------------------------------------------------------------------------------------

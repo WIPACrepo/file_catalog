@@ -35,3 +35,8 @@ current_path = os.path.dirname(os.path.realpath(__file__))
 with open(os.path.join(current_path, '..', 'requirements.txt')) as f:
     requirements_txt = f.read()
 check_versions(requirements_txt)
+
+current_path = os.path.dirname(os.path.realpath(__file__))
+with open(os.path.join(current_path, '..', 'requirements-dev.txt')) as f:
+    requirements_txt = f.read()
+check_versions(requirements_txt)

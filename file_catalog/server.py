@@ -17,7 +17,7 @@ from rest_tools.server import keycloak_role_auth, RestHandler, RestHandlerSetup,
 from tornado.escape import json_decode, json_encode
 from tornado.web import HTTPError
 
-from . import argbuilder, deconfliction, urlargparse2
+from . import argbuilder, deconfliction, urlargparse
 from .mongo import Mongo
 from .schema import types
 from .schema.validation import Validation
@@ -122,7 +122,6 @@ def create(config: Dict[str, Any],
             "audience": config["AUTH_AUDIENCE"],
             "openid_url": config["AUTH_OPENID_URL"],
         },
-        "base_url": "/api",
         "config": config,
         "db": mongo,
         "debug": debug,
@@ -130,6 +129,7 @@ def create(config: Dict[str, Any],
     if 'CI_TEST_ENV' in os.environ:
         del handler_setup["auth"]
     args = RestHandlerSetup(handler_setup)  # type: ignore
+    args["base_url"] = "/api"
     args["config"] = config
     args["db"] = mongo
 
@@ -180,7 +180,7 @@ class APIHandler(RestHandler):
         self,
         config: Dict[str, Any],
         db: Optional[Mongo] = None,
-        base_url: str = "/api",
+        base_url: str = "/",
         **kwargs: Any,
     ) -> None:
         """Initialize handler."""
@@ -241,7 +241,7 @@ class FilesHandler(APIHandler):
     async def get(self) -> None:
         """Handle GET requests."""
         try:
-            kwargs = urlargparse2.parse(self.request.query)
+            kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
             argbuilder.build_start(kwargs)
             argbuilder.build_files_query(kwargs)
@@ -321,7 +321,7 @@ class FilesCountHandler(APIHandler):
     async def get(self) -> None:
         """Handle GET request."""
         try:
-            kwargs = urlargparse2.parse(self.request.query)
+            kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_files_query(kwargs)
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
@@ -623,7 +623,7 @@ class CollectionsHandler(CollectionBaseHandler):
     async def get(self) -> None:
         """Handle GET request."""
         try:
-            kwargs = urlargparse2.parse(self.request.query)
+            kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
             argbuilder.build_start(kwargs)
             argbuilder.build_keys(kwargs)
@@ -722,7 +722,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
 
         if ret:
             try:
-                kwargs = urlargparse2.parse(self.request.query)
+                kwargs = urlargparse.parse(self.request.query)
                 argbuilder.build_limit(kwargs, self.config)
                 argbuilder.build_start(kwargs)
                 kwargs['query'] = json_decode(ret['query'])
@@ -760,7 +760,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             raise HTTPError(400, reason='Cannot find collection')
 
         try:
-            kwargs = urlargparse2.parse(self.request.query)
+            kwargs = urlargparse.parse(self.request.query)
             argbuilder.build_limit(kwargs, self.config)
             argbuilder.build_start(kwargs)
             argbuilder.build_keys(kwargs)
@@ -869,7 +869,7 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
 
         if ret:
             try:
-                kwargs = urlargparse2.parse(self.request.query)
+                kwargs = urlargparse.parse(self.request.query)
                 argbuilder.build_limit(kwargs, self.config)
                 argbuilder.build_start(kwargs)
                 kwargs['query'] = {'uuid': {'$in': ret['files']}}

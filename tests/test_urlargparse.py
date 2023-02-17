@@ -1,56 +1,16 @@
-# test_urlargparse2.py
-"""Unit tests for file_catalog/urlargparse2.py."""
+# test_urlargparse.py
+"""Unit tests for file_catalog/urlargparse.py."""
 
 import pytest
 from tornado.escape import url_unescape
 
-from file_catalog.urlargparse import encode as old_encode
-from file_catalog.urlargparse import parse as old_parse
-from file_catalog.urlargparse2 import encode as encode
-from file_catalog.urlargparse2 import parse as parse
+from file_catalog.urlargparse import encode as encode
+from file_catalog.urlargparse import parse as parse
 
 
 def test_00_always_succeed() -> None:
     """Succeed with flying colors."""
     assert True
-
-
-def test_01_jquery_with_old_encode() -> None:
-    """Test jQuery.param style encoding with old_encode."""
-    # See: https://api.jquery.com/jQuery.param/
-    OBJ = {"a": [2, 3, 4]}
-    ANS = "a%5B%5D=2&a%5B%5D=3&a%5B%5D=4"
-    assert "a[]=2&a[]=3&a[]=4" == url_unescape(ANS)
-    assert ANS == old_encode(OBJ)  # type: ignore[no-untyped-call]
-
-
-def test_02_jquery_with_old_encode() -> None:
-    """Test jQuery.param style encoding with old_encode."""
-    # See: https://api.jquery.com/jQuery.param/
-    OBJ = {"a": {"b": 1, "c": 2}, "d": [3, 4, {"e": 5}]}
-    ANS = "a%5Bb%5D=1&a%5Bc%5D=2&d%5B%5D=3&d%5B%5D=4&d%5B2%5D%5Be%5D=5"
-    assert "a[b]=1&a[c]=2&d[]=3&d[]=4&d[2][e]=5" == url_unescape(ANS)
-    assert ANS == old_encode(OBJ)  # type: ignore[no-untyped-call]
-
-
-def test_03_jquery_with_old_parse_broken() -> None:
-    """Test jQuery.param style parsing is broken with old_parse."""
-    # See: https://api.jquery.com/jQuery.param/
-    OBJ = "a%5B%5D=2&a%5B%5D=3&a%5B%5D=4"
-    assert "a[]=2&a[]=3&a[]=4" == url_unescape(OBJ)
-    # Should be: ANS = {"a": [2, 3, 4]}
-    ANS = {'a': {'': 4}}
-    assert ANS == old_parse(OBJ)
-
-
-def test_04_jquery_with_old_parse_broken() -> None:
-    """Test jQuery.param style parsing is broken with old_parse."""
-    # See: https://api.jquery.com/jQuery.param/
-    OBJ = "a%5Bb%5D=1&a%5Bc%5D=2&d%5B%5D=3&d%5B%5D=4&d%5B2%5D%5Be%5D=5"
-    assert "a[b]=1&a[c]=2&d[]=3&d[]=4&d[2][e]=5" == url_unescape(OBJ)
-    # Should be: ANS = {"a": {"b": 1, "c": 2}, "d": [3, 4, {"e": 5}]}
-    ANS = {'a': {'b': 1, 'c': 2}, 'd': {2: {'e': 5}, '': 4}}
-    assert ANS == old_parse(OBJ)
 
 
 def test_05_jquery_with_encode() -> None:

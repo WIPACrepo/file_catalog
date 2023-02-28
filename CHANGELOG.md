@@ -1,4 +1,15 @@
 # Changelog
+
+<!--next-version-placeholder-->
+
+## v1.9.3 (2023-02-28)
+### Other
+* Keycloak Authentication ([#138](https://github.com/WIPACrepo/file_catalog/issues/138)) ([`6623fb2`](https://github.com/WIPACrepo/file_catalog/commit/6623fb2d5dfb168ce41e002ed0f85bac5d3f63f8))
+* <bot> update requirements.txt ([`ce41938`](https://github.com/WIPACrepo/file_catalog/commit/ce41938361a81dfc4ddc74cd073355c40a11be03))
+* <bot> update setup.cfg ([`79445ed`](https://github.com/WIPACrepo/file_catalog/commit/79445ed947bd012efc0462f7218a1e328bd8cc46))
+* Add CodeQL workflow for GitHub code scanning ([#136](https://github.com/WIPACrepo/file_catalog/issues/136)) ([`e0cde7e`](https://github.com/WIPACrepo/file_catalog/commit/e0cde7eb3b7dfeb3e34b71e0bc990a799979ebcf))
+* Bump certifi from 2021.10.8 to 2022.12.7 ([#137](https://github.com/WIPACrepo/file_catalog/issues/137)) ([`83ef4d2`](https://github.com/WIPACrepo/file_catalog/commit/83ef4d2f35a45d87ed481595a9c0394453adbf84))
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)

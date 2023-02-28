@@ -1,10 +1,9 @@
 <!--- Top of README Badges (automated) --->
-[![CircleCI](https://img.shields.io/circleci/build/github/WIPACrepo/file_catalog)](https://app.circleci.com/pipelines/github/WIPACrepo/file_catalog?branch=master&filter=all) [![PyPI](https://img.shields.io/pypi/v/wipac-file-catalog)](https://pypi.org/project/wipac-file-catalog/) [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/WIPACrepo/file_catalog?include_prereleases)](https://github.com/WIPACrepo/file_catalog/) [![PyPI - License](https://img.shields.io/pypi/l/wipac-file-catalog)](https://github.com/WIPACrepo/file_catalog/blob/master/LICENSE) [![Lines of code](https://img.shields.io/tokei/lines/github/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/) [![GitHub issues](https://img.shields.io/github/issues/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/issues?q=is%3Aissue+sort%3Aupdated-desc+is%3Aopen) [![GitHub pull requests](https://img.shields.io/github/issues-pr/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/pulls?q=is%3Apr+sort%3Aupdated-desc+is%3Aopen) 
+[![PyPI](https://img.shields.io/pypi/v/wipac-file-catalog)](https://pypi.org/project/wipac-file-catalog/) [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/WIPACrepo/file_catalog?include_prereleases)](https://github.com/WIPACrepo/file_catalog/) [![PyPI - License](https://img.shields.io/pypi/l/wipac-file-catalog)](https://github.com/WIPACrepo/file_catalog/blob/master/LICENSE) [![Lines of code](https://img.shields.io/tokei/lines/github/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/) [![GitHub issues](https://img.shields.io/github/issues/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/issues?q=is%3Aissue+sort%3Aupdated-desc+is%3Aopen) [![GitHub pull requests](https://img.shields.io/github/issues-pr/WIPACrepo/file_catalog)](https://github.com/WIPACrepo/file_catalog/pulls?q=is%3Apr+sort%3Aupdated-desc+is%3Aopen) 
 <!--- End of README Badges (automated) --->
 # file_catalog
 Store file metadata information in a file catalog
 
-[![CircleCI](https://circleci.com/gh/WIPACrepo/file_catalog/tree/master.svg?style=shield)](https://circleci.com/gh/WIPACrepo/file_catalog/tree/master)
 
 
 ## Prerequisites
@@ -18,15 +17,6 @@ To get the prerequisites necessary for the file catalog:
 To start an instance of the server running:
 
     python -m file_catalog
-
-
-
-## Running the unit tests
-To run the unit tests for the service, you need the
-[CircleCI CLI](https://circleci.com/docs/2.0/local-cli/).
-Then run it with:
-
-    circleci local execute --job test
 
 
 
@@ -272,38 +262,17 @@ Follow these steps to get a development environment for the File Catalog:
     cd ~/projects
     git clone git@github.com:WIPACrepo/file_catalog.git
     cd file_catalog
-    python3.7 -m venv ./env
-    source env/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
+    ./setupenv.sh
 
-### Vagrant
-To use Vagrant to set up a VM to run a File Catalog:
+### MongoDB Instance for Testing
+This command will spin up a disposable MongoDB instance using Docker:
 
-    vagrant up
-    vagrant ssh
-    cd file_catalog
-    scl enable rh-python36 bash
-    python -m venv ./env
-    source env/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-
-To use the VM in future sessions:
-
-    vagrant up
-    vagrant ssh
-    cd file_catalog
-    source env/bin/activate
-    python -m file_catalog
-
-### Unit testing
-In case it comes in handy, the following command can be used to run
-a single unit test. Replace the name of the test as necessary.
-
-    circleci local execute --job test -e PYTEST_ADDOPTS='-s tests/test_files.py -k test_10_files'
-
-Note that for a file to be picked up, it must be added to git first (with git add).
+    docker run \
+        --detach \
+        --name test-mongo \
+        --network=host \
+        --rm \
+        circleci/mongo:latest-ram
 
 ### Building a Docker container
 The following commands will create a Docker container for the file-catalog:

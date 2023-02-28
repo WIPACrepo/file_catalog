@@ -1,51 +1,62 @@
+# server.py
 """File Catalog REST Server Interface."""
 
 # fmt: off
 # pylint: disable=R0913,R0903
 
-from __future__ import absolute_import, division, print_function
-
-import copy
 import datetime
 import logging
 import os
-import random
+import secrets
 import sys
-from collections import OrderedDict
-from importlib.abc import Loader
 from pkgutil import get_loader
-from typing import Any, Dict, Optional, cast
+from typing import Any, Callable, Dict, Optional, cast
 from uuid import uuid1
 
-import pymongo.errors  # type: ignore[import]
-import tornado.ioloop
-import tornado.web
-from rest_tools.server import RestHandler, handler
-from rest_tools.utils import Auth
+from rest_tools.server import keycloak_role_auth, RestHandler, RestHandlerSetup, RestServer
 from tornado.escape import json_decode, json_encode
-from tornado.httputil import url_concat
-
-# local imports
-import file_catalog
+from tornado.web import HTTPError
 
 from . import argbuilder, deconfliction, urlargparse
 from .mongo import Mongo
 from .schema import types
 from .schema.validation import Validation
 
-logger = logging.getLogger('server')
+logger = logging.getLogger(__name__)
 
 StrDict = Dict[str, Any]
+
+CONFIG_LOGGING_DENY_LIST = ["FC_COOKIE_SECRET", "MONGODB_AUTH_PASS"]
+
+FC_AUTH_PREFIX = "resource_access.file-catalog.roles"
+FC_AUTH_ROLES = ["system"]
+
+
+# --------------------------------------------------------------------------------------
+# Auth
+# --------------------------------------------------------------------------------------
+
+if 'CI_TEST_ENV' in os.environ:
+    def fc_auth(**_auth: Any) -> Callable[..., Any]:
+        def make_wrapper(method: Callable[..., Any]) -> Any:
+            async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+                # warn the user about authentication being disabled in testing
+                logger.warning("TESTING: auth disabled")
+                # go ahead and run the handler
+                return await method(self, *args, **kwargs)
+            return wrapper
+        return make_wrapper
+else:
+    fc_auth = keycloak_role_auth
 
 
 # --------------------------------------------------------------------------------------
 # Utils
 # --------------------------------------------------------------------------------------
 
-
 def get_pkgdata_filename(package: str, resource: str) -> Optional[str]:
     """Get a filename for a resource bundled within the package."""
-    loader = cast(Optional[Loader], get_loader(package))
+    loader = get_loader(package)
     if loader is None or not hasattr(loader, 'get_data'):
         return None
     mod = sys.modules.get(package) or loader.load_module(package)
@@ -76,21 +87,6 @@ def tornado_logger(handler: Any) -> None:
                handler._request_summary(), request_time)
 
 
-def sort_dict(dict_: Dict[str, Any]) -> 'OrderedDict[str, Any]':
-    """Create an OrderedDict by taking `dict` (`dict_`) and orders its keys.
-
-    If a key contains a `dict` it will call this function recursively.
-    """
-    odict = OrderedDict(sorted(dict_.items()))
-
-    # check for dicts in values
-    for key in odict:
-        if isinstance(odict[key], dict):
-            odict[key] = sort_dict(odict[key])
-
-    return odict
-
-
 def set_last_modification_date(metadata: types.Metadata) -> None:
     """Set the `"meta_modify_date"` field."""
     metadata['meta_modify_date'] = str(datetime.datetime.utcnow())
@@ -99,212 +95,83 @@ def set_last_modification_date(metadata: types.Metadata) -> None:
 # --------------------------------------------------------------------------------------
 # Server Setup
 # --------------------------------------------------------------------------------------
-# NOTE - future dev can replace with `rest_tools.handler.RestHandlerSetup/RestServer` if needed
 
-
-class Server:
-    """A file_catalog server instance."""
-
-    def __init__(  # pylint: disable=R0914
-        self,
-        config: Dict[str, Any],
-        port: int = 8888,
-        debug: bool = False,
-        db_host: str = "localhost",
-        db_port: int = 27017,
-        db_auth_source: str = "admin",
-        db_user: Optional[str] = None,
-        db_pass: Optional[str] = None,
-        db_uri: Optional[str] = None,
-    ) -> None:
-        static_path = get_pkgdata_filename('file_catalog', 'data/www')
-        if static_path is None:
-            raise Exception('bad static path')
-        template_path = get_pkgdata_filename('file_catalog', 'data/www_templates')
-        if template_path is None:
-            raise Exception('bad template path')
-
-        logger.info('db host: %s', db_host)
-        logger.info('db port: %s', db_port)
-        logger.info('db auth source: %s', db_auth_source)
-        logger.info('db user: %s', db_user)
-        logger.info('server port: %r', port)
-        logger.info('debug: %r', debug)
-        redacted_config = copy.deepcopy(config)
-        redacted_config['MONGODB_AUTH_PASS'] = 'REDACTED'
-        logger.info('redacted config: %r', redacted_config)
-
-        auth: Optional[Auth] = None
-        if 'TOKEN_KEY' in config:
-            auth = Auth(
-                algorithm=config['TOKEN_ALGORITHM'],
-                secret=config['TOKEN_KEY'],
-                issuer=config['TOKEN_URL']
-            )
-
-        main_args = {
-            'base_url': '/api',
-            'debug': debug,
-            'config': config,
-            'auth': auth
-        }
-
-        api_args = main_args.copy()
-        api_args.update({
-            'db': Mongo(host=db_host, port=db_port, authSource=db_auth_source,
-                        username=db_user, password=db_pass, uri=db_uri),
-            'config': config,
-        })
-
-        if config['FC_COOKIE_SECRET'] is not None:
-            cookie_secret = config['FC_COOKIE_SECRET']
+def create(config: Dict[str, Any],
+           mongo: Mongo,
+           port: int = 8888,
+           debug: bool = False) -> RestServer:
+    """Create an instance of the File Catalog server."""
+    for key in config:
+        if key not in CONFIG_LOGGING_DENY_LIST:
+            logger.info(f"config: {key} => '{config[key]}'")
         else:
-            cookie_secret = ''.join(chr(random.randint(0, 128)) for _ in range(16))
+            logger.info(f"config: {key} => 'REDACTED'")
+    logger.info(f"port: {port}")
+    logger.info(f"debug: {debug}")
 
-        app = tornado.web.Application(
-            [
-                (r"/", MainHandler, main_args),
-                (r"/login", LoginHandler, main_args),
-                (r"/account", AccountHandler, main_args),
-                (r"/api", HATEOASHandler, api_args),
-                (r"/api/files", FilesHandler, api_args),
-                (r"/api/files/count", FilesCountHandler, api_args),
-                (r"/api/files/([^\/]+)", SingleFileHandler, api_args),
-                (r"/api/files/([^\/]+)/actions/remove_location", SingleFileActionsRemoveLocationHandler, api_args),
-                (r"/api/files/([^\/]+)/locations", SingleFileLocationsHandler, api_args),
-                (r"/api/collections", CollectionsHandler, api_args),
-                (r"/api/collections/([^\/]+)", SingleCollectionHandler, api_args),
-                (r"/api/collections/([^\/]+)/files", SingleCollectionFilesHandler, api_args),
-                (r"/api/collections/([^\/]+)/snapshots", SingleCollectionSnapshotsHandler, api_args),
-                (r"/api/snapshots/([^\/]+)", SingleSnapshotHandler, api_args),
-                (r"/api/snapshots/([^\/]+)/files", SingleSnapshotFilesHandler, api_args),
-            ],
-            static_path=static_path,
-            template_path=template_path,
-            log_function=tornado_logger,
-            login_url='/login',
-            xsrf_cookies=True,
-            cookie_secret=cookie_secret,
-            debug=debug,
-        )
-        app.listen(port)
+    static_path = get_pkgdata_filename('file_catalog', 'data/www')
+    if static_path is None:
+        raise Exception('bad static path')
 
-    def run(self) -> None:  # pylint: disable=R0201
-        """Start IO loop."""
-        tornado.ioloop.IOLoop.current().start()
+    template_path = get_pkgdata_filename('file_catalog', 'data/www_templates')
+    if template_path is None:
+        raise Exception('bad template path')
 
+    handler_setup = {
+        "auth": {
+            "audience": config["AUTH_AUDIENCE"],
+            "openid_url": config["AUTH_OPENID_URL"],
+        },
+        "config": config,
+        "db": mongo,
+        "debug": debug,
+    }
+    if 'CI_TEST_ENV' in os.environ:
+        del handler_setup["auth"]
+    args = RestHandlerSetup(handler_setup)  # type: ignore
+    args["base_url"] = "/api"
+    args["config"] = config
+    args["db"] = mongo
 
-# --------------------------------------------------------------------------------------
-# Main Routes (unused)
-# --------------------------------------------------------------------------------------
+    cookie_secret = secrets.token_hex(32)  # 32 bytes = 256-bits
+    if 'FC_COOKIE_SECRET' in config:
+        cookie_secret = config['FC_COOKIE_SECRET']
+    else:
+        logger.error("FC_COOKIE_SECRET not supplied; random 256-bit secret will not be saved")
 
+    server = RestServer(cookie_secret=cookie_secret,
+                        debug=debug,
+                        log_function=tornado_logger,
+                        login_url='/login',
+                        static_path=static_path,
+                        template_path=template_path,
+                        xsrf_cookies=True)  # type: ignore[no-untyped-call]
 
-class MainHandler(tornado.web.RequestHandler):
-    """Main HTML handler."""
+    server.add_route(r"/api",                                        HATEOASHandler,                         args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
 
-    def initialize(  # pylint: disable=C0116,W0201
-        self,
-        config: Dict[str, Any],
-        base_url: str = "/",
-        debug: bool = False,
-        auth: Optional[Auth] = None,
-    ) -> None:  # noqa: D102
-        self.base_url = base_url
-        self.debug = debug
-        self.config = config
-        self.auth = auth
-        self.auth_key: Optional[bytes] = None
-        self.current_user_secure = None
-        self.address = config['FC_PUBLIC_URL']
+    server.add_route(r"/api/collections",                            CollectionsHandler,                     args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/collections/([^\/]+)",                   SingleCollectionHandler,                args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/collections/([^\/]+)/files",             SingleCollectionFilesHandler,           args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/collections/([^\/]+)/snapshots",         SingleCollectionSnapshotsHandler,       args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
 
-    def get_template_namespace(self) -> Dict[str, Any]:
-        """Get the template namespace."""
-        namespace = super().get_template_namespace()
-        namespace['version'] = file_catalog.__version__
-        return namespace
+    server.add_route(r"/api/files",                                  FilesHandler,                           args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/files/count",                            FilesCountHandler,                      args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/files/([^\/]+)",                         SingleFileHandler,                      args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/files/([^\/]+)/actions/remove_location", SingleFileActionsRemoveLocationHandler, args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/files/([^\/]+)/locations",               SingleFileLocationsHandler,             args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
 
-    def get_current_user(self) -> Optional[str]:
-        """Get the current user by parsing the token."""
-        try:
-            token = self.get_secure_cookie('token')
-            logger.info('token: %r', token)
-            # if `auth` is None -> raise Exception
-            data = self.auth.validate(token, audience=['ANY'])  # type: ignore[union-attr]
-            self.auth_key = token
-            return cast(str, data['sub'])
-        except Exception:  # pylint: disable=W0703
-            logger.warning('failed auth', exc_info=True)
-        return None
+    server.add_route(r"/api/snapshots/([^\/]+)",                     SingleSnapshotHandler,                  args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
+    server.add_route(r"/api/snapshots/([^\/]+)/files",               SingleSnapshotFilesHandler,             args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
 
-    async def get(self) -> None:
-        """Handle GET requests."""
-        try:
-            self.render('index.html')
-        except Exception as e:  # pylint: disable=W0703
-            logger.warning('Error in main handler', exc_info=True)
-            message = 'Error generating page.'
-            if self.debug:
-                message += '\n' + str(e)
-            self.send_error(reason=message)
+    port = config["FC_PORT"]
+    server.startup(port=port)  # type: ignore[no-untyped-call]
 
-    def write_error(self, status_code: int = 500, **kwargs: Any) -> None:
-        """Write out custom error page."""
-        self.set_status(status_code)
-        if status_code >= 500:
-            self.write('<h2>Internal Error</h2>')
-        else:
-            self.write('<h2>Request Error</h2>')
-        if 'message' in kwargs:
-            self.write('<br />'.join(kwargs['message'].split('\n')))
-        self.finish()
-
-
-class LoginHandler(MainHandler):
-    """Login HTML handler."""
-
-    @handler.catch_error  # type: ignore[misc]
-    async def get(self) -> None:
-        """Handle GET requests."""
-        if not self.get_argument('access', ''):
-            url = url_concat(self.config['TOKEN_URL'] + '/token', {
-                'redirect': self.address + self.request.uri,
-                'state': self.get_argument('next', '/'),
-                'scope': 'file-catalog',
-            })
-            logging.info('redirect to %s', url)
-            self.redirect(url)
-            return
-
-        redirect = self.get_argument('state', '/')
-        access = self.get_argument('access')
-        self.set_secure_cookie('token', access)
-        logging.info('request: %r %r', redirect, access)
-        self.redirect(redirect)
-
-
-class AccountHandler(MainHandler):
-    """Account HTML handler."""
-
-    @handler.catch_error  # type: ignore[misc]
-    async def get(self) -> None:
-        """Handle Handle GET requests."""
-        if not self.get_argument('access', ''):
-            url = url_concat(self.config['TOKEN_URL'] + '/token', {
-                'redirect': self.address + self.request.uri,
-                'scope': 'file-catalog',
-            })
-            self.redirect(url)
-            return
-
-        access = self.get_argument('access')
-        refresh = self.get_argument('refresh')
-        self.render('account.html', authkey=refresh, tempkey=access)
+    return server
 
 
 # --------------------------------------------------------------------------------------
 # API Routes - the canonical/used File Catalog
 # --------------------------------------------------------------------------------------
-
 
 class APIHandler(RestHandler):
     """Base class for API REST handlers."""
@@ -317,7 +184,7 @@ class APIHandler(RestHandler):
         **kwargs: Any,
     ) -> None:
         """Initialize handler."""
-        super().initialize(**kwargs)
+        super().initialize(**kwargs)  # type: ignore[no-untyped-call]
 
         if db is None:
             raise Exception('Mongo instance is None: `db`')
@@ -352,7 +219,7 @@ class HATEOASHandler(APIHandler):
             'files': {'href': os.path.join(self.base_url, 'files')},
         }
 
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self) -> None:
         """Handle Handle GET requests."""
         self.write(self.data)
@@ -370,8 +237,7 @@ class FilesHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self) -> None:
         """Handle GET requests."""
         try:
@@ -382,8 +248,7 @@ class FilesHandler(APIHandler):
             argbuilder.build_keys(kwargs)
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
-            self.send_error(400, reason='Invalid query parameter(s)')
-            return
+            raise HTTPError(400, reason='Invalid query parameter(s)')
 
         files = await self.db.find_files(**kwargs)
 
@@ -395,8 +260,7 @@ class FilesHandler(APIHandler):
             'files': files,
         })
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def post(self) -> None:
         """Handle POST request."""
         metadata: types.Metadata = json_decode(self.request.body)
@@ -415,18 +279,16 @@ class FilesHandler(APIHandler):
         # NOTE - POST should not conflict with any existing record
         # NOTE - by uuid, by existing location(s), or by existing file-version
         if await self.db.get_file({'uuid': metadata['uuid']}):
-            self.send_error(
+            raise HTTPError(
                 409,
                 reason='Conflict with existing file (uuid already exists)',
                 file=os.path.join(self.files_url, metadata['uuid'])
             )
-            return
         try:  # check if `metadata` will conflict with an existing metadata record
             if await deconfliction.FileVersion(metadata).is_in_db(self):
                 return
         except deconfliction.IndeterminateFileVersionError:
-            self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
-            return
+            raise HTTPError(400, reason="File-version cannot be detected from the given 'metadata'")
         if await deconfliction.any_location_in_db(self, metadata.get("locations")):
             return
 
@@ -455,8 +317,7 @@ class FilesCountHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self) -> None:
         """Handle GET request."""
         try:
@@ -464,8 +325,7 @@ class FilesCountHandler(APIHandler):
             argbuilder.build_files_query(kwargs)
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
-            self.send_error(400, reason='Invalid query parameter(s)')
-            return
+            raise HTTPError(400, reason='Invalid query parameter(s)')
 
         files = await self.db.count_files(**kwargs)
 
@@ -490,53 +350,38 @@ class SingleFileHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uuid: str) -> None:
         """Handle GET request."""
-        try:
-            db_file = await self.db.get_file({'uuid': uuid})
+        db_file = await self.db.get_file({'uuid': uuid})
+        if not db_file:
+            raise HTTPError(404, reason='File uuid not found')
 
-            if db_file:
-                db_file['_links'] = {
-                    'self': {'href': os.path.join(self.files_url, uuid)},
-                    'parent': {'href': self.files_url},
-                }
+        db_file['_links'] = {
+            'self': {'href': os.path.join(self.files_url, uuid)},
+            'parent': {'href': self.files_url},
+        }
+        self.write(cast(StrDict, db_file))
 
-                self.write(cast(StrDict, db_file))
-            else:
-                self.send_error(404, reason='File uuid not found')
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
-
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def delete(self, uuid: str) -> None:
         """Handle DELETE request."""
         try:
             await self.db.delete_file({'uuid': uuid})
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
         except Exception:  # pylint: disable=W0703
-            self.send_error(404, reason='File uuid not found')
+            raise HTTPError(404, reason='File uuid not found')
         else:
             self.set_status(204)
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def patch(self, uuid: str) -> None:
         """Handle PATCH request."""
         metadata: types.Metadata = json_decode(self.request.body)
 
         # Find Matching File
-        try:
-            db_file = await self.db.get_file({'uuid': uuid})
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
-            return
+        db_file = await self.db.get_file({'uuid': uuid})
         if not db_file:
-            self.send_error(404, reason='File uuid not found')
-            return
+            raise HTTPError(404, reason='File uuid not found')
 
         # Validate Incoming Metadata
         if self.validation.has_forbidden_fields_modification(self, metadata, db_file):
@@ -566,22 +411,16 @@ class SingleFileHandler(APIHandler):
         }
         self.write(cast(StrDict, db_file))
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def put(self, uuid: str) -> None:
         """Handle PUT request."""
         metadata: types.Metadata = json_decode(self.request.body)
         metadata['uuid'] = uuid
 
         # Find Matching File
-        try:
-            db_file = await self.db.get_file({'uuid': uuid})
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
-            return
+        db_file = await self.db.get_file({'uuid': uuid})
         if not db_file:
-            self.send_error(404, reason='File uuid not found')
-            return
+            raise HTTPError(404, reason='File uuid not found')
 
         # Validate Incoming Metadata
         if self.validation.has_forbidden_fields_modification(self, metadata, db_file):
@@ -599,8 +438,7 @@ class SingleFileHandler(APIHandler):
                 return
         except deconfliction.IndeterminateFileVersionError:
             # `validate_metadata_schema_typing()` should have detected this anyways
-            self.send_error(400, reason="File-version cannot be detected from the given 'metadata'")
-            return
+            raise HTTPError(400, reason="File-version cannot be detected from the given 'metadata'")
 
         # Replace & Write Back
         set_last_modification_date(metadata)
@@ -627,8 +465,7 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def post(self, uuid: str) -> None:
         """Handle POST request.
 
@@ -636,14 +473,9 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
         and potentially the entire record.
         """
         # try to load the record from the file catalog by UUID
-        try:
-            db_file = await self.db.get_file({'uuid': uuid})
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
-            return
+        db_file = await self.db.get_file({'uuid': uuid})
         if not db_file:
-            self.send_error(404, reason='File uuid not found')
-            return
+            raise HTTPError(404, reason='File uuid not found')
 
         # decode the JSON provided in the POST body
         body = json_decode(self.request.body)
@@ -651,8 +483,8 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
             site = body.pop("site")
             path = body.pop("path")
         except KeyError:
-            self.send_error(400, reason="POST body requires 'site' & 'path' fields")
-            return
+            raise HTTPError(400, reason="POST body requires 'site' & 'path' fields")
+
         if body:
             # REASONING:
             # If client defines (site=X, path=Y, archive=True)
@@ -662,12 +494,11 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
             # What if they don't define archive at all? (site=X, path=Y)
             # - does this match (site=X, path=Y, archive=True)?
             # It's unclear, so better fail fast
-            self.send_error(
+            raise HTTPError(
                 400,
                 reason=f"Extra POST body fields detected: {list(body.keys())} "
                        f"('site' & 'path' are required)"
             )
-            return
 
         def is_location_match(loc: types.LocationEntry) -> bool:
             # only match against the mandatory fields
@@ -678,11 +509,10 @@ class SingleFileActionsRemoveLocationHandler(APIHandler):
         after = [loc for loc in before if not is_location_match(loc)]
         # bad location! -- no location was filtered out
         if before == after:
-            self.send_error(
+            raise HTTPError(
                 404,
                 reason=f"Location entry not found for site='{site}' & path='{path}'"
             )
-            return
         # remove location! -- there are remaining locations after filtering
         elif after:
             db_file = await self.db.update_file(uuid, {'locations': after})
@@ -713,24 +543,16 @@ class SingleFileLocationsHandler(APIHandler):
         # pylint: disable=W0201
         self.files_url = os.path.join(self.base_url, 'files')
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def post(self, uuid: str) -> None:
         """Handle POST request.
 
         Add location(s) to the record identified by the provided UUID.
         """
         # try to load the record from the file catalog by UUID
-        try:
-            db_file = await self.db.get_file({'uuid': uuid})
-        except pymongo.errors.InvalidId:
-            self.send_error(400, reason='Not a valid uuid')
-            return
-
-        # if we didn't get a record
+        db_file = await self.db.get_file({'uuid': uuid})
         if not db_file:
-            self.send_error(404, reason='File uuid not found')
-            return
+            raise HTTPError(404, reason='File uuid not found')
 
         # decode the JSON provided in the POST body
         metadata: types.Metadata = json_decode(self.request.body)
@@ -738,13 +560,11 @@ class SingleFileLocationsHandler(APIHandler):
 
         # if the user didn't provide locations
         if locations is None:
-            self.send_error(400, reason="POST body requires 'locations' field")
-            return
+            raise HTTPError(400, reason="POST body requires 'locations' field")
 
         # validate `locations`
         if not self.validation.is_valid_location_list(locations):
-            self.send_error(400, reason=self.validation.INVALID_LOCATIONS_LIST_MESSAGE)
-            return
+            raise HTTPError(400, reason=self.validation.INVALID_LOCATIONS_LIST_MESSAGE)
 
         # for each location provided
         new_locations = []
@@ -782,7 +602,6 @@ class SingleFileLocationsHandler(APIHandler):
 # Collections (unused)
 # --------------------------------------------------------------------------------------
 
-
 class CollectionBaseHandler(APIHandler):
     """Initialize an abstract/base handler for collection-type requests."""
 
@@ -800,8 +619,7 @@ class CollectionBaseHandler(APIHandler):
 class CollectionsHandler(CollectionBaseHandler):
     """Initialize a handler for collection requests."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self) -> None:
         """Handle GET request."""
         try:
@@ -811,8 +629,7 @@ class CollectionsHandler(CollectionBaseHandler):
             argbuilder.build_keys(kwargs)
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
-            self.send_error(400, reason='Invalid query parameter(s)')
-            return
+            raise HTTPError(400, reason='Invalid query parameter(s)')
 
         collections = await self.db.find_collections(**kwargs)
 
@@ -824,8 +641,7 @@ class CollectionsHandler(CollectionBaseHandler):
             'collections': collections,
         })
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def post(self) -> None:
         """Handle POST request."""
         metadata = json_decode(self.request.body)
@@ -835,15 +651,12 @@ class CollectionsHandler(CollectionBaseHandler):
             metadata['query'] = json_encode(metadata['query'])
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
-            self.send_error(400, reason='Invalid query parameter(s)')
-            return
+            raise HTTPError(400, reason='Invalid query parameter(s)')
 
         if 'collection_name' not in metadata:
-            self.send_error(400, reason='Missing collection_name')
-            return
+            raise HTTPError(400, reason='Missing collection_name')
         if 'owner' not in metadata:
-            self.send_error(400, reason='Missing owner')
-            return
+            raise HTTPError(400, reason='Missing owner')
 
         # allow user-specified uuid, create if not found
         if 'uuid' not in metadata:
@@ -856,9 +669,8 @@ class CollectionsHandler(CollectionBaseHandler):
 
         if ret:
             # collection uuid already exists
-            self.send_error(409, reason='Conflict with existing collection (uuid already exists)',
+            raise HTTPError(409, reason='Conflict with existing collection (uuid already exists)',
                             file=os.path.join(self.collections_url, ret['uuid']))
-            return
         else:
             uuid = await self.db.create_collection(metadata)
             self.set_status(201)
@@ -877,8 +689,7 @@ class CollectionsHandler(CollectionBaseHandler):
 class SingleCollectionHandler(CollectionBaseHandler):
     """Initialize a handler for single collection requests."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -893,7 +704,7 @@ class SingleCollectionHandler(CollectionBaseHandler):
 
             self.write(ret)
         else:
-            self.send_error(404, reason='Collection not found')
+            raise HTTPError(404, reason='Collection not found')
 
 
 # --------------------------------------------------------------------------------------
@@ -902,8 +713,7 @@ class SingleCollectionHandler(CollectionBaseHandler):
 class SingleCollectionFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's files."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
@@ -919,8 +729,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
                 argbuilder.build_keys(kwargs)
             except Exception:  # pylint: disable=W0703
                 logging.warning('query parameter error', exc_info=True)
-                self.send_error(400, reason='Invalid query parameter(s)')
-                return
+                raise HTTPError(400, reason='Invalid query parameter(s)')
 
             files = await self.db.find_files(**kwargs)
 
@@ -932,7 +741,7 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
                 'files': files,
             })
         else:
-            self.send_error(404, reason='Collection not found')
+            raise HTTPError(404, reason='Collection not found')
 
 
 # --------------------------------------------------------------------------------------
@@ -941,16 +750,14 @@ class SingleCollectionFilesHandler(CollectionBaseHandler):
 class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single collection's snapshots."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_collection({'uuid': uid})
         if not ret:
             ret = await self.db.get_collection({'collection_name': uid})
         if not ret:
-            self.send_error(400, reason='Cannot find collection')
-            return
+            raise HTTPError(400, reason='Cannot find collection')
 
         try:
             kwargs = urlargparse.parse(self.request.query)
@@ -960,8 +767,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             kwargs['query'] = {'collection_id': ret['uuid']}
         except Exception:  # pylint: disable=W0703
             logging.warning('query parameter error', exc_info=True)
-            self.send_error(400, reason='Invalid query parameter(s)')
-            return
+            raise HTTPError(400, reason='Invalid query parameter(s)')
 
         snapshots = await self.db.find_snapshots(**kwargs)
 
@@ -973,16 +779,14 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
             'snapshots': snapshots,
         })
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def post(self, uid: str) -> None:
         """Handle POST request."""
         ret = await self.db.get_collection({'uuid': uid})
         if not ret:
             ret = await self.db.get_collection({'collection_name': uid})
         if not ret:
-            self.send_error(400, reason='Cannot find collection')
-            return
+            raise HTTPError(400, reason='Cannot find collection')
 
         files_kwargs = {
             'query': json_decode(ret['query']),
@@ -1010,7 +814,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 
         if snapshot:
             # snapshot uuid already exists
-            self.send_error(409, reason='Conflict with existing snapshot (uuid already exists)')
+            raise HTTPError(409, reason='Conflict with existing snapshot (uuid already exists)')
         else:
             # find the list of files
             files = await self.db.find_files(**files_kwargs)
@@ -1036,8 +840,7 @@ class SingleCollectionSnapshotsHandler(CollectionBaseHandler):
 class SingleSnapshotHandler(CollectionBaseHandler):
     """Initialize a handler for requesting single snapshots."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_snapshot({'uuid': uid})
@@ -1050,7 +853,7 @@ class SingleSnapshotHandler(CollectionBaseHandler):
 
             self.write(ret)
         else:
-            self.send_error(404, reason='Snapshot not found')
+            raise HTTPError(404, reason='Snapshot not found')
 
 
 # --------------------------------------------------------------------------------------
@@ -1059,8 +862,7 @@ class SingleSnapshotHandler(CollectionBaseHandler):
 class SingleSnapshotFilesHandler(CollectionBaseHandler):
     """Initialize a handler for requesting a single snapshot's files."""
 
-    @handler.authenticated  # type: ignore[misc]
-    @handler.catch_error  # type: ignore[misc]
+    @fc_auth(prefix=FC_AUTH_PREFIX, roles=FC_AUTH_ROLES)
     async def get(self, uid: str) -> None:
         """Handle GET request."""
         ret = await self.db.get_snapshot({'uuid': uid})
@@ -1075,8 +877,7 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
                 argbuilder.build_keys(kwargs)
             except Exception:  # pylint: disable=W0703
                 logging.warning('query parameter error', exc_info=True)
-                self.send_error(400, reason='Invalid query parameter(s)')
-                return
+                raise HTTPError(400, reason='Invalid query parameter(s)')
 
             files = await self.db.find_files(**kwargs)
 
@@ -1088,4 +889,4 @@ class SingleSnapshotFilesHandler(CollectionBaseHandler):
                 'files': files,
             })
         else:
-            self.send_error(404, reason='Snapshot not found')
+            raise HTTPError(404, reason='Snapshot not found')

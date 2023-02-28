@@ -1,22 +1,19 @@
+# mongo.py
 """File Catalog MongoDB Interface."""
 
-
-from __future__ import absolute_import, division, print_function
-
-import asyncio
 import datetime
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Union, cast
 
-import pymongo  # type: ignore[import]
-from motor.motor_tornado import MotorClient  # type: ignore[import]
-from motor.motor_tornado import MotorCursor
+from motor.motor_tornado import MotorClient, MotorCursor  # type: ignore[import]
+import pymongo
+from pymongo.results import InsertOneResult
 from wipac_telemetry import tracing_tools as wtt
 
 from .schema.types import Metadata
 
-logger = logging.getLogger("mongo")
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_MAX_TIME_MS = 10 * 60 * 1000  # 10 minutes
@@ -38,27 +35,27 @@ class Mongo:
         password: Optional[str] = None,
         uri: Optional[str] = None,
     ) -> None:
-
+        """Initialize the File Catalog's internal MongoDB client."""
         if uri:
             logger.info(f"MongoClient args: uri={uri}")
-            self.client = MotorClient(uri, authSource=authSource).file_catalog
+            self.close_me = MotorClient(uri, authSource=authSource)
+            self.client = self.close_me.file_catalog
         else:
             logger.info(
                 "MongoClient args: host=%s, port=%s, username=%s", host, port, username
             )
-            self.client = MotorClient(
+            self.close_me = MotorClient(
                 host=host,
                 port=port,
                 authSource=authSource,
                 username=username,
                 password=password,
-            ).file_catalog
+            )
+            self.client = self.close_me.file_catalog
 
-        asyncio.get_event_loop().run_until_complete(self.create_indexes())
         self.executor = ThreadPoolExecutor(max_workers=10)
         logger.info("done setting up Mongo")
 
-    # fmt: off
     @wtt.spanned(all_args=True)
     async def create_indexes(self) -> None:
         """Create indexes for all file-catalog mongo collections."""
@@ -97,7 +94,6 @@ class Mongo:
         await self.client.snapshots.create_index('uuid', unique=True, background=True)
         await self.client.snapshots.create_index('collection_id', background=True)
         await self.client.snapshots.create_index('owner', background=True)
-    # fmt: on
 
     @staticmethod
     def _get_projection(
@@ -175,26 +171,19 @@ class Mongo:
     ) -> int:
         """Get count of files matching query."""
         if not query:
-            query = {}
+            query = {"uuid": {"$exists": True}}
 
         ret = await self.client.files.count_documents(query)
 
         return cast(int, ret)
 
     @wtt.spanned(all_args=True)
-    async def create_file(self, metadata: Metadata) -> pymongo.results.InsertOneResult:
+    async def create_file(self, metadata: Metadata) -> InsertOneResult:
         """Insert file metadata.
 
-        Return uuid.
+        Return InsertOneResult.
         """
-        result = await self.client.files.insert_one(metadata)
-
-        if (not result) or (not result.inserted_id):
-            msg = "did not insert new file"
-            logger.warning(msg)
-            raise Exception(msg)
-
-        return result
+        return cast(InsertOneResult, await self.client.files.insert_one(metadata))
 
     @wtt.spanned(all_args=True)
     async def get_file(
@@ -216,7 +205,7 @@ class Mongo:
             {"uuid": uuid},
             update_query,
             projection={"_id": False},
-            max_time_ms=DEFAULT_MAX_TIME_MS,
+            maxTimeMS=DEFAULT_MAX_TIME_MS,
             return_document=pymongo.ReturnDocument.AFTER,
         )
 
@@ -245,24 +234,26 @@ class Mongo:
 
         result = await self.client.files.replace_one({"uuid": uuid}, metadata)
 
-        if result.modified_count is None:
-            logger.warning(
-                "Cannot determine if document has been modified since `result.modified_count` has the value `None`. `result.matched_count` is %s",
-                result.matched_count,
-            )
-        elif result.modified_count != 1:
+        if result.modified_count != 1:
             msg = f"updated {result.modified_count} files with id {uuid}"
-            logger.warning(msg)
+            logger.error(msg)
             raise Exception(msg)
 
     @wtt.spanned(all_args=True)
     async def delete_file(self, filters: Dict[str, Any]) -> None:
         """Delete file matching filters."""
+        # note: result.deleted_count == 1, even when more than one document matches
+        match_count = await self.count_files(filters)
+        if match_count > 1:
+            msg = f"filters {filters} matches {match_count} documents; preventing ambiguous delete of files document"
+            logger.error(msg)
+            raise Exception(msg)
+
         result = await self.client.files.delete_one(filters)
 
         if result.deleted_count != 1:
-            msg = f"deleted {result.deleted_count} files with filter {filters}"
-            logger.warning(msg)
+            msg = f"deleted {result.deleted_count} files with filters {filters}"
+            logger.error(msg)
             raise Exception(msg)
 
     async def find_collections(
@@ -284,7 +275,7 @@ class Mongo:
             List of MongoDB collections
         """
         projection = Mongo._get_projection(keys)  # show all fields by default
-        cursor = self.client.collections.find({}, projection)
+        cursor = self.client.collections.find({"uuid": {"$exists": True}}, projection)
         results = await Mongo._limit_result_list(cursor, limit, start)
 
         return results
@@ -296,7 +287,7 @@ class Mongo:
         """
         result = await self.client.collections.insert_one(metadata)
 
-        if (not result) or (not result.inserted_id):
+        if not result.inserted_id:
             msg = "did not insert new collection"
             logger.warning(msg)
             raise Exception(msg)

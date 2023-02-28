@@ -9,7 +9,7 @@ from typing import Any, Dict, List, cast
 
 import coloredlogs  # type: ignore[import]
 import requests
-from rest_tools.client import RestClient  # type: ignore[import]
+from rest_tools.client import RestClient
 
 FCMetadata = Dict[str, Any]
 

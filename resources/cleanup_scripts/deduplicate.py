@@ -12,7 +12,7 @@ from typing import Any, Dict, Generator, List, Set, cast
 
 import coloredlogs  # type: ignore[import]
 from dateutil.parser import isoparse
-from rest_tools.client import RestClient  # type: ignore[import]
+from rest_tools.client import RestClient
 
 PAGE_SIZE = 10000
 
@@ -36,7 +36,7 @@ def _find_fc_metadata(rc: RestClient, logical_name: str) -> FCMetadata:
 
 def remove_prefix(string: str, prefix: str) -> str:
     """Return string without the given prefix."""
-    return string[len(prefix) :]
+    return string[len(prefix):]
 
 
 def _get_good_path(fpath: str) -> str:

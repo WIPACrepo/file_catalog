@@ -1,27 +1,8 @@
-# For most recent version see:
-# https://github.com/WIPACrepo/wipac-dev-tools/blob/main/.github/workflows/wipac-cicd.yml
-# Copy any updates to wipac-dev-tools.
-
-name: wipac ci/cd
+name: Profile MongoDB Queries
 
 on: [push]
 
 jobs:
-
-  flake8:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-      - uses: WIPACrepo/wipac-dev-flake8-action@v1
-
-  mypy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-      - uses: WIPACrepo/wipac-dev-mypy-action@v1.1
-
   py-setup:
     runs-on: ubuntu-latest
     steps:
@@ -56,7 +37,7 @@ jobs:
       - id: versions
         uses: WIPACrepo/wipac-dev-py-versions-action@v2
 
-  tests:
+  profile:
     needs: [py-versions]
     runs-on: ubuntu-latest
     strategy:
@@ -66,36 +47,25 @@ jobs:
         mongodb-version: [3.6, 4.0, 4.2, 4.4, 5.0, 6.0]
     steps:
       - uses: actions/checkout@v3
+
       - name: Start MongoDB v${{ matrix.mongodb-version }}
         uses: supercharge/mongodb-github-action@1.9.0
         with:
           mongodb-version: ${{ matrix.mongodb-version }}
+
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.py3 }}
+
       - name: Pytest
         env:
           CI_TEST_ENV: true
           TEST_DATABASE_HOST: localhost
           TEST_DATABASE_PORT: 27017
+          WIPACTEL_EXPORT_STDOUT: false
         run: |
           pip install --upgrade pip wheel setuptools pytest
           pip install .[dev]
-          pytest -vvvv tests
-
-  release:
-    # only run on main/master/default
-    if: format('refs/heads/{0}', github.event.repository.default_branch) == github.ref
-    needs: [py-setup, tests]
-    runs-on: ubuntu-latest
-    concurrency: release
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-    - name: Python Semantic Release
-      uses: relekang/python-semantic-release@master
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        repository_username: __token__
-        repository_password: ${{ secrets.PYPI_TOKEN }}
+          resources/enable_profiling.py
+          pytest -vvvvv --tb=short tests
+          resources/profile_queries.py

@@ -1,11 +1,21 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # fmt:off
 
 import os
+from typing import Any, cast, Dict
 
-import pymongo  # type: ignore[import]
 from pymongo import MongoClient
+from pymongo.database import Database
+
+# PyMongo profiling level constants from PyMongo 3 (removed in PyMongo 4)
+# See: https://api.mongodb.com/python/3.0.3/api/pymongo/database.html#pymongo.ALL
+# See: https://www.mongodb.com/docs/manual/reference/command/profile/#mongodb-dbcommand-dbcmd.profile
+OFF = 0
+SLOW_ONLY = 1
+ALL = 2
+
+FCDoc = Dict[str, Any]
 
 env = {
     'TEST_DATABASE_HOST': 'localhost',
@@ -20,6 +30,10 @@ for k in env:
         else:
             env[k] = os.environ[k]
 
-db = MongoClient(host=env['TEST_DATABASE_HOST'], port=env['TEST_DATABASE_PORT']).file_catalog
-db.set_profiling_level(pymongo.ALL)
+test_database_host = str(env['TEST_DATABASE_HOST'])
+test_database_port = int(str(env['TEST_DATABASE_PORT']))
+db: Database[FCDoc] = cast(Database[FCDoc], MongoClient(host=test_database_host, port=test_database_port).file_catalog)
+# db.set_profiling_level(pymongo.OFF)
+# See: https://pymongo.readthedocs.io/en/stable/migrate-to-pymongo4.html#database-set-profiling-level-is-removed
+db.command('profile', ALL, filter={'op': 'query'})
 print('MongoDB profiling enabled')

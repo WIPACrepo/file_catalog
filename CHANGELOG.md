@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v1.9.4 (2023-03-22)
+### Other
+* Development ergonomics ([#140](https://github.com/WIPACrepo/file_catalog/issues/140)) ([`83913f2`](https://github.com/WIPACrepo/file_catalog/commit/83913f259c77903ce5bde421efab9669a4276dd0))
+
 ## v1.9.3 (2023-02-28)
 ### Other
 * Keycloak Authentication ([#138](https://github.com/WIPACrepo/file_catalog/issues/138)) ([`6623fb2`](https://github.com/WIPACrepo/file_catalog/commit/6623fb2d5dfb168ce41e002ed0f85bac5d3f63f8))

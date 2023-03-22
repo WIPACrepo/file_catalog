@@ -110,4 +110,8 @@ venv.bak/
 # Vagrant
 .vagrant
 
-src/
+# ruff is flake8 re-written in Rust for speed
+.ruff_cache
+
+# Patrick development ergonomics
+/suru

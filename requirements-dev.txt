@@ -155,6 +155,8 @@ requests-futures==1.0.0
     #   wipac-rest-tools
 requests-toolbelt==0.10.1
     # via wipac-file-catalog (setup.py)
+ruff==0.0.257
+    # via wipac-file-catalog (setup.py)
 six==1.16.0
     # via thrift
 thrift==0.16.0

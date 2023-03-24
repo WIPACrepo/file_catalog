@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v1.9.6 (2023-03-24)
+### Other
+* PyMongo 4 is too advanced for us ([#142](https://github.com/WIPACrepo/file_catalog/issues/142)) ([`66d2bb1`](https://github.com/WIPACrepo/file_catalog/commit/66d2bb1e55fd790d8814ecf2e2acb10f3621d096))
+
 ## v1.9.5 (2023-03-24)
 ### Other
 * Modify CICD so we can get semver tags on Docker images again ([#141](https://github.com/WIPACrepo/file_catalog/issues/141)) ([`54af1d7`](https://github.com/WIPACrepo/file_catalog/commit/54af1d7a3703056049a746048c26ae6e743e8a8b))

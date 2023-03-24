@@ -38,8 +38,6 @@ cryptography==40.0.0
     # via pyjwt
 deprecated==1.2.13
     # via opentelemetry-api
-dnspython==2.3.0
-    # via pymongo
 exceptiongroup==1.1.1
     # via pytest
 flake8==6.0.0
@@ -70,7 +68,7 @@ mccabe==0.7.0
     # via flake8
 more-itertools==9.1.0
     # via wipac-file-catalog (setup.py)
-motor==3.1.1
+motor==2.5.1
     # via wipac-file-catalog (setup.py)
 multidict==6.0.4
     # via
@@ -124,7 +122,7 @@ pyflakes==3.0.1
     # via flake8
 pyjwt[crypto]==2.5.0
     # via wipac-rest-tools
-pymongo==4.3.3
+pymongo==3.13.0
     # via
     #   motor
     #   wipac-file-catalog (setup.py)

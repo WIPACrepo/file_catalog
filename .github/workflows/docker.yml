@@ -18,17 +18,21 @@ jobs:
 
     - name: Docker meta
       id: docker_meta
-      uses: crazy-max/ghaction-docker-meta@v1
+      uses: crazy-max/ghaction-docker-meta@v4.3.0
       with:
         # list of Docker images to use as base name for tags
         images: |
+          ghcr.io/wipacrepo/file_catalog
           icecube/file-catalog
+        flavor: |
+          latest=auto
+          prefix=
+          suffix=
         # add git short SHA as Docker tag
-        tag-sha: true
-        tag-semver: |
-            {{major}}
-            {{major}}.{{minor}}
-            {{major}}.{{minor}}.{{patch}}
+        tags: |
+          type=semver,pattern={{major}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}.{{minor}}.{{patch}}
 
     - name: Set up Docker Buildx
       id: buildx

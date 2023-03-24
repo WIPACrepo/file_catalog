@@ -34,7 +34,7 @@ coverage[toml]==7.2.2
     # via pytest-cov
 crawler==0.0.2
     # via wipac-file-catalog (setup.py)
-cryptography==39.0.2
+cryptography==40.0.0
     # via pyjwt
 deprecated==1.2.13
     # via opentelemetry-api
@@ -155,7 +155,7 @@ requests-futures==1.0.0
     #   wipac-rest-tools
 requests-toolbelt==0.10.1
     # via wipac-file-catalog (setup.py)
-ruff==0.0.257
+ruff==0.0.259
     # via wipac-file-catalog (setup.py)
 six==1.16.0
     # via thrift
@@ -176,7 +176,7 @@ types-pymysql==1.0.19.5
     # via wipac-file-catalog (setup.py)
 types-python-dateutil==2.8.19.10
     # via wipac-file-catalog (setup.py)
-types-requests==2.28.11.15
+types-requests==2.28.11.16
     # via wipac-file-catalog (setup.py)
 types-urllib3==1.26.25.8
     # via types-requests

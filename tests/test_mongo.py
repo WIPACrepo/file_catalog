@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from file_catalog.mongo import AllKeys, Mongo
 from motor import MotorCollection  # type: ignore[import]
-from pymongo.errors import DuplicateKeyError
+from pymongo.errors import DuplicateKeyError  # type: ignore[import]
 
 logger = logging.getLogger(__name__)
 

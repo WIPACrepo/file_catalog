@@ -7,8 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Union, cast
 
 from motor.motor_tornado import MotorClient, MotorCursor  # type: ignore[import]
-import pymongo
-from pymongo.results import InsertOneResult
+import pymongo  # type: ignore[import]
+from pymongo.results import InsertOneResult  # type: ignore[import]
 from wipac_telemetry import tracing_tools as wtt
 
 from .schema.types import Metadata

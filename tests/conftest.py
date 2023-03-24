@@ -12,8 +12,8 @@ import os
 import socket
 from typing import Any, AsyncGenerator, cast, Dict
 
-from pymongo import MongoClient
-from pymongo.errors import ServerSelectionTimeoutError
+from pymongo import MongoClient  # type: ignore[import]
+from pymongo.errors import ServerSelectionTimeoutError  # type: ignore[import]
 import pytest
 from pytest import MonkeyPatch
 import pytest_asyncio

@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v1.9.5 (2023-03-24)
+### Other
+* Modify CICD so we can get semver tags on Docker images again ([#141](https://github.com/WIPACrepo/file_catalog/issues/141)) ([`54af1d7`](https://github.com/WIPACrepo/file_catalog/commit/54af1d7a3703056049a746048c26ae6e743e8a8b))
+
 ## v1.9.4 (2023-03-22)
 ### Other
 * Development ergonomics ([#140](https://github.com/WIPACrepo/file_catalog/issues/140)) ([`83913f2`](https://github.com/WIPACrepo/file_catalog/commit/83913f259c77903ce5bde421efab9669a4276dd0))

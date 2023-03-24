@@ -11,7 +11,7 @@ __all__ = ["schema"]
 # is zero for an official release, positive for a development branch,
 # or negative for a release candidate or beta (after the base version
 # number has been incremented)
-__version__ = "1.9.4"
+__version__ = "1.9.5"
 version_info = (
     int(__version__.split(".")[0]),
     int(__version__.split(".")[1]),

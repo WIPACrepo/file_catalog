@@ -22,7 +22,6 @@ jobs:
       with:
         # list of Docker images to use as base name for tags
         images: |
-          ghcr.io/wipacrepo/file_catalog
           icecube/file-catalog
         flavor: |
           latest=auto

@@ -89,6 +89,7 @@ async def rest(monkeypatch: MonkeyPatch, mongo: Mongo, port: int) -> AsyncGenera
     config: Dict[str, Any] = {
         "AUTH_AUDIENCE": "file-catalog-testing",
         "AUTH_OPENID_URL": "https://keycloak.icecube.wisc.edu/auth/realms/IceCube",
+        "FC_HOST": "localhost",
         "FC_PORT": port,
         "FC_PUBLIC_URL": f"http://localhost:{port}",
         "FC_QUERY_FILE_LIST_LIMIT": 10000,

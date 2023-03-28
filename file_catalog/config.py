@@ -28,6 +28,9 @@ class Config(Dict[str, Optional[Union[bool, int, str]]]):
         'FC_COOKIE_SECRET': ConfigParamSpec(
             None, str, 'Value of cookie_secret argument for tornado.web.Application'
         ),
+        'FC_HOST': ConfigParamSpec(
+            'localhost', str, 'Address for File Catalog server to bind for listening (default: localhost)'
+        ),
         'FC_PORT': ConfigParamSpec(
             8888, int, 'Port for File Catalog server to listen on'
         ),

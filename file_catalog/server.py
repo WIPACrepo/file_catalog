@@ -163,8 +163,9 @@ def create(config: Dict[str, Any],
     server.add_route(r"/api/snapshots/([^\/]+)",                     SingleSnapshotHandler,                  args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
     server.add_route(r"/api/snapshots/([^\/]+)/files",               SingleSnapshotFilesHandler,             args)  # type: ignore[no-untyped-call]  # noqa: E221, E241, E251
 
+    address = config["FC_HOST"]
     port = config["FC_PORT"]
-    server.startup(port=port)  # type: ignore[no-untyped-call]
+    server.startup(address=address, port=port)  # type: ignore[no-untyped-call]
 
     return server
 

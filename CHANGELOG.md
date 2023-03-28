@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v1.9.7 (2023-03-28)
+### Other
+* Allow configuration of service address ([#143](https://github.com/WIPACrepo/file_catalog/issues/143)) ([`52d29a3`](https://github.com/WIPACrepo/file_catalog/commit/52d29a3949015d850963a09b92482e4b8af5c4b4))
+
 ## v1.9.6 (2023-03-24)
 ### Other
 * PyMongo 4 is too advanced for us ([#142](https://github.com/WIPACrepo/file_catalog/issues/142)) ([`66d2bb1`](https://github.com/WIPACrepo/file_catalog/commit/66d2bb1e55fd790d8814ecf2e2acb10f3621d096))

@@ -2,6 +2,11 @@
 
 <!--next-version-placeholder-->
 
+## v1.9.9 (2023-05-30)
+### Other
+
+* Bump py-versions CI release v2.1 ([#144](https://github.com/WIPACrepo/file_catalog/issues/144)) ([`77c6926`](https://github.com/WIPACrepo/file_catalog/commit/77c6926dd9970852eae220fb310eaaac29c2e964))
+
 ## v1.9.8 (2023-05-30)
 ### Other
 

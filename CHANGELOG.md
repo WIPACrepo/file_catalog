@@ -2,6 +2,11 @@
 
 <!--next-version-placeholder-->
 
+## v1.9.8 (2023-05-30)
+### Other
+
+* Bump py-versions CI release v2.1 ([`a118e25`](https://github.com/WIPACrepo/file_catalog/commit/a118e254bc470984b534d66417c43b17b020aed8))
+
 ## v1.9.7 (2023-03-28)
 ### Other
 * Allow configuration of service address ([#143](https://github.com/WIPACrepo/file_catalog/issues/143)) ([`52d29a3`](https://github.com/WIPACrepo/file_catalog/commit/52d29a3949015d850963a09b92482e4b8af5c4b4))

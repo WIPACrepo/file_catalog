@@ -125,6 +125,10 @@ def create(config: Dict[str, Any],
         "config": config,
         "db": mongo,
         "debug": debug,
+        "routestats": {
+            "window_time": config["ROUTESTATS_WINDOW_SIZE"],
+            "timeout": config["ROUTESTATS_OVERLOAD_LIMIT"],
+        },
     }
     if 'CI_TEST_ENV' in os.environ:
         del handler_setup["auth"]

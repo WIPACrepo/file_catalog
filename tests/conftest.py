@@ -19,6 +19,7 @@ from pytest import MonkeyPatch
 import pytest_asyncio
 from rest_tools.client import RestClient
 
+from file_catalog.config import Config
 from file_catalog.mongo import Mongo
 from file_catalog.server import create
 
@@ -86,14 +87,15 @@ async def rest(monkeypatch: MonkeyPatch, mongo: Mongo, port: int) -> AsyncGenera
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
     monkeypatch.setenv("WIPACTEL_EXPORT_STDOUT", "FALSE")
 
-    config: Dict[str, Any] = {
+    config: Config = Config()
+    config.update({
         "AUTH_AUDIENCE": "file-catalog-testing",
         "AUTH_OPENID_URL": "https://keycloak.icecube.wisc.edu/auth/realms/IceCube",
         "FC_HOST": "localhost",
         "FC_PORT": port,
         "FC_PUBLIC_URL": f"http://localhost:{port}",
         "FC_QUERY_FILE_LIST_LIMIT": 10000,
-    }
+    })
 
     rest_server = create(config=config,
                          port=port,

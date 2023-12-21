@@ -2,6 +2,13 @@
 
 <!--next-version-placeholder-->
 
+## v1.9.10 (2023-12-21)
+
+### Other
+
+* Freeze semantic release version ([`109ac59`](https://github.com/WIPACrepo/file_catalog/commit/109ac596abcfdcf3a98023d8eb207e1a5594cce1))
+* Add routestats env variables ([#146](https://github.com/WIPACrepo/file_catalog/issues/146)) ([`12017c0`](https://github.com/WIPACrepo/file_catalog/commit/12017c049e50267f7529d2c8a965f92485b621d2))
+
 ## v1.9.9 (2023-05-30)
 ### Other
 

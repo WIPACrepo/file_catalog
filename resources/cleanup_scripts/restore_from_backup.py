@@ -27,7 +27,7 @@ async def already_in_fc(rc: RestClient, uuid: str, logical_name: str) -> bool:
         await rc.request("GET", "/api/files/" + uuid)
         return True
     except requests.exceptions.HTTPError as e:
-        if e.response.status_code != 404:
+        if e and e.response.status_code != 404:
             raise
 
     # now sanity check that the logical_name isn't already in the FC

@@ -10,7 +10,7 @@ automatically discover them).
 import logging
 import os
 import socket
-from typing import Any, AsyncGenerator, cast, Dict
+from typing import Any, AsyncGenerator, cast
 
 from pymongo import MongoClient  # type: ignore[import]
 from pymongo.errors import ServerSelectionTimeoutError  # type: ignore[import]

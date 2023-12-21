@@ -55,7 +55,7 @@ class Config(Dict[str, Optional[Union[bool, int, str]]]):
         'MONGODB_PORT': ConfigParamSpec(27017, int, 'MongoDB port'),
         'MONGODB_URI': ConfigParamSpec(None, str, 'MongoDB URI'),
         'ROUTESTATS_WINDOW_SIZE': ConfigParamSpec(
-            600,
+            1000,
             int,
             'Query window size to declare overload'
         ),

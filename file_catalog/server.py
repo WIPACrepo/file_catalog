@@ -125,7 +125,7 @@ def create(config: Dict[str, Any],
         "config": config,
         "db": mongo,
         "debug": debug,
-        "routestats": {
+        "route_stats": {
             "window_time": config["ROUTESTATS_WINDOW_SIZE"],
             "timeout": config["ROUTESTATS_OVERLOAD_LIMIT"],
         },

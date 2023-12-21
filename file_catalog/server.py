@@ -126,8 +126,9 @@ def create(config: Dict[str, Any],
         "db": mongo,
         "debug": debug,
         "route_stats": {
-            "window_time": config["ROUTESTATS_WINDOW_SIZE"],
-            "timeout": config["ROUTESTATS_OVERLOAD_LIMIT"],
+            "window_size": config["ROUTESTATS_WINDOW_SIZE"],
+            "window_time": config["ROUTESTATS_WINDOW_TIME"],
+            "timeout": config["ROUTESTATS_TIMEOUT"],
         },
     }
     if 'CI_TEST_ENV' in os.environ:

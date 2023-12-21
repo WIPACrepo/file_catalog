@@ -54,6 +54,21 @@ class Config(Dict[str, Optional[Union[bool, int, str]]]):
         'MONGODB_HOST': ConfigParamSpec('localhost', str, 'MongoDB host'),
         'MONGODB_PORT': ConfigParamSpec(27017, int, 'MongoDB port'),
         'MONGODB_URI': ConfigParamSpec(None, str, 'MongoDB URI'),
+        'ROUTESTATS_WINDOW_SIZE': ConfigParamSpec(
+            1000,
+            int,
+            'Query window size to declare overload'
+        ),
+        'ROUTESTATS_WINDOW_TIME': ConfigParamSpec(
+            600,
+            int,
+            'Query window time in seconds to declare overload'
+        ),
+        'ROUTESTATS_TIMEOUT': ConfigParamSpec(
+            240,
+            int,
+            'Average query time in seconds to declare overload'
+        ),
     }
 
     def __init__(self) -> None:

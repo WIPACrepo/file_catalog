@@ -14,6 +14,7 @@ def _assert_httperror(exception: Exception, code: int, reason: str) -> None:
     """Assert that this is the expected HTTPError."""
     print(exception)
     assert isinstance(exception, requests.exceptions.HTTPError)
+    assert exception.response is not None
     assert exception.response.status_code == code
     assert exception.response.reason == reason
 

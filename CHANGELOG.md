@@ -2,6 +2,12 @@
 
 <!--next-version-placeholder-->
 
+## v1.9.12 (2024-04-23)
+
+### Other
+
+* Try harder to build docker images, and switch to ghcr.io ([`b8a9ea3`](https://github.com/WIPACrepo/file_catalog/commit/b8a9ea3f393ba509c45fcc6c38727116e009cb36))
+
 ## v1.9.11 (2024-04-23)
 
 ### Other

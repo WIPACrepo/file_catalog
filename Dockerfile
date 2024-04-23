@@ -1,4 +1,4 @@
-FROM python:3.8
+FROM python:3.10
 
 COPY README.md setup.cfg setup.py /usr/src/file_catalog/
 COPY file_catalog /usr/src/file_catalog/file_catalog

@@ -2,6 +2,12 @@
 
 <!--next-version-placeholder-->
 
+## v1.9.11 (2024-04-23)
+
+### Other
+
+* CI and python updates ([#147](https://github.com/WIPACrepo/file_catalog/issues/147)) ([`f830a1a`](https://github.com/WIPACrepo/file_catalog/commit/f830a1abf306cf84d3ca01e63b37f932d65fca8f))
+
 ## v1.9.10 (2023-12-21)
 
 ### Other
